@@ -172,6 +172,19 @@ select {
   margin-bottom: 12px;
 }
 
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.filter-row input {
+  width: auto;
+}
+
 .progress {
   height: 8px;
   border-radius: 4px;

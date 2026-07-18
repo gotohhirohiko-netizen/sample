@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
@@ -9,6 +10,7 @@ import TransactionRow from "../components/TransactionRow";
 export default function DailyListView() {
   const { month: monthParam } = useParams();
   const month = parseMonthParam(monthParam);
+  const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
@@ -24,6 +26,7 @@ export default function DailyListView() {
 
   const monthTx = transactions
     .filter((t) => isSameMonth(new Date(t.date), month))
+    .filter((t) => !unclassifiedOnly || (t.type === "expense" && t.subcategoryID == null))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const groups = new Map<string, typeof monthTx>();
@@ -40,6 +43,15 @@ export default function DailyListView() {
         ‹ ホームへ戻る
       </Link>
       <h1 className="screen-title">{formatYearMonth(month)}</h1>
+
+      <label className="filter-row">
+        <input
+          type="checkbox"
+          checked={unclassifiedOnly}
+          onChange={(e) => setUnclassifiedOnly(e.target.checked)}
+        />
+        未分類のみ表示
+      </label>
 
       {[...groups.entries()].map(([dayKey, items]) => (
         <div className="section" key={dayKey}>
@@ -58,7 +70,11 @@ export default function DailyListView() {
         </div>
       ))}
 
-      {monthTx.length === 0 && <p className="muted">この月の取引はまだありません</p>}
+      {monthTx.length === 0 && (
+        <p className="muted">
+          {unclassifiedOnly ? "未分類の取引はありません" : "この月の取引はまだありません"}
+        </p>
+      )}
     </div>
   );
 }
