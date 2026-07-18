@@ -105,12 +105,29 @@ export async function extractTransactions(
   return JSON.parse(textBlock.text) as ExtractionResult;
 }
 
+/**
+ * FileをBase64文字列へ変換する。`String.fromCharCode(...bytes)`のように
+ * スプレッド構文でバイト列全体を関数の引数として渡すと、実際のPDF程度の
+ * サイズでも呼び出し元の引数上限を超えて"Maximum call stack size exceeded"
+ * になるため、ブラウザ標準のFileReader(readAsDataURL)を使う。
+ */
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("ファイルの読み込みに失敗しました"));
+    reader.readAsDataURL(file);
+  });
+}
+
 /** Fileオブジェクトを抽出用のbase64/テキストデータへ変換する */
 export async function readFileForExtraction(file: File): Promise<FileForExtraction> {
   const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
   if (isPDF) {
-    const buffer = await file.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    const base64 = await readFileAsBase64(file);
     return { data: base64, mimeType: "application/pdf" };
   }
   const text = await file.text();
