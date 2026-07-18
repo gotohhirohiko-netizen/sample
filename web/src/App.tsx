@@ -14,6 +14,7 @@ import SettingsView from "./views/SettingsView";
 import CategoryBudgetManageView from "./views/CategoryBudgetManageView";
 import FundingSourceManageView from "./views/FundingSourceManageView";
 import BackupView from "./views/BackupView";
+import ImportHistoryView from "./views/ImportHistoryView";
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/settings/categories" element={<CategoryBudgetManageView />} />
             <Route path="/settings/sources" element={<FundingSourceManageView />} />
             <Route path="/settings/backup" element={<BackupView />} />
+            <Route path="/settings/import-history" element={<ImportHistoryView />} />
           </Routes>
         </main>
         <BottomNav />

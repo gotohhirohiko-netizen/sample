@@ -33,6 +33,13 @@ export function formatYen(amount: number): string {
   return `¥${Math.round(amount).toLocaleString("ja-JP")}`;
 }
 
+/** "2026/7/18 13:46"のような表示用文字列(取り込み日時など) */
+export function formatDateTime(date: Date): string {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()} ${h}:${m}`;
+}
+
 /** ルーティング用に月を"yyyy-MM"形式の文字列へ変換する */
 export function monthToParam(date: Date): string {
   const year = date.getFullYear();

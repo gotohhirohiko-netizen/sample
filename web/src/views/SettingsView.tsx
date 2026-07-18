@@ -67,6 +67,9 @@ export default function SettingsView() {
         <Link to="/settings/backup" className="list-row">
           バックアップ/復元
         </Link>
+        <Link to="/settings/import-history" className="list-row">
+          取り込み履歴
+        </Link>
       </div>
     </div>
   );
