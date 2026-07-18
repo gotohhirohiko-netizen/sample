@@ -35,7 +35,9 @@ function buildExtractionSchema(majorCategoryNames: string[]) {
             merchant: { type: "string" },
             amount: { type: "number" },
             type: { type: "string", enum: ["income", "expense"] },
-            majorCategory: { type: ["string", "null"], enum: [...majorCategoryNames, null] },
+            majorCategory: {
+              anyOf: [{ type: "string", enum: majorCategoryNames }, { type: "null" }],
+            },
             subcategory: { type: ["string", "null"] },
           },
           required: ["date", "merchant", "amount", "type", "majorCategory", "subcategory"],
