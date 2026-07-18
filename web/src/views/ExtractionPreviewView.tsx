@@ -177,6 +177,25 @@ export default function ExtractionPreviewView() {
           });
         }
       }
+
+      const exclusionKey = merchantMatchKey(item.merchant);
+      const existingExclusion = await db.merchantExclusions
+        .where("merchantKey")
+        .equals(exclusionKey)
+        .first();
+      if (item.excludedFromBudget) {
+        if (existingExclusion) {
+          await db.merchantExclusions.update(existingExclusion.id, { updatedAt: now });
+        } else {
+          await db.merchantExclusions.add({
+            id: crypto.randomUUID(),
+            merchantKey: exclusionKey,
+            updatedAt: now,
+          });
+        }
+      } else if (existingExclusion) {
+        await db.merchantExclusions.delete(existingExclusion.id);
+      }
     }
 
     navigate("/");
@@ -220,9 +239,16 @@ export default function ExtractionPreviewView() {
                     重複の可能性があります{willBeExcluded && "(取り込まれません)"}
                   </p>
                 )}
-                {item.excludedFromBudget && (
-                  <p className="muted">家計に含めない設定の店名です</p>
-                )}
+                <label className="filter-row">
+                  <input
+                    type="checkbox"
+                    checked={item.excludedFromBudget}
+                    onChange={(e) =>
+                      updateItem(item.key, { excludedFromBudget: e.target.checked })
+                    }
+                  />
+                  家計に含めない
+                </label>
                 {item.type === "expense" && (
                   <select
                     value={item.subcategoryID ?? ""}
