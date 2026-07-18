@@ -38,7 +38,12 @@ export default function CategoryDrilldownView() {
 
       <div className="list">
         {items.map((tx) => (
-          <TransactionRow key={tx.id} transaction={tx} fundingSources={fundingSources} />
+          <TransactionRow
+            key={tx.id}
+            transaction={tx}
+            fundingSources={fundingSources}
+            subcategories={subcategories}
+          />
         ))}
       </div>
       {items.length === 0 && <p className="muted">この月・カテゴリの取引はありません</p>}

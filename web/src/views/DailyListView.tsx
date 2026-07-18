@@ -11,8 +11,10 @@ export default function DailyListView() {
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
+  const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
+  const majorCategories = useLiveQuery(() => db.majorCategories.toArray(), []);
 
-  if (!transactions || !fundingSources) {
+  if (!transactions || !fundingSources || !subcategories || !majorCategories) {
     return <p className="muted">読み込み中...</p>;
   }
 
@@ -40,7 +42,13 @@ export default function DailyListView() {
           <div className="section-title">{formatMonthDay(new Date(dayKey))}</div>
           <div className="list">
             {items.map((tx) => (
-              <TransactionRow key={tx.id} transaction={tx} fundingSources={fundingSources} />
+              <TransactionRow
+                key={tx.id}
+                transaction={tx}
+                fundingSources={fundingSources}
+                subcategories={subcategories}
+                majorCategories={majorCategories}
+              />
             ))}
           </div>
         </div>
