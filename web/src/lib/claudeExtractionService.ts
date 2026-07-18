@@ -123,6 +123,23 @@ function readFileAsBase64(file: File): Promise<string> {
   });
 }
 
+/**
+ * CSVのテキストをデコードする。三菱UFJ銀行をはじめ日本の銀行・カード会社の
+ * CSV明細はShift-JIS(CP932)で出力されることが多く、`File.text()`は常に
+ * UTF-8として解釈するため、Shift-JISのファイルを読み込むと文字化けし、
+ * Claudeが文字化けした内容から店名等を誤って(でたらめに)抽出してしまう。
+ * まずUTF-8として厳密デコードを試し、不正なバイト列で失敗したら
+ * Shift-JISとして読み直す。
+ */
+async function readCsvText(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    return new TextDecoder("shift-jis").decode(buffer);
+  }
+}
+
 /** Fileオブジェクトを抽出用のbase64/テキストデータへ変換する */
 export async function readFileForExtraction(file: File): Promise<FileForExtraction> {
   const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
@@ -130,6 +147,6 @@ export async function readFileForExtraction(file: File): Promise<FileForExtracti
     const base64 = await readFileAsBase64(file);
     return { data: base64, mimeType: "application/pdf" };
   }
-  const text = await file.text();
+  const text = await readCsvText(file);
   return { data: text, mimeType: "text/csv" };
 }
