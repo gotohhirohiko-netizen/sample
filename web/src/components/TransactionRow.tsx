@@ -30,9 +30,16 @@ export default function TransactionRow({
     : "未分類";
 
   return (
-    <Link to={`/transactions/${transaction.id}`} className="list-row">
+    <Link
+      to={`/transactions/${transaction.id}`}
+      className="list-row"
+      style={transaction.excludedFromBudget ? { opacity: 0.5 } : undefined}
+    >
       <div>
-        <div>{transaction.merchant}</div>
+        <div>
+          {transaction.merchant}
+          {transaction.excludedFromBudget && <span className="muted"> (家計対象外)</span>}
+        </div>
         <div className="muted">
           {sourceName}
           {transaction.type === "expense" && ` ・ ${categoryLabel}`}

@@ -22,6 +22,7 @@ export default function TransactionDetailView() {
   const [memo, setMemo] = useState<string | null>(null);
   const [appliedCount, setAppliedCount] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [exclusionAppliedCount, setExclusionAppliedCount] = useState<number | null>(null);
 
   if (!transaction || !majorCategories || !subcategories) {
     return <p className="muted">読み込み中...</p>;
@@ -87,6 +88,41 @@ export default function TransactionDetailView() {
       setAppliedCount(sameMerchantTx.length);
       setTimeout(() => setAppliedCount(null), 3000);
     }
+  }
+
+  async function handleExcludeChange(excluded: boolean) {
+    if (!transaction) return;
+    await db.transactions.update(transaction.id, { excludedFromBudget: excluded });
+
+    const key = merchantMatchKey(transaction.merchant);
+    const existing = await db.merchantExclusions.where("merchantKey").equals(key).first();
+    if (excluded) {
+      if (existing) {
+        await db.merchantExclusions.update(existing.id, { updatedAt: new Date().toISOString() });
+      } else {
+        await db.merchantExclusions.add({
+          id: crypto.randomUUID(),
+          merchantKey: key,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    } else if (existing) {
+      await db.merchantExclusions.delete(existing.id);
+    }
+
+    const sameMerchantTx = await db.transactions
+      .filter(
+        (t) =>
+          t.id !== transaction.id &&
+          merchantMatchKey(t.merchant) === key &&
+          t.excludedFromBudget !== excluded
+      )
+      .toArray();
+    await Promise.all(
+      sameMerchantTx.map((t) => db.transactions.update(t.id, { excludedFromBudget: excluded }))
+    );
+    setExclusionAppliedCount(sameMerchantTx.length);
+    setTimeout(() => setExclusionAppliedCount(null), 3000);
   }
 
   async function handleDelete() {
@@ -181,6 +217,20 @@ export default function TransactionDetailView() {
           )}
         </div>
       )}
+
+      <div className="form-row">
+        <label className="filter-row">
+          <input
+            type="checkbox"
+            checked={!!transaction.excludedFromBudget}
+            onChange={(e) => handleExcludeChange(e.target.checked)}
+          />
+          家計に含めない
+        </label>
+        {exclusionAppliedCount !== null && exclusionAppliedCount > 0 && (
+          <p className="muted">同じ店名の他の取引 {exclusionAppliedCount}件にも反映しました</p>
+        )}
+      </div>
 
       <div className="form-row">
         <label htmlFor="memo">メモ</label>

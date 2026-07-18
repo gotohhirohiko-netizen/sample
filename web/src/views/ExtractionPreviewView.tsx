@@ -24,6 +24,7 @@ interface PreviewItem {
   type: Transaction["type"];
   subcategoryID: string | null;
   isDuplicate: boolean;
+  excludedFromBudget: boolean;
 }
 
 /** 抽出結果プレビュー画面(要件定義書 4.2/4.9、docs/design.md 4.4/5章) */
@@ -38,6 +39,7 @@ export default function ExtractionPreviewView() {
   );
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const mappings = useLiveQuery(() => db.merchantCategoryMappings.toArray(), []);
+  const exclusions = useLiveQuery(() => db.merchantExclusions.toArray(), []);
   const existingTransactions = useLiveQuery(() => db.transactions.toArray(), []);
   const fundingSource = useLiveQuery<FundingSource | undefined>(
     () => (state ? db.fundingSources.get(state.sourceId) : undefined),
@@ -50,7 +52,15 @@ export default function ExtractionPreviewView() {
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
 
   useEffect(() => {
-    if (!state || !fundingSource || !majorCategories || !subcategories || !mappings || !existingTransactions) {
+    if (
+      !state ||
+      !fundingSource ||
+      !majorCategories ||
+      !subcategories ||
+      !mappings ||
+      !exclusions ||
+      !existingTransactions
+    ) {
       return;
     }
     let cancelled = false;
@@ -83,6 +93,9 @@ export default function ExtractionPreviewView() {
               merchantMatchKey(t.merchant) === merchantMatchKey(item.merchant) &&
               t.amount === item.amount
           );
+          const excludedFromBudget = exclusions.some(
+            (e) => e.merchantKey === merchantMatchKey(item.merchant)
+          );
           return {
             key: `${index}-${item.merchant}-${item.amount}`,
             date,
@@ -91,6 +104,7 @@ export default function ExtractionPreviewView() {
             type: item.type,
             subcategoryID,
             isDuplicate,
+            excludedFromBudget,
           };
         });
 
@@ -106,7 +120,7 @@ export default function ExtractionPreviewView() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, fundingSource, majorCategories, subcategories, mappings, existingTransactions]);
+  }, [state, fundingSource, majorCategories, subcategories, mappings, exclusions, existingTransactions]);
 
   if (!state) {
     return (
@@ -138,6 +152,7 @@ export default function ExtractionPreviewView() {
         sourceInstitutionID: state.sourceId,
         memo: null,
         importedAt: now,
+        excludedFromBudget: item.excludedFromBudget,
       };
       await db.transactions.add(transaction);
 
@@ -203,6 +218,9 @@ export default function ExtractionPreviewView() {
                   <p style={{ color: "var(--danger)" }}>
                     重複の可能性があります{willBeExcluded && "(取り込まれません)"}
                   </p>
+                )}
+                {item.excludedFromBudget && (
+                  <p className="muted">家計に含めない設定の店名です</p>
                 )}
                 {item.type === "expense" && (
                   <select

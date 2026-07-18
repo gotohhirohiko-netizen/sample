@@ -60,6 +60,18 @@ export interface Transaction {
   sourceInstitutionID: string; // どの取り込み元から来たか
   memo: string | null;
   importedAt: string; // ISO日時文字列(重複検知の補助情報)
+  excludedFromBudget: boolean; // trueの場合、予算実績・月次サマリーの集計に含めない
+}
+
+/**
+ * 家計に含めない店名の学習(要件定義書 4.9と同様の仕組み)。
+ * ユーザーが取引を「家計に含めない」に設定すると、この店名を持つ
+ * 取引は以降の取り込みでも自動的に除外対象になる。
+ */
+export interface MerchantExclusion {
+  id: string;
+  merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKey)
+  updatedAt: string; // ISO日時文字列
 }
 
 /** 取り込み元(金融機関・カード)の設定 */

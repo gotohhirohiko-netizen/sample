@@ -4,6 +4,7 @@ import type {
   FundingSource,
   MajorCategory,
   MerchantCategoryMapping,
+  MerchantExclusion,
   Subcategory,
   Transaction,
 } from "../types/models";
@@ -27,6 +28,7 @@ export class KakeiboDB extends Dexie {
   subcategories!: EntityTable<Subcategory, "id">;
   categoryBudgetSettings!: EntityTable<CategoryBudgetSetting, "id">;
   merchantCategoryMappings!: EntityTable<MerchantCategoryMapping, "id">;
+  merchantExclusions!: EntityTable<MerchantExclusion, "id">;
   settings!: EntityTable<KeyValueEntry, "key">;
 
   constructor() {
@@ -38,6 +40,16 @@ export class KakeiboDB extends Dexie {
       subcategories: "id, majorCategoryID",
       categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
       merchantCategoryMappings: "id, merchantKey",
+      settings: "key",
+    });
+    this.version(2).stores({
+      transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+      fundingSources: "id",
+      majorCategories: "id, displayOrder",
+      subcategories: "id, majorCategoryID",
+      categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+      merchantCategoryMappings: "id, merchantKey",
+      merchantExclusions: "id, merchantKey",
       settings: "key",
     });
   }

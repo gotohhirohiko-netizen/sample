@@ -39,7 +39,7 @@ export function actualAmount(
     subcategories.filter((s) => s.majorCategoryID === majorCategoryID).map((s) => s.id)
   );
   return transactions
-    .filter((t) => t.type === "expense" && isSameMonth(new Date(t.date), month))
+    .filter((t) => t.type === "expense" && !t.excludedFromBudget && isSameMonth(new Date(t.date), month))
     .filter((t) => t.subcategoryID != null && subcategoryIDs.has(t.subcategoryID))
     .reduce((sum, t) => sum + t.amount, 0);
 }
@@ -51,7 +51,9 @@ export function monthlySummary(
   budgetSettings: CategoryBudgetSetting[],
   majorCategories: MajorCategory[]
 ): MonthlySummary {
-  const monthTx = transactions.filter((t) => isSameMonth(new Date(t.date), month));
+  const monthTx = transactions.filter(
+    (t) => !t.excludedFromBudget && isSameMonth(new Date(t.date), month)
+  );
   const totalExpense = monthTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const totalIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalBudget = majorCategories
