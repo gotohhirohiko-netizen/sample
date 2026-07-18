@@ -8,12 +8,12 @@ const LAST_BACKUP_SETTING = "lastBackupAt";
  * iOS Keychainのようなハードウェア保護は無い点に注意(個人非公開PWAとして許容)。
  */
 export async function saveApiKey(key: string): Promise<void> {
-  await db.settings.put({ key: API_KEY_SETTING, value: key });
+  await db.settings.put({ key: API_KEY_SETTING, value: key.trim() });
 }
 
 export async function loadApiKey(): Promise<string | null> {
   const entry = await db.settings.get(API_KEY_SETTING);
-  return entry?.value ?? null;
+  return entry?.value.trim() ?? null;
 }
 
 export async function clearApiKey(): Promise<void> {

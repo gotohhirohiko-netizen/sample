@@ -12,7 +12,9 @@ export default function SettingsView() {
   }, []);
 
   async function handleSave() {
-    await saveApiKey(apiKey);
+    const trimmed = apiKey.trim();
+    await saveApiKey(trimmed);
+    setApiKey(trimmed);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
