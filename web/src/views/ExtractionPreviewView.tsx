@@ -47,6 +47,7 @@ export default function ExtractionPreviewView() {
   const [items, setItems] = useState<PreviewItem[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [excludeDuplicates, setExcludeDuplicates] = useState(true);
 
   useEffect(() => {
     if (!state || !fundingSource || !majorCategories || !subcategories || !mappings || !existingTransactions) {
@@ -123,8 +124,9 @@ export default function ExtractionPreviewView() {
   async function handleCommit() {
     if (!items || !state) return;
     const now = new Date().toISOString();
+    const itemsToCommit = excludeDuplicates ? items.filter((i) => !i.isDuplicate) : items;
 
-    for (const item of items) {
+    for (const item of itemsToCommit) {
       const id = crypto.randomUUID();
       const transaction: Transaction = {
         id,
@@ -176,16 +178,31 @@ export default function ExtractionPreviewView() {
 
       {items && majorCategories && subcategories && (
         <>
+          {items.some((i) => i.isDuplicate) && (
+            <label className="filter-row">
+              <input
+                type="checkbox"
+                checked={excludeDuplicates}
+                onChange={(e) => setExcludeDuplicates(e.target.checked)}
+              />
+              重複と判断した項目を取り込まない
+            </label>
+          )}
+
           <div className="list">
-            {items.map((item) => (
-              <div key={item.key} className="card">
+            {items.map((item) => {
+              const willBeExcluded = excludeDuplicates && item.isDuplicate;
+              return (
+              <div key={item.key} className="card" style={willBeExcluded ? { opacity: 0.5 } : undefined}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <strong>{item.merchant}</strong>
                   <span>{formatYen(item.amount)}</span>
                 </div>
                 <p className="muted">{item.date}</p>
                 {item.isDuplicate && (
-                  <p style={{ color: "var(--danger)" }}>重複の可能性があります</p>
+                  <p style={{ color: "var(--danger)" }}>
+                    重複の可能性があります{willBeExcluded && "(取り込まれません)"}
+                  </p>
                 )}
                 {item.type === "expense" && (
                   <select
@@ -209,7 +226,8 @@ export default function ExtractionPreviewView() {
                   </select>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <button
@@ -219,7 +237,7 @@ export default function ExtractionPreviewView() {
             onClick={handleCommit}
             style={{ marginTop: 16 }}
           >
-            確定
+            確定 ({(excludeDuplicates ? items.filter((i) => !i.isDuplicate) : items).length}件)
           </button>
         </>
       )}
