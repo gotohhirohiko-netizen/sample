@@ -38,15 +38,18 @@ body {
 .app-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100svh;
+  height: 100svh;
   max-width: 480px;
   margin: 0 auto;
 }
 
 .app-content {
   flex: 1;
+  min-height: 0;
   padding: 16px 16px 84px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
 }
 
 .screen-title {
