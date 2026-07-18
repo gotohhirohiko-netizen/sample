@@ -52,7 +52,7 @@ function buildExtractionSchema(majorCategoryNames: string[]) {
 
 function buildInstruction(sourceKind: FundingSourceKind): string {
   return sourceKind === "bankAccount"
-    ? "この銀行口座の入出金明細を解析してください。入金はtype=income、出金はtype=expenseとして分類してください。支出については、店名から大カテゴリ・小カテゴリを推定してください。"
+    ? "この銀行口座の入出金明細を解析してください。「支払い金額」列に値がある行はtype=expense、「預かり金額」列に値がある行はtype=incomeとして分類してください(1行につきどちらか一方にのみ値が入っている想定です)。amountはどちらの場合もプラスの値(絶対値)で設定してください。店名(摘要・摘要内容列)からは支出のみ大カテゴリ・小カテゴリを推定してください。"
     : "このクレジットカードの利用明細を解析してください。原則すべてtype=expenseとし、返金と判断できる行は金額をマイナス値にしてください。店名から大カテゴリ・小カテゴリを推定してください。";
 }
 
