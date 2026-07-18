@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { formatMonthDay, formatYearMonth, isSameMonth, parseMonthParam } from "../lib/dateUtils";
+import { useScrollRestoration } from "../lib/scrollRestoration";
 import TransactionRow from "../components/TransactionRow";
 
 /** 日次収支リスト表示機能(要件定義書 4.4) */
@@ -13,6 +14,9 @@ export default function DailyListView() {
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const majorCategories = useLiveQuery(() => db.majorCategories.toArray(), []);
+
+  const ready = !!(transactions && fundingSources && subcategories && majorCategories);
+  useScrollRestoration(ready);
 
   if (!transactions || !fundingSources || !subcategories || !majorCategories) {
     return <p className="muted">読み込み中...</p>;

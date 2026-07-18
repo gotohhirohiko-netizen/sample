@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { isSameMonth, parseMonthParam } from "../lib/dateUtils";
+import { useScrollRestoration } from "../lib/scrollRestoration";
 import TransactionRow from "../components/TransactionRow";
 
 /** カテゴリ別取引一覧(月次予実画面からのドリルダウン) */
@@ -16,6 +17,9 @@ export default function CategoryDrilldownView() {
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
+
+  const ready = !!(subcategories && transactions && fundingSources);
+  useScrollRestoration(ready);
 
   if (!subcategories || !transactions || !fundingSources) {
     return <p className="muted">読み込み中...</p>;
