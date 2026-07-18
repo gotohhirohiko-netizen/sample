@@ -59,7 +59,7 @@ graph TB
 | UI | 取引一覧・インポート・集計・設定画面のUI | React + TypeScript |
 | インポート機能 | 取り込み元選択・新規タブ起動・ファイル選択・プレビュー確認 | `window.open()` + `<input type="file">` |
 | Claude APIクライアント | PDF/CSVをClaude APIへ送信し、構造化JSONを受信 | `@anthropic-ai/sdk`(`dangerouslyAllowBrowser: true`) |
-| ローカルストレージ | 取引データ・取り込み元設定・カテゴリ等の永続化 | IndexedDB(`idb`ライブラリ経由) |
+| ローカルストレージ | 取引データ・取り込み元設定・カテゴリ等の永続化 | IndexedDB(Dexie.jsライブラリ経由) |
 | APIキー保存 | Anthropic APIキーの保存 | ブラウザストレージ(IndexedDB。Keychainほどの保護は無い点に注意、5章参照) |
 | Service Worker / マニフェスト | ホーム画面へのアイコン追加、オフライン時の静的アセットキャッシュ | `vite-plugin-pwa`(Workbox) |
 | ホスティング | ビルド済み静的ファイルの配信 | GitHub Pages(無料) |
@@ -74,7 +74,7 @@ graph TB
 | バックエンド | なし | 個人単一ユーザー利用のため、サーバー運用コストを回避(ネイティブ版から方針継続) |
 | 外部API | Claude API(Anthropic) | PDF/CSVの直接解析・構造化JSON出力に対応 |
 | APIクライアント | `@anthropic-ai/sdk`(公式JS/TS SDK) | ブラウザからの直接利用を`dangerouslyAllowBrowser`オプションで公式にサポートしている |
-| ローカルDB | IndexedDB(`idb`) | ブラウザ標準の永続化機構。ネイティブ版のSwiftData相当 |
+| ローカルDB | IndexedDB(Dexie.js) | ブラウザ標準の永続化機構。`dexie-react-hooks`のuseLiveQueryでSwiftDataの@Query相当のリアクティブな読み取りができる |
 | ホスティング | GitHub Pages | 既存のGitHubリポジトリからそのまま無料でデプロイできる |
 
 ## 5. データフロー(インポート処理のシーケンス)

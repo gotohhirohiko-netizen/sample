@@ -1,0 +1,69 @@
+import type {
+  CategoryBudgetSetting,
+  MajorCategory,
+  MonthlySummary,
+  Subcategory,
+  Transaction,
+} from "../types/models";
+import { isSameMonth, startOfMonth } from "./dateUtils";
+
+/**
+ * 指定した大カテゴリ・月に適用される予算額を取得する(docs/design.md 3.1)。
+ * 過去に確定した月の表示は、後から予算を変更しても変わらない。
+ */
+export function budgetAmount(
+  majorCategoryID: string,
+  month: Date,
+  settings: CategoryBudgetSetting[]
+): number | undefined {
+  const monthStart = startOfMonth(month);
+  const applicable = settings
+    .filter(
+      (s) => s.majorCategoryID === majorCategoryID && new Date(s.effectiveFrom) <= monthStart
+    )
+    .sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
+  return applicable[0]?.monthlyAmount;
+}
+
+/**
+ * 大カテゴリの月次実績額(支出)の集計(docs/design.md 3.2)。
+ * そのカテゴリに属する全小カテゴリのTransactionを合算して求める。
+ */
+export function actualAmount(
+  majorCategoryID: string,
+  month: Date,
+  transactions: Transaction[],
+  subcategories: Subcategory[]
+): number {
+  const subcategoryIDs = new Set(
+    subcategories.filter((s) => s.majorCategoryID === majorCategoryID).map((s) => s.id)
+  );
+  return transactions
+    .filter((t) => t.type === "expense" && isSameMonth(new Date(t.date), month))
+    .filter((t) => t.subcategoryID != null && subcategoryIDs.has(t.subcategoryID))
+    .reduce((sum, t) => sum + t.amount, 0);
+}
+
+/** 月次サマリー(対予算・対収入)の計算(docs/design.md 3.3) */
+export function monthlySummary(
+  month: Date,
+  transactions: Transaction[],
+  budgetSettings: CategoryBudgetSetting[],
+  majorCategories: MajorCategory[]
+): MonthlySummary {
+  const monthTx = transactions.filter((t) => isSameMonth(new Date(t.date), month));
+  const totalExpense = monthTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const totalIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const totalBudget = majorCategories
+    .map((c) => budgetAmount(c.id, month, budgetSettings) ?? 0)
+    .reduce((s, v) => s + v, 0);
+
+  return {
+    totalExpense,
+    totalIncome,
+    totalBudget,
+    budgetUsageRate: totalBudget > 0 ? totalExpense / totalBudget : undefined,
+    incomeUsageRate: totalIncome > 0 ? totalExpense / totalIncome : undefined,
+    savings: totalIncome - totalExpense,
+  };
+}

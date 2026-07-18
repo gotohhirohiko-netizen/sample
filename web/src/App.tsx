@@ -1,0 +1,52 @@
+import { useEffect, useState } from "react";
+import { HashRouter, Route, Routes } from "react-router-dom";
+import { seedCategoriesIfNeeded } from "./lib/seedData";
+import BottomNav from "./components/BottomNav";
+import HomeView from "./views/HomeView";
+import DailyListView from "./views/DailyListView";
+import MonthlyBudgetView from "./views/MonthlyBudgetView";
+import CategoryDrilldownView from "./views/CategoryDrilldownView";
+import TransactionDetailView from "./views/TransactionDetailView";
+import ImportSourceSelectView from "./views/ImportSourceSelectView";
+import ImportFilePickerView from "./views/ImportFilePickerView";
+import ExtractionPreviewView from "./views/ExtractionPreviewView";
+import SettingsView from "./views/SettingsView";
+import CategoryBudgetManageView from "./views/CategoryBudgetManageView";
+import FundingSourceManageView from "./views/FundingSourceManageView";
+import BackupView from "./views/BackupView";
+
+export default function App() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    seedCategoriesIfNeeded().finally(() => setReady(true));
+  }, []);
+
+  if (!ready) {
+    return <div className="loading-screen">読み込み中...</div>;
+  }
+
+  return (
+    <HashRouter>
+      <div className="app-shell">
+        <main className="app-content">
+          <Routes>
+            <Route path="/" element={<HomeView />} />
+            <Route path="/daily/:month" element={<DailyListView />} />
+            <Route path="/budget/:month" element={<MonthlyBudgetView />} />
+            <Route path="/budget/:month/:majorCategoryId" element={<CategoryDrilldownView />} />
+            <Route path="/transactions/:id" element={<TransactionDetailView />} />
+            <Route path="/import" element={<ImportSourceSelectView />} />
+            <Route path="/import/file" element={<ImportFilePickerView />} />
+            <Route path="/import/preview" element={<ExtractionPreviewView />} />
+            <Route path="/settings" element={<SettingsView />} />
+            <Route path="/settings/categories" element={<CategoryBudgetManageView />} />
+            <Route path="/settings/sources" element={<FundingSourceManageView />} />
+            <Route path="/settings/backup" element={<BackupView />} />
+          </Routes>
+        </main>
+        <BottomNav />
+      </div>
+    </HashRouter>
+  );
+}

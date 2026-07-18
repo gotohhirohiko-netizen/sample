@@ -385,7 +385,7 @@ export function resolveCategory(
 
 ## 7. ローカルストレージ設計(IndexedDB)
 
-- `idb`ライブラリ(Promiseベースの薄いラッパー)を使い、以下のObject Storeを持つデータベースを1つ作成する
+- Dexie.js(Promiseベースの薄いラッパーで、React向けにreactiveなuseLiveQueryフックを提供する)を使い、以下のObject Storeを持つデータベースを1つ作成する
   - `transactions` / `fundingSources` / `majorCategories` / `subcategories` / `categoryBudgetSettings` / `merchantCategoryMappings`
 - 初回起動時に、要件定義書 8章の初期カテゴリ一覧(14の大カテゴリとその小カテゴリ)を`majorCategories`/`subcategories`にシード投入する
 - 重複検知は取り込み時に「日付・店名・金額が完全一致する既存レコード」を検索し、プレビュー画面で警告表示する(あいまい一致は将来検討)
