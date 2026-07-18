@@ -19,6 +19,7 @@ export default function TransactionDetailView() {
   const [merchant, setMerchant] = useState<string | null>(null);
   const [amount, setAmount] = useState<string | null>(null);
   const [memo, setMemo] = useState<string | null>(null);
+  const [appliedCount, setAppliedCount] = useState<number | null>(null);
 
   if (!transaction || !majorCategories || !subcategories) {
     return <p className="muted">読み込み中...</p>;
@@ -56,6 +57,21 @@ export default function TransactionDetailView() {
           updatedAt: new Date().toISOString(),
         });
       }
+
+      const sameMerchantTx = await db.transactions
+        .filter(
+          (t) =>
+            t.id !== transaction.id &&
+            t.type === "expense" &&
+            t.merchant === transaction.merchant &&
+            t.subcategoryID !== nextID
+        )
+        .toArray();
+      await Promise.all(
+        sameMerchantTx.map((t) => db.transactions.update(t.id, { subcategoryID: nextID }))
+      );
+      setAppliedCount(sameMerchantTx.length);
+      setTimeout(() => setAppliedCount(null), 3000);
     }
   }
 
@@ -125,6 +141,9 @@ export default function TransactionDetailView() {
               </optgroup>
             ))}
           </select>
+          {appliedCount !== null && appliedCount > 0 && (
+            <p className="muted">同じ店名の他の取引 {appliedCount}件にも反映しました</p>
+          )}
         </div>
       )}
 
