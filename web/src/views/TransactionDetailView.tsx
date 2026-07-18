@@ -20,10 +20,21 @@ export default function TransactionDetailView() {
   const [amount, setAmount] = useState<string | null>(null);
   const [memo, setMemo] = useState<string | null>(null);
   const [appliedCount, setAppliedCount] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   if (!transaction || !majorCategories || !subcategories) {
     return <p className="muted">読み込み中...</p>;
   }
+
+  const currentSubcategory = subcategories.find((s) => s.id === transaction.subcategoryID);
+  const currentMajorCategory = currentSubcategory
+    ? majorCategories.find((m) => m.id === currentSubcategory.majorCategoryID)
+    : undefined;
+  const categoryLabel = currentSubcategory
+    ? currentMajorCategory
+      ? `${currentMajorCategory.name} / ${currentSubcategory.name}`
+      : currentSubcategory.name
+    : "未分類";
 
   const currentMerchant = merchant ?? transaction.merchant;
   const currentAmount = amount ?? String(transaction.amount);
@@ -38,6 +49,7 @@ export default function TransactionDetailView() {
     if (!transaction) return;
     const nextID = subcategoryID === "" ? null : subcategoryID;
     await db.transactions.update(transaction.id, { subcategoryID: nextID });
+    setPickerOpen(false);
 
     if (nextID) {
       const existing = await db.merchantCategoryMappings
@@ -122,25 +134,46 @@ export default function TransactionDetailView() {
 
       {transaction.type === "expense" && (
         <div className="form-row">
-          <label htmlFor="category">カテゴリ</label>
-          <select
-            id="category"
-            value={transaction.subcategoryID ?? ""}
-            onChange={(e) => handleCategoryChange(e.target.value)}
+          <label>カテゴリ</label>
+          <button
+            type="button"
+            className="btn-secondary category-toggle"
+            onClick={() => setPickerOpen((v) => !v)}
           >
-            <option value="">未分類</option>
-            {majorCategories.map((major) => (
-              <optgroup key={major.id} label={major.name}>
-                {subcategories
-                  .filter((s) => s.majorCategoryID === major.id)
-                  .map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
+            {categoryLabel} {pickerOpen ? "▴" : "▾"}
+          </button>
+
+          {pickerOpen && (
+            <div className="category-picker">
+              <button
+                type="button"
+                className={`list-row ${transaction.subcategoryID == null ? "selected" : ""}`}
+                onClick={() => handleCategoryChange("")}
+              >
+                未分類
+              </button>
+              {majorCategories.map((major) => (
+                <div className="section" key={major.id}>
+                  <div className="section-title">{major.name}</div>
+                  <div className="list">
+                    {subcategories
+                      .filter((s) => s.majorCategoryID === major.id)
+                      .map((sub) => (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          className={`list-row ${sub.id === transaction.subcategoryID ? "selected" : ""}`}
+                          onClick={() => handleCategoryChange(sub.id)}
+                        >
+                          {sub.name}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {appliedCount !== null && appliedCount > 0 && (
             <p className="muted">同じ店名の他の取引 {appliedCount}件にも反映しました</p>
           )}

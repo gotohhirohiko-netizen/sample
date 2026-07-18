@@ -99,6 +99,32 @@ button.list-row {
   font: inherit;
 }
 
+.list-row.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.category-toggle {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+}
+
+.category-picker {
+  margin-top: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.category-picker .list-row:first-child {
+  margin-bottom: 10px;
+}
+
 .list-row .amount.income {
   color: var(--success);
 }
