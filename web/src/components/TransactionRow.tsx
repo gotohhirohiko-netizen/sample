@@ -39,6 +39,7 @@ export default function TransactionRow({
         <div>
           {transaction.merchant}
           {transaction.excludedFromBudget && <span className="muted"> (家計対象外)</span>}
+          {transaction.isBonusPayment && <span className="muted"> (ボーナス払い)</span>}
         </div>
         <div className="muted">
           {sourceName}

@@ -61,6 +61,31 @@ export interface Transaction {
   memo: string | null;
   importedAt: string; // ISO日時文字列(重複検知の補助情報)
   excludedFromBudget: boolean; // trueの場合、予算実績・月次サマリーの集計に含めない
+  isBonusPayment: boolean; // ボーナス払い(クレジットカード)の案件かどうか
+}
+
+/**
+ * ボーナス払いの集計期間の定義(例: 1-6月、7-12月)。
+ * 年をまたいで毎年繰り返される期間として扱う(年ごとの実際の日付範囲は
+ * lib/bonusCalculator#bonusPeriodRangeで計算する)。
+ */
+export interface BonusPeriod {
+  id: string;
+  label: string; // 例: "1-6月"
+  startMonth: number; // 1-12
+  endMonth: number; // 1-12(startMonth <= endMonthを想定)
+  displayOrder: number;
+}
+
+/**
+ * ボーナス期間ごとの予算設定。CategoryBudgetSettingと同様に追加のみで
+ * 上書きせず、effectiveFrom以降に開始する期間にのみ適用される(非遡及)。
+ */
+export interface BonusBudgetSetting {
+  id: string;
+  bonusPeriodID: string;
+  amount: number;
+  effectiveFrom: string; // ISO日付文字列
 }
 
 /**

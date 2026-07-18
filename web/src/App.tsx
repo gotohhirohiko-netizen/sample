@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
-import { seedCategoriesIfNeeded } from "./lib/seedData";
+import { seedBonusPeriodsIfNeeded, seedCategoriesIfNeeded } from "./lib/seedData";
 import BottomNav from "./components/BottomNav";
 import HomeView from "./views/HomeView";
 import DailyListView from "./views/DailyListView";
@@ -15,12 +15,15 @@ import CategoryBudgetManageView from "./views/CategoryBudgetManageView";
 import FundingSourceManageView from "./views/FundingSourceManageView";
 import BackupView from "./views/BackupView";
 import ImportHistoryView from "./views/ImportHistoryView";
+import BonusBudgetView from "./views/BonusBudgetView";
 
 export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    seedCategoriesIfNeeded().finally(() => setReady(true));
+    Promise.all([seedCategoriesIfNeeded(), seedBonusPeriodsIfNeeded()]).finally(() =>
+      setReady(true)
+    );
   }, []);
 
   if (!ready) {
@@ -45,6 +48,7 @@ export default function App() {
             <Route path="/settings/sources" element={<FundingSourceManageView />} />
             <Route path="/settings/backup" element={<BackupView />} />
             <Route path="/settings/import-history" element={<ImportHistoryView />} />
+            <Route path="/bonus-budget" element={<BonusBudgetView />} />
           </Routes>
         </main>
         <BottomNav />

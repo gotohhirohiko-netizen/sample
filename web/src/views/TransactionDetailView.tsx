@@ -16,6 +16,7 @@ export default function TransactionDetailView() {
     []
   );
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
+  const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
 
   const [merchant, setMerchant] = useState<string | null>(null);
   const [amount, setAmount] = useState<string | null>(null);
@@ -24,9 +25,12 @@ export default function TransactionDetailView() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [exclusionAppliedCount, setExclusionAppliedCount] = useState<number | null>(null);
 
-  if (!transaction || !majorCategories || !subcategories) {
+  if (!transaction || !majorCategories || !subcategories || !fundingSources) {
     return <p className="muted">読み込み中...</p>;
   }
+
+  const fundingSource = fundingSources.find((s) => s.id === transaction.sourceInstitutionID);
+  const isCreditCardExpense = transaction.type === "expense" && fundingSource?.kind === "creditCard";
 
   const currentSubcategory = subcategories.find((s) => s.id === transaction.subcategoryID);
   const currentMajorCategory = currentSubcategory
@@ -123,6 +127,11 @@ export default function TransactionDetailView() {
     );
     setExclusionAppliedCount(sameMerchantTx.length);
     setTimeout(() => setExclusionAppliedCount(null), 3000);
+  }
+
+  async function handleBonusPaymentChange(isBonusPayment: boolean) {
+    if (!transaction) return;
+    await db.transactions.update(transaction.id, { isBonusPayment });
   }
 
   async function handleDelete() {
@@ -231,6 +240,19 @@ export default function TransactionDetailView() {
           <p className="muted">同じ店名の他の取引 {exclusionAppliedCount}件にも反映しました</p>
         )}
       </div>
+
+      {isCreditCardExpense && (
+        <div className="form-row">
+          <label className="filter-row">
+            <input
+              type="checkbox"
+              checked={!!transaction.isBonusPayment}
+              onChange={(e) => handleBonusPaymentChange(e.target.checked)}
+            />
+            ボーナス払い
+          </label>
+        </div>
+      )}
 
       <div className="form-row">
         <label htmlFor="memo">メモ</label>

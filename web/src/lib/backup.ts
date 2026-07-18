@@ -1,6 +1,8 @@
 import { db } from "./db";
 import { saveLastBackupAt } from "./keyStorage";
 import type {
+  BonusBudgetSetting,
+  BonusPeriod,
   CategoryBudgetSetting,
   FundingSource,
   MajorCategory,
@@ -25,6 +27,8 @@ export interface BackupPayload {
   categoryBudgetSettings: CategoryBudgetSetting[];
   merchantCategoryMappings: MerchantCategoryMapping[];
   merchantExclusions: MerchantExclusion[];
+  bonusPeriods: BonusPeriod[];
+  bonusBudgetSettings: BonusBudgetSetting[];
 }
 
 export async function exportBackup(): Promise<BackupPayload> {
@@ -36,6 +40,8 @@ export async function exportBackup(): Promise<BackupPayload> {
     categoryBudgetSettings,
     merchantCategoryMappings,
     merchantExclusions,
+    bonusPeriods,
+    bonusBudgetSettings,
   ] = await Promise.all([
     db.transactions.toArray(),
     db.fundingSources.toArray(),
@@ -44,6 +50,8 @@ export async function exportBackup(): Promise<BackupPayload> {
     db.categoryBudgetSettings.toArray(),
     db.merchantCategoryMappings.toArray(),
     db.merchantExclusions.toArray(),
+    db.bonusPeriods.toArray(),
+    db.bonusBudgetSettings.toArray(),
   ]);
 
   const payload: BackupPayload = {
@@ -55,6 +63,8 @@ export async function exportBackup(): Promise<BackupPayload> {
     categoryBudgetSettings,
     merchantCategoryMappings,
     merchantExclusions,
+    bonusPeriods,
+    bonusBudgetSettings,
   };
 
   await saveLastBackupAt(new Date());
@@ -84,6 +94,8 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
       db.categoryBudgetSettings,
       db.merchantCategoryMappings,
       db.merchantExclusions,
+      db.bonusPeriods,
+      db.bonusBudgetSettings,
     ],
     async () => {
       await Promise.all([
@@ -94,6 +106,8 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.categoryBudgetSettings.clear(),
         db.merchantCategoryMappings.clear(),
         db.merchantExclusions.clear(),
+        db.bonusPeriods.clear(),
+        db.bonusBudgetSettings.clear(),
       ]);
       await Promise.all([
         db.transactions.bulkAdd(payload.transactions),
@@ -103,6 +117,8 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.categoryBudgetSettings.bulkAdd(payload.categoryBudgetSettings),
         db.merchantCategoryMappings.bulkAdd(payload.merchantCategoryMappings),
         db.merchantExclusions.bulkAdd(payload.merchantExclusions ?? []),
+        db.bonusPeriods.bulkAdd(payload.bonusPeriods ?? []),
+        db.bonusBudgetSettings.bulkAdd(payload.bonusBudgetSettings ?? []),
       ]);
     }
   );

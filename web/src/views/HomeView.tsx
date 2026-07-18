@@ -68,6 +68,9 @@ export default function HomeView() {
         <button type="button" className="list-row" onClick={() => navigate(`/budget/${monthParam}`)}>
           月次予実(カテゴリ別)
         </button>
+        <button type="button" className="list-row" onClick={() => navigate("/bonus-budget")}>
+          ボーナス払い予実
+        </button>
       </div>
     </div>
   );

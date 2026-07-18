@@ -153,6 +153,7 @@ export default function ExtractionPreviewView() {
         memo: null,
         importedAt: now,
         excludedFromBudget: item.excludedFromBudget,
+        isBonusPayment: false,
       };
       await db.transactions.add(transaction);
 

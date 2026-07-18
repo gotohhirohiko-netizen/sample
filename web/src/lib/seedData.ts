@@ -27,6 +27,29 @@ const CATEGORY_SEED: { major: string; subs: string[] }[] = [
   { major: "大型出費", subs: ["旅行", "家具", "家電", "ふるさと納税", "その他"] },
 ];
 
+/** ボーナス払いの初期集計期間(1-6月、7-12月の半年区切り) */
+const BONUS_PERIOD_SEED: { label: string; startMonth: number; endMonth: number }[] = [
+  { label: "1-6月", startMonth: 1, endMonth: 6 },
+  { label: "7-12月", startMonth: 7, endMonth: 12 },
+];
+
+/** 初回起動時にボーナス期間マスタが空であればシード投入する */
+export async function seedBonusPeriodsIfNeeded(): Promise<void> {
+  const existingCount = await db.bonusPeriods.count();
+  if (existingCount > 0) return;
+
+  for (let i = 0; i < BONUS_PERIOD_SEED.length; i++) {
+    const seed = BONUS_PERIOD_SEED[i];
+    await db.bonusPeriods.add({
+      id: crypto.randomUUID(),
+      label: seed.label,
+      startMonth: seed.startMonth,
+      endMonth: seed.endMonth,
+      displayOrder: i,
+    });
+  }
+}
+
 /** 初回起動時にカテゴリマスタが空であればシード投入する(docs/design.md 7章) */
 export async function seedCategoriesIfNeeded(): Promise<void> {
   const existingCount = await db.majorCategories.count();
