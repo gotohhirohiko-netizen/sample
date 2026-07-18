@@ -9,6 +9,7 @@
   --danger: #d0342c;
   --success: #1a8a3f;
   --bonus: #b8860b;
+  --spontaneous: #8b5cf6;
   --surface: #f7f7f8;
 }
 
@@ -20,6 +21,7 @@
     --border: #2c2c2e;
     --surface: #1c1c1e;
     --bonus: #d9a441;
+    --spontaneous: #a78bfa;
   }
 }
 
@@ -140,6 +142,15 @@ button.list-row {
 
 .list-row.bonus-payment {
   border-color: var(--bonus);
+}
+
+.list-row.spontaneous-expense {
+  border-color: var(--spontaneous);
+  border-width: 2px;
+}
+
+.spontaneous-label {
+  color: var(--spontaneous);
 }
 
 .bonus-label {

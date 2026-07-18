@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { merchantMatchKey } from "../lib/categoryResolver";
+import { resolveRecurring } from "../lib/recurringResolver";
 import type { Transaction } from "../types/models";
 
 /** 取引詳細・編集画面(要件定義書 4.3)。カテゴリ手動修正時は学習マッピングをupsertする(4.9) */
@@ -16,6 +17,8 @@ export default function TransactionDetailView() {
     []
   );
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
+  const allTransactions = useLiveQuery(() => db.transactions.toArray(), []);
+  const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
 
   const [merchant, setMerchant] = useState<string | null>(null);
   const [amount, setAmount] = useState<string | null>(null);
@@ -24,11 +27,12 @@ export default function TransactionDetailView() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [exclusionAppliedCount, setExclusionAppliedCount] = useState<number | null>(null);
 
-  if (!transaction || !majorCategories || !subcategories) {
+  if (!transaction || !majorCategories || !subcategories || !allTransactions || !recurringOverrides) {
     return <p className="muted">読み込み中...</p>;
   }
 
   const isExpense = transaction.type === "expense";
+  const isRecurring = resolveRecurring(transaction.merchant, allTransactions, recurringOverrides);
 
   const currentSubcategory = subcategories.find((s) => s.id === transaction.subcategoryID);
   const currentMajorCategory = currentSubcategory
@@ -130,6 +134,25 @@ export default function TransactionDetailView() {
   async function handleBonusPaymentChange(isBonusPayment: boolean) {
     if (!transaction) return;
     await db.transactions.update(transaction.id, { isBonusPayment });
+  }
+
+  async function handleRecurringChange(nextIsRecurring: boolean) {
+    if (!transaction) return;
+    const key = merchantMatchKey(transaction.merchant);
+    const existing = await db.recurringOverrides.where("merchantKey").equals(key).first();
+    if (existing) {
+      await db.recurringOverrides.update(existing.id, {
+        isRecurring: nextIsRecurring,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      await db.recurringOverrides.add({
+        id: crypto.randomUUID(),
+        merchantKey: key,
+        isRecurring: nextIsRecurring,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   }
 
   async function handleDelete() {
@@ -249,6 +272,22 @@ export default function TransactionDetailView() {
             />
             ボーナス払い
           </label>
+        </div>
+      )}
+
+      {isExpense && (
+        <div className="form-row">
+          <label className="filter-row">
+            <input
+              type="checkbox"
+              checked={isRecurring}
+              onChange={(e) => handleRecurringChange(e.target.checked)}
+            />
+            定常費用(毎月発生)
+          </label>
+          <p className="muted">
+            未設定の場合は履歴(同じ店名で2ヶ月以上発生していれば定常)から自動判定されます
+          </p>
         </div>
       )}
 

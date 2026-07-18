@@ -101,6 +101,18 @@ export interface MerchantExclusion {
   updatedAt: string; // ISO日時文字列
 }
 
+/**
+ * 店名ごとの「定常費用/突発費用」の手動判定オーバーライド。
+ * 未設定の店名は履歴から自動判定する(lib/recurringResolver.ts参照)。
+ * ユーザーが手動で修正するとmerchantKeyをキーにupsertされる。
+ */
+export interface RecurringOverride {
+  id: string;
+  merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKey)
+  isRecurring: boolean;
+  updatedAt: string; // ISO日時文字列
+}
+
 /** 取り込み元(金融機関・カード)の設定 */
 export interface FundingSource {
   id: string;

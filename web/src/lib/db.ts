@@ -7,6 +7,7 @@ import type {
   MajorCategory,
   MerchantCategoryMapping,
   MerchantExclusion,
+  RecurringOverride,
   Subcategory,
   Transaction,
 } from "../types/models";
@@ -33,6 +34,7 @@ export class KakeiboDB extends Dexie {
   merchantExclusions!: EntityTable<MerchantExclusion, "id">;
   bonusPeriods!: EntityTable<BonusPeriod, "id">;
   bonusBudgetSettings!: EntityTable<BonusBudgetSetting, "id">;
+  recurringOverrides!: EntityTable<RecurringOverride, "id">;
   settings!: EntityTable<KeyValueEntry, "key">;
 
   constructor() {
@@ -66,6 +68,19 @@ export class KakeiboDB extends Dexie {
       merchantExclusions: "id, merchantKey",
       bonusPeriods: "id, displayOrder",
       bonusBudgetSettings: "id, bonusPeriodID, effectiveFrom",
+      settings: "key",
+    });
+    this.version(4).stores({
+      transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+      fundingSources: "id",
+      majorCategories: "id, displayOrder",
+      subcategories: "id, majorCategoryID",
+      categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+      merchantCategoryMappings: "id, merchantKey",
+      merchantExclusions: "id, merchantKey",
+      bonusPeriods: "id, displayOrder",
+      bonusBudgetSettings: "id, bonusPeriodID, effectiveFrom",
+      recurringOverrides: "id, merchantKey",
       settings: "key",
     });
   }
