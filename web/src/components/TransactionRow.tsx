@@ -32,14 +32,14 @@ export default function TransactionRow({
   return (
     <Link
       to={`/transactions/${transaction.id}`}
-      className="list-row"
+      className={`list-row ${transaction.isBonusPayment ? "bonus-payment" : ""}`}
       style={transaction.excludedFromBudget ? { opacity: 0.5 } : undefined}
     >
       <div>
         <div>
           {transaction.merchant}
           {transaction.excludedFromBudget && <span className="muted"> (家計対象外)</span>}
-          {transaction.isBonusPayment && <span className="muted"> (ボーナス払い)</span>}
+          {transaction.isBonusPayment && <span className="bonus-label"> (ボーナス払い)</span>}
         </div>
         <div className="muted">
           {sourceName}

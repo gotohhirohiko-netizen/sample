@@ -27,15 +27,17 @@ export interface Subcategory {
 
 /**
  * カテゴリ(大カテゴリ)ごとの月次予算設定。
- * 変更のたびに新しいレコードを追加し(上書きしない)、effectiveFromが
- * 属する月以降にのみ適用される。過去月の予実評価には遡って影響しない
+ * 1つのカテゴリに複数の予算計画を持てる(例: 4月〜9月は多め、10月〜は通常額)。
+ * 上書きはせず追加のみで管理し、effectiveFrom〜effectiveTo(未指定なら無期限)の
+ * 範囲に属する月にのみ適用される。過去月の予実評価には遡って影響しない
  * (要件定義書 4.6)。
  */
 export interface CategoryBudgetSetting {
   id: string;
   majorCategoryID: string;
   monthlyAmount: number;
-  effectiveFrom: string; // ISO日付文字列(月初)
+  effectiveFrom: string; // ISO日付文字列(月初)。この月から適用開始
+  effectiveTo: string | null; // ISO日付文字列(月初)。この月まで適用(null=無期限)
 }
 
 /**

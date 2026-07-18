@@ -1,15 +1,23 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
+import { formatDateTime } from "../lib/dateUtils";
 
 /** 取り込み元選択画面(要件定義書 4.1/4.8) */
 export default function ImportSourceSelectView() {
   const navigate = useNavigate();
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
+  const transactions = useLiveQuery(() => db.transactions.toArray(), []);
 
   function openSource(sourceId: string, url: string) {
     window.open(url, "_blank", "noopener,noreferrer");
     navigate("/import/file", { state: { sourceId } });
+  }
+
+  function lastImportedAt(sourceId: string): string | null {
+    const matching = (transactions ?? []).filter((t) => t.sourceInstitutionID === sourceId);
+    if (matching.length === 0) return null;
+    return matching.reduce((latest, t) => (t.importedAt > latest ? t.importedAt : latest), matching[0].importedAt);
   }
 
   return (
@@ -20,16 +28,24 @@ export default function ImportSourceSelectView() {
       </p>
 
       <div className="list">
-        {fundingSources?.map((source) => (
-          <button
-            key={source.id}
-            type="button"
-            className="list-row"
-            onClick={() => openSource(source.id, source.statementDeepLinkURL)}
-          >
-            {source.displayName}
-          </button>
-        ))}
+        {fundingSources?.map((source) => {
+          const lastAt = lastImportedAt(source.id);
+          return (
+            <button
+              key={source.id}
+              type="button"
+              className="list-row"
+              onClick={() => openSource(source.id, source.statementDeepLinkURL)}
+            >
+              <div>
+                <div>{source.displayName}</div>
+                <div className="muted">
+                  {lastAt ? `前回取り込み: ${formatDateTime(new Date(lastAt))}` : "まだ取り込んでいません"}
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {fundingSources?.length === 0 && (

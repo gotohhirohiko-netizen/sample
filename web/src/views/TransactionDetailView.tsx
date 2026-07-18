@@ -16,7 +16,6 @@ export default function TransactionDetailView() {
     []
   );
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
-  const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
 
   const [merchant, setMerchant] = useState<string | null>(null);
   const [amount, setAmount] = useState<string | null>(null);
@@ -25,12 +24,11 @@ export default function TransactionDetailView() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [exclusionAppliedCount, setExclusionAppliedCount] = useState<number | null>(null);
 
-  if (!transaction || !majorCategories || !subcategories || !fundingSources) {
+  if (!transaction || !majorCategories || !subcategories) {
     return <p className="muted">読み込み中...</p>;
   }
 
-  const fundingSource = fundingSources.find((s) => s.id === transaction.sourceInstitutionID);
-  const isCreditCardExpense = transaction.type === "expense" && fundingSource?.kind === "creditCard";
+  const isExpense = transaction.type === "expense";
 
   const currentSubcategory = subcategories.find((s) => s.id === transaction.subcategoryID);
   const currentMajorCategory = currentSubcategory
@@ -241,7 +239,7 @@ export default function TransactionDetailView() {
         )}
       </div>
 
-      {isCreditCardExpense && (
+      {isExpense && (
         <div className="form-row">
           <label className="filter-row">
             <input

@@ -9,7 +9,10 @@ import { isSameMonth, startOfMonth } from "./dateUtils";
 
 /**
  * 指定した大カテゴリ・月に適用される予算額を取得する(docs/design.md 3.1)。
- * 過去に確定した月の表示は、後から予算を変更しても変わらない。
+ * 1つのカテゴリに複数の予算計画(期間の異なるもの)を持てるため、対象月が
+ * effectiveFrom〜effectiveTo(無指定なら無期限)の範囲に収まる計画の中から、
+ * 最もeffectiveFromが新しいものを採用する。過去に確定した月の表示は、
+ * 後から予算を変更しても変わらない。
  */
 export function budgetAmount(
   majorCategoryID: string,
@@ -19,7 +22,10 @@ export function budgetAmount(
   const monthStart = startOfMonth(month);
   const applicable = settings
     .filter(
-      (s) => s.majorCategoryID === majorCategoryID && new Date(s.effectiveFrom) <= monthStart
+      (s) =>
+        s.majorCategoryID === majorCategoryID &&
+        new Date(s.effectiveFrom) <= monthStart &&
+        (s.effectiveTo == null || monthStart <= new Date(s.effectiveTo))
     )
     .sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
   return applicable[0]?.monthlyAmount;
@@ -28,6 +34,7 @@ export function budgetAmount(
 /**
  * 大カテゴリの月次実績額(支出)の集計(docs/design.md 3.2)。
  * そのカテゴリに属する全小カテゴリのTransactionを合算して求める。
+ * ボーナス払いの案件はボーナス予実(bonusCalculator.ts)側で管理するため除外する。
  */
 export function actualAmount(
   majorCategoryID: string,
@@ -39,7 +46,13 @@ export function actualAmount(
     subcategories.filter((s) => s.majorCategoryID === majorCategoryID).map((s) => s.id)
   );
   return transactions
-    .filter((t) => t.type === "expense" && !t.excludedFromBudget && isSameMonth(new Date(t.date), month))
+    .filter(
+      (t) =>
+        t.type === "expense" &&
+        !t.excludedFromBudget &&
+        !t.isBonusPayment &&
+        isSameMonth(new Date(t.date), month)
+    )
     .filter((t) => t.subcategoryID != null && subcategoryIDs.has(t.subcategoryID))
     .reduce((sum, t) => sum + t.amount, 0);
 }
@@ -52,7 +65,7 @@ export function monthlySummary(
   majorCategories: MajorCategory[]
 ): MonthlySummary {
   const monthTx = transactions.filter(
-    (t) => !t.excludedFromBudget && isSameMonth(new Date(t.date), month)
+    (t) => !t.excludedFromBudget && !t.isBonusPayment && isSameMonth(new Date(t.date), month)
   );
   const totalExpense = monthTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const totalIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);

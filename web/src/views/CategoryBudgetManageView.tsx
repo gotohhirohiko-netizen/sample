@@ -3,9 +3,14 @@ import { Link } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { budgetAmount } from "../lib/budgetCalculator";
-import { formatYen, startOfMonth } from "../lib/dateUtils";
+import { formatYearMonth, formatYen, monthToParam } from "../lib/dateUtils";
 
-/** カテゴリ・予算管理画面(要件定義書 4.6) */
+function monthParamToDate(param: string): Date {
+  const [year, month] = param.split("-").map(Number);
+  return new Date(year, month - 1, 1);
+}
+
+/** カテゴリ・予算管理画面(要件定義書 4.6)。1カテゴリに複数の期間指定予算計画を持てる */
 export default function CategoryBudgetManageView() {
   const majorCategories = useLiveQuery(
     () => db.majorCategories.orderBy("displayOrder").toArray(),
@@ -16,7 +21,9 @@ export default function CategoryBudgetManageView() {
 
   const [newMajorName, setNewMajorName] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [budgetInput, setBudgetInput] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+  const [newFrom, setNewFrom] = useState(() => monthToParam(new Date()));
+  const [newTo, setNewTo] = useState("");
   const [newSubName, setNewSubName] = useState("");
 
   async function addMajorCategory() {
@@ -26,16 +33,25 @@ export default function CategoryBudgetManageView() {
     setNewMajorName("");
   }
 
-  async function updateBudget(majorCategoryID: string) {
-    const amount = Number(budgetInput);
-    if (!Number.isFinite(amount)) return;
+  async function addBudgetPlan(majorCategoryID: string) {
+    const amount = Number(newAmount);
+    if (!newFrom || !Number.isFinite(amount)) return;
+    if (newTo && newTo < newFrom) return;
     await db.categoryBudgetSettings.add({
       id: crypto.randomUUID(),
       majorCategoryID,
       monthlyAmount: amount,
-      effectiveFrom: startOfMonth(new Date()).toISOString(),
+      effectiveFrom: monthParamToDate(newFrom).toISOString(),
+      effectiveTo: newTo ? monthParamToDate(newTo).toISOString() : null,
     });
-    setBudgetInput("");
+    setNewAmount("");
+    setNewFrom(monthToParam(new Date()));
+    setNewTo("");
+  }
+
+  async function deleteBudgetPlan(id: string) {
+    if (!confirm("この予算計画を削除しますか?")) return;
+    await db.categoryBudgetSettings.delete(id);
   }
 
   async function addSubcategory(majorCategoryID: string) {
@@ -66,6 +82,10 @@ export default function CategoryBudgetManageView() {
         {majorCategories.map((major) => {
           const current = budgetAmount(major.id, new Date(), budgetSettings);
           const expanded = expandedId === major.id;
+          const plans = budgetSettings
+            .filter((s) => s.majorCategoryID === major.id)
+            .sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
+
           return (
             <div key={major.id} className="card">
               <button
@@ -80,25 +100,61 @@ export default function CategoryBudgetManageView() {
 
               {expanded && (
                 <div style={{ marginTop: 12 }}>
-                  <div className="form-row">
-                    <label>今月以降の予算額</label>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <input
-                        type="number"
-                        value={budgetInput}
-                        onChange={(e) => setBudgetInput(e.target.value)}
-                        placeholder="円"
-                      />
-                      <button type="button" className="btn-secondary" onClick={() => updateBudget(major.id)}>
-                        更新
-                      </button>
+                  <div className="section-title">予算計画</div>
+                  {plans.length > 0 && (
+                    <div className="list" style={{ marginBottom: 12 }}>
+                      {plans.map((plan) => (
+                        <div key={plan.id} className="list-row">
+                          <div>
+                            <div>{formatYen(plan.monthlyAmount)}</div>
+                            <div className="muted">
+                              {formatYearMonth(new Date(plan.effectiveFrom))} 〜{" "}
+                              {plan.effectiveTo ? formatYearMonth(new Date(plan.effectiveTo)) : "無期限"}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => deleteBudgetPlan(plan.id)}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <p className="muted">
-                      変更は今月以降にのみ適用され、過去月の実績評価は変わりません
-                    </p>
-                  </div>
+                  )}
 
-                  <div className="section-title">小カテゴリ</div>
+                  <div className="form-row">
+                    <label>新しい予算計画を追加</label>
+                    <input
+                      type="number"
+                      value={newAmount}
+                      onChange={(e) => setNewAmount(e.target.value)}
+                      placeholder="円"
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label>いつから</label>
+                    <input type="month" value={newFrom} onChange={(e) => setNewFrom(e.target.value)} />
+                  </div>
+                  <div className="form-row">
+                    <label>いつまで(空欄で無期限)</label>
+                    <input type="month" value={newTo} onChange={(e) => setNewTo(e.target.value)} />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => addBudgetPlan(major.id)}
+                  >
+                    追加
+                  </button>
+                  <p className="muted">
+                    複数の期間の予算計画を持てます。過去月の実績評価には遡って影響しません
+                  </p>
+
+                  <div className="section-title" style={{ marginTop: 16 }}>
+                    小カテゴリ
+                  </div>
                   <ul>
                     {subcategories
                       .filter((s) => s.majorCategoryID === major.id)
@@ -106,7 +162,7 @@ export default function CategoryBudgetManageView() {
                         <li key={sub.id}>{sub.name}</li>
                       ))}
                   </ul>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="button-row">
                     <input
                       value={newSubName}
                       onChange={(e) => setNewSubName(e.target.value)}
@@ -125,7 +181,7 @@ export default function CategoryBudgetManageView() {
 
       <div className="section" style={{ marginTop: 16 }}>
         <div className="section-title">大カテゴリを追加</div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="button-row">
           <input
             value={newMajorName}
             onChange={(e) => setNewMajorName(e.target.value)}

@@ -4,7 +4,13 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { formatMonthDay, formatYearMonth, isSameMonth, parseMonthParam } from "../lib/dateUtils";
 import { useScrollRestoration } from "../lib/scrollRestoration";
-import { loadUnclassifiedOnlyFilter, saveUnclassifiedOnlyFilter } from "../lib/keyStorage";
+import {
+  type DailyListSortMode,
+  loadDailyListSortMode,
+  loadUnclassifiedOnlyFilter,
+  saveDailyListSortMode,
+  saveUnclassifiedOnlyFilter,
+} from "../lib/keyStorage";
 import TransactionRow from "../components/TransactionRow";
 
 /** 日次収支リスト表示機能(要件定義書 4.4) */
@@ -12,14 +18,21 @@ export default function DailyListView() {
   const { month: monthParam } = useParams();
   const month = parseMonthParam(monthParam);
   const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
+  const [sortMode, setSortMode] = useState<DailyListSortMode>("date");
 
   useEffect(() => {
     loadUnclassifiedOnlyFilter().then(setUnclassifiedOnly);
+    loadDailyListSortMode().then(setSortMode);
   }, []);
 
   function handleUnclassifiedOnlyChange(checked: boolean) {
     setUnclassifiedOnly(checked);
     saveUnclassifiedOnlyFilter(checked);
+  }
+
+  function handleSortModeChange(mode: DailyListSortMode) {
+    setSortMode(mode);
+    saveDailyListSortMode(mode);
   }
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
@@ -34,10 +47,15 @@ export default function DailyListView() {
     return <p className="muted">読み込み中...</p>;
   }
 
-  const monthTx = transactions
+  const filteredTx = transactions
     .filter((t) => isSameMonth(new Date(t.date), month))
-    .filter((t) => !unclassifiedOnly || (t.type === "expense" && t.subcategoryID == null))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .filter((t) => !unclassifiedOnly || (t.type === "expense" && t.subcategoryID == null));
+
+  const monthTx = [...filteredTx].sort((a, b) =>
+    sortMode === "amount"
+      ? b.amount - a.amount
+      : new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
 
   const groups = new Map<string, typeof monthTx>();
   for (const tx of monthTx) {
@@ -63,22 +81,47 @@ export default function DailyListView() {
         未分類のみ表示
       </label>
 
-      {[...groups.entries()].map(([dayKey, items]) => (
-        <div className="section" key={dayKey}>
-          <div className="section-title">{formatMonthDay(new Date(dayKey))}</div>
-          <div className="list">
-            {items.map((tx) => (
-              <TransactionRow
-                key={tx.id}
-                transaction={tx}
-                fundingSources={fundingSources}
-                subcategories={subcategories}
-                majorCategories={majorCategories}
-              />
-            ))}
+      <div className="form-row">
+        <label>並び順</label>
+        <select
+          value={sortMode}
+          onChange={(e) => handleSortModeChange(e.target.value as DailyListSortMode)}
+        >
+          <option value="date">日付順</option>
+          <option value="amount">金額順</option>
+        </select>
+      </div>
+
+      {sortMode === "date" ? (
+        [...groups.entries()].map(([dayKey, items]) => (
+          <div className="section" key={dayKey}>
+            <div className="section-title">{formatMonthDay(new Date(dayKey))}</div>
+            <div className="list">
+              {items.map((tx) => (
+                <TransactionRow
+                  key={tx.id}
+                  transaction={tx}
+                  fundingSources={fundingSources}
+                  subcategories={subcategories}
+                  majorCategories={majorCategories}
+                />
+              ))}
+            </div>
           </div>
+        ))
+      ) : (
+        <div className="list">
+          {monthTx.map((tx) => (
+            <TransactionRow
+              key={tx.id}
+              transaction={tx}
+              fundingSources={fundingSources}
+              subcategories={subcategories}
+              majorCategories={majorCategories}
+            />
+          ))}
         </div>
-      ))}
+      )}
 
       {monthTx.length === 0 && (
         <p className="muted">

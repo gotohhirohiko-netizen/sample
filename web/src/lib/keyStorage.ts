@@ -3,6 +3,9 @@ import { db } from "./db";
 const API_KEY_SETTING = "anthropicApiKey";
 const LAST_BACKUP_SETTING = "lastBackupAt";
 const DAILY_LIST_UNCLASSIFIED_ONLY_SETTING = "dailyListUnclassifiedOnly";
+const DAILY_LIST_SORT_MODE_SETTING = "dailyListSortMode";
+
+export type DailyListSortMode = "date" | "amount";
 
 /**
  * Anthropic APIキーの保存(docs/design.md 4.1、要件定義書 5.1)。
@@ -38,4 +41,14 @@ export async function saveUnclassifiedOnlyFilter(value: boolean): Promise<void> 
 export async function loadUnclassifiedOnlyFilter(): Promise<boolean> {
   const entry = await db.settings.get(DAILY_LIST_UNCLASSIFIED_ONLY_SETTING);
   return entry?.value === "true";
+}
+
+/** 日次収支リストの並び順設定を保存する(画面遷移をまたいで保持するため) */
+export async function saveDailyListSortMode(mode: DailyListSortMode): Promise<void> {
+  await db.settings.put({ key: DAILY_LIST_SORT_MODE_SETTING, value: mode });
+}
+
+export async function loadDailyListSortMode(): Promise<DailyListSortMode> {
+  const entry = await db.settings.get(DAILY_LIST_SORT_MODE_SETTING);
+  return entry?.value === "amount" ? "amount" : "date";
 }
