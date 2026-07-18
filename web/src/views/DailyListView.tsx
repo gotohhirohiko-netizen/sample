@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { formatMonthDay, formatYearMonth, isSameMonth, parseMonthParam } from "../lib/dateUtils";
 import { useScrollRestoration } from "../lib/scrollRestoration";
+import { loadUnclassifiedOnlyFilter, saveUnclassifiedOnlyFilter } from "../lib/keyStorage";
 import TransactionRow from "../components/TransactionRow";
 
 /** 日次収支リスト表示機能(要件定義書 4.4) */
@@ -11,6 +12,15 @@ export default function DailyListView() {
   const { month: monthParam } = useParams();
   const month = parseMonthParam(monthParam);
   const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
+
+  useEffect(() => {
+    loadUnclassifiedOnlyFilter().then(setUnclassifiedOnly);
+  }, []);
+
+  function handleUnclassifiedOnlyChange(checked: boolean) {
+    setUnclassifiedOnly(checked);
+    saveUnclassifiedOnlyFilter(checked);
+  }
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
@@ -48,7 +58,7 @@ export default function DailyListView() {
         <input
           type="checkbox"
           checked={unclassifiedOnly}
-          onChange={(e) => setUnclassifiedOnly(e.target.checked)}
+          onChange={(e) => handleUnclassifiedOnlyChange(e.target.checked)}
         />
         未分類のみ表示
       </label>

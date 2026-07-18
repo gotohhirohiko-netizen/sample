@@ -2,6 +2,7 @@ import { db } from "./db";
 
 const API_KEY_SETTING = "anthropicApiKey";
 const LAST_BACKUP_SETTING = "lastBackupAt";
+const DAILY_LIST_UNCLASSIFIED_ONLY_SETTING = "dailyListUnclassifiedOnly";
 
 /**
  * Anthropic APIキーの保存(docs/design.md 4.1、要件定義書 5.1)。
@@ -27,4 +28,14 @@ export async function saveLastBackupAt(date: Date): Promise<void> {
 export async function loadLastBackupAt(): Promise<Date | null> {
   const entry = await db.settings.get(LAST_BACKUP_SETTING);
   return entry ? new Date(entry.value) : null;
+}
+
+/** 日次収支リストの「未分類のみ表示」フィルタ設定を保存する(画面遷移をまたいで保持するため) */
+export async function saveUnclassifiedOnlyFilter(value: boolean): Promise<void> {
+  await db.settings.put({ key: DAILY_LIST_UNCLASSIFIED_ONLY_SETTING, value: String(value) });
+}
+
+export async function loadUnclassifiedOnlyFilter(): Promise<boolean> {
+  const entry = await db.settings.get(DAILY_LIST_UNCLASSIFIED_ONLY_SETTING);
+  return entry?.value === "true";
 }
