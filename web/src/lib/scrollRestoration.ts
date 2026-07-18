@@ -8,6 +8,20 @@ function getScrollContainer(): HTMLElement | null {
 }
 
 /**
+ * iOS(WKWebView)はこのスクロール領域の再描画をサボって黒画面/白画面の
+ * まま止まることがある(実際にスクロールすると直る既知の挙動)。
+ * ユーザーが手で行うのと同じことをコードで行い、1px動かして戻すことで
+ * 強制的に再描画させる。位置は直後に戻すため見た目には残らない。
+ */
+function kickRepaint(el: HTMLElement) {
+  const before = el.scrollTop;
+  el.scrollTop = before + 1;
+  requestAnimationFrame(() => {
+    el.scrollTop = before;
+  });
+}
+
+/**
  * リスト画面から詳細画面へ行って戻ってきた時、タップした項目の位置を
  * 保ったままにする。`.app-content`は画面を跨いで使い回される同一要素だが、
  * 取引詳細のような短い画面を経由するとscrollTopがブラウザ側でリセットされる
@@ -30,11 +44,16 @@ export function useScrollRestoration(ready: boolean) {
   }, [key]);
 
   useEffect(() => {
-    if (!ready || navigationType !== "POP") return;
+    if (!ready) return;
     const el = getScrollContainer();
-    const saved = scrollPositions.get(key);
-    if (el && saved != null) {
-      el.scrollTop = saved;
+    if (!el) return;
+
+    if (navigationType === "POP") {
+      const saved = scrollPositions.get(key);
+      if (saved != null) {
+        el.scrollTop = saved;
+      }
     }
+    requestAnimationFrame(() => kickRepaint(el));
   }, [key, ready, navigationType]);
 }

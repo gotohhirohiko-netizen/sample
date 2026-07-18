@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HashRouter, Route, Routes, useLocation } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 import { seedCategoriesIfNeeded } from "./lib/seedData";
 import BottomNav from "./components/BottomNav";
 import HomeView from "./views/HomeView";
@@ -15,24 +15,6 @@ import CategoryBudgetManageView from "./views/CategoryBudgetManageView";
 import FundingSourceManageView from "./views/FundingSourceManageView";
 import BackupView from "./views/BackupView";
 
-/**
- * iOS(WKWebView)は画面遷移後、特に<select>のネイティブピッカーを
- * 閉じた直後などに、スクロールコンテナの再描画をサボって黒画面/白画面の
- * まま止まることがある。スクロールで直ることからも分かる通り単なる
- * 再描画漏れなので、画面遷移のたびに強制的にreflowさせて回避する。
- */
-function RepaintOnNavigate() {
-  const location = useLocation();
-  useEffect(() => {
-    const el = document.querySelector<HTMLElement>(".app-content");
-    if (!el) return;
-    el.style.display = "none";
-    void el.offsetHeight;
-    el.style.display = "";
-  }, [location.pathname]);
-  return null;
-}
-
 export default function App() {
   const [ready, setReady] = useState(false);
 
@@ -47,7 +29,6 @@ export default function App() {
   return (
     <HashRouter>
       <div className="app-shell">
-        <RepaintOnNavigate />
         <main className="app-content">
           <Routes>
             <Route path="/" element={<HomeView />} />
