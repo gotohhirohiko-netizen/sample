@@ -80,7 +80,7 @@ export default function ExtractionPreviewView() {
           const isDuplicate = existingTransactions.some(
             (t) =>
               isSameDay(new Date(t.date), new Date(date)) &&
-              t.merchant === item.merchant &&
+              merchantMatchKey(t.merchant) === merchantMatchKey(item.merchant) &&
               t.amount === item.amount
           );
           return {
