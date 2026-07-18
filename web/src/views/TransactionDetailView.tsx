@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import type { Transaction } from "../types/models";
@@ -68,9 +68,9 @@ export default function TransactionDetailView() {
 
   return (
     <div>
-      <Link to="/" className="back-link">
+      <button type="button" className="back-link" onClick={() => navigate(-1)}>
         ‹ 戻る
-      </Link>
+      </button>
       <h1 className="screen-title">取引詳細</h1>
 
       <div className="form-row">
