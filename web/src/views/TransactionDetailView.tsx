@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
+import { merchantMatchKey } from "../lib/categoryResolver";
 import type { Transaction } from "../types/models";
 
 /** 取引詳細・編集画面(要件定義書 4.3)。カテゴリ手動修正時は学習マッピングをupsertする(4.9) */
@@ -52,9 +53,10 @@ export default function TransactionDetailView() {
     setPickerOpen(false);
 
     if (nextID) {
+      const key = merchantMatchKey(transaction.merchant);
       const existing = await db.merchantCategoryMappings
         .where("merchantKey")
-        .equals(transaction.merchant)
+        .equals(key)
         .first();
       if (existing) {
         await db.merchantCategoryMappings.update(existing.id, {
@@ -64,7 +66,7 @@ export default function TransactionDetailView() {
       } else {
         await db.merchantCategoryMappings.add({
           id: crypto.randomUUID(),
-          merchantKey: transaction.merchant,
+          merchantKey: key,
           subcategoryID: nextID,
           updatedAt: new Date().toISOString(),
         });
@@ -75,7 +77,7 @@ export default function TransactionDetailView() {
           (t) =>
             t.id !== transaction.id &&
             t.type === "expense" &&
-            t.merchant === transaction.merchant &&
+            merchantMatchKey(t.merchant) === key &&
             t.subcategoryID !== nextID
         )
         .toArray();

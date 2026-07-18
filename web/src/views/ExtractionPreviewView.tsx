@@ -7,7 +7,7 @@ import {
   extractTransactions,
   type FileForExtraction,
 } from "../lib/claudeExtractionService";
-import { resolveCategory } from "../lib/categoryResolver";
+import { merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import type { FundingSource, Transaction } from "../types/models";
 
@@ -140,9 +140,10 @@ export default function ExtractionPreviewView() {
       await db.transactions.add(transaction);
 
       if (item.subcategoryID) {
+        const key = merchantMatchKey(item.merchant);
         const existing = await db.merchantCategoryMappings
           .where("merchantKey")
-          .equals(item.merchant)
+          .equals(key)
           .first();
         if (existing) {
           await db.merchantCategoryMappings.update(existing.id, {
@@ -152,7 +153,7 @@ export default function ExtractionPreviewView() {
         } else {
           await db.merchantCategoryMappings.add({
             id: crypto.randomUUID(),
-            merchantKey: item.merchant,
+            merchantKey: key,
             subcategoryID: item.subcategoryID,
             updatedAt: now,
           });

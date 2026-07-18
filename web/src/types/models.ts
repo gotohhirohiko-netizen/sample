@@ -44,7 +44,7 @@ export interface CategoryBudgetSetting {
  */
 export interface MerchantCategoryMapping {
   id: string;
-  merchantKey: string; // 店名(完全一致で判定)
+  merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKeyでスペース手前を抽出)
   subcategoryID: string;
   updatedAt: string; // ISO日時文字列
 }
