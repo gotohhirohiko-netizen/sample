@@ -2,7 +2,10 @@ name: Deploy web app to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    # このリポジトリには main ブランチが無く、デフォルトブランチが
+    # claude/household-budget-app-6ad06r になっているため、それに合わせている。
+    # main運用に切り替えた場合はここも更新すること。
+    branches: [claude/household-budget-app-6ad06r]
     paths:
       - "web/**"
       - ".github/workflows/deploy-web.yml"
