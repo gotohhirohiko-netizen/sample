@@ -4,10 +4,25 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { budgetAmount } from "../lib/budgetCalculator";
 import { formatYearMonth, formatYen, monthToParam } from "../lib/dateUtils";
+import type { CategoryBudgetSetting } from "../types/models";
 
 function monthParamToDate(param: string): Date {
   const [year, month] = param.split("-").map(Number);
   return new Date(year, month - 1, 1);
+}
+
+/** 2つの期間([from, to]。toがnullなら無期限)が重なるかどうか */
+function rangesOverlap(
+  aFrom: string,
+  aTo: string | null,
+  bFrom: string,
+  bTo: string | null
+): boolean {
+  const aFromT = new Date(aFrom).getTime();
+  const aToT = aTo ? new Date(aTo).getTime() : Infinity;
+  const bFromT = new Date(bFrom).getTime();
+  const bToT = bTo ? new Date(bTo).getTime() : Infinity;
+  return aFromT <= bToT && bFromT <= aToT;
 }
 
 /** カテゴリ・予算管理画面(要件定義書 4.6)。1カテゴリに複数の期間指定予算計画を持てる */
@@ -21,6 +36,7 @@ export default function CategoryBudgetManageView() {
 
   const [newMajorName, setNewMajorName] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [newAmount, setNewAmount] = useState("");
   const [newFrom, setNewFrom] = useState(() => monthToParam(new Date()));
   const [newTo, setNewTo] = useState("");
@@ -33,25 +49,61 @@ export default function CategoryBudgetManageView() {
     setNewMajorName("");
   }
 
-  async function addBudgetPlan(majorCategoryID: string) {
-    const amount = Number(newAmount);
-    if (!newFrom || !Number.isFinite(amount)) return;
-    if (newTo && newTo < newFrom) return;
-    await db.categoryBudgetSettings.add({
-      id: crypto.randomUUID(),
-      majorCategoryID,
-      monthlyAmount: amount,
-      effectiveFrom: monthParamToDate(newFrom).toISOString(),
-      effectiveTo: newTo ? monthParamToDate(newTo).toISOString() : null,
-    });
+  function resetPlanForm() {
+    setEditingPlanId(null);
     setNewAmount("");
     setNewFrom(monthToParam(new Date()));
     setNewTo("");
   }
 
+  function startEditPlan(plan: CategoryBudgetSetting) {
+    setEditingPlanId(plan.id);
+    setNewAmount(String(plan.monthlyAmount));
+    setNewFrom(monthToParam(new Date(plan.effectiveFrom)));
+    setNewTo(plan.effectiveTo ? monthToParam(new Date(plan.effectiveTo)) : "");
+  }
+
+  function findOverlappingPlans(majorCategoryID: string): CategoryBudgetSetting[] {
+    if (!budgetSettings || !newFrom) return [];
+    const effectiveFrom = monthParamToDate(newFrom).toISOString();
+    const effectiveTo = newTo ? monthParamToDate(newTo).toISOString() : null;
+    return budgetSettings.filter(
+      (s) =>
+        s.majorCategoryID === majorCategoryID &&
+        s.id !== editingPlanId &&
+        rangesOverlap(effectiveFrom, effectiveTo, s.effectiveFrom, s.effectiveTo)
+    );
+  }
+
+  async function addOrUpdateBudgetPlan(majorCategoryID: string) {
+    const amount = Number(newAmount);
+    if (!newFrom || !Number.isFinite(amount)) return;
+    if (newTo && newTo < newFrom) return;
+    const effectiveFrom = monthParamToDate(newFrom).toISOString();
+    const effectiveTo = newTo ? monthParamToDate(newTo).toISOString() : null;
+
+    if (editingPlanId) {
+      await db.categoryBudgetSettings.update(editingPlanId, {
+        monthlyAmount: amount,
+        effectiveFrom,
+        effectiveTo,
+      });
+    } else {
+      await db.categoryBudgetSettings.add({
+        id: crypto.randomUUID(),
+        majorCategoryID,
+        monthlyAmount: amount,
+        effectiveFrom,
+        effectiveTo,
+      });
+    }
+    resetPlanForm();
+  }
+
   async function deleteBudgetPlan(id: string) {
     if (!confirm("この予算計画を削除しますか?")) return;
     await db.categoryBudgetSettings.delete(id);
+    if (editingPlanId === id) resetPlanForm();
   }
 
   async function addSubcategory(majorCategoryID: string) {
@@ -85,6 +137,7 @@ export default function CategoryBudgetManageView() {
           const plans = budgetSettings
             .filter((s) => s.majorCategoryID === major.id)
             .sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
+          const overlapping = expanded ? findOverlappingPlans(major.id) : [];
 
           return (
             <div key={major.id} className="card">
@@ -92,7 +145,14 @@ export default function CategoryBudgetManageView() {
                 type="button"
                 className="list-row"
                 style={{ border: "none", padding: 0, background: "none" }}
-                onClick={() => setExpandedId(expanded ? null : major.id)}
+                onClick={() => {
+                  if (expanded) {
+                    resetPlanForm();
+                    setExpandedId(null);
+                  } else {
+                    setExpandedId(major.id);
+                  }
+                }}
               >
                 <span>{major.name}</span>
                 <span className="muted">{current !== undefined ? formatYen(current) : "未設定"}</span>
@@ -104,7 +164,11 @@ export default function CategoryBudgetManageView() {
                   {plans.length > 0 && (
                     <div className="list" style={{ marginBottom: 12 }}>
                       {plans.map((plan) => (
-                        <div key={plan.id} className="list-row">
+                        <div
+                          key={plan.id}
+                          className="list-row"
+                          style={editingPlanId === plan.id ? { borderColor: "var(--accent)" } : undefined}
+                        >
                           <div>
                             <div>{formatYen(plan.monthlyAmount)}</div>
                             <div className="muted">
@@ -112,20 +176,29 @@ export default function CategoryBudgetManageView() {
                               {plan.effectiveTo ? formatYearMonth(new Date(plan.effectiveTo)) : "無期限"}
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={() => deleteBudgetPlan(plan.id)}
-                          >
-                            削除
-                          </button>
+                          <div className="button-row">
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => startEditPlan(plan)}
+                            >
+                              編集
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => deleteBudgetPlan(plan.id)}
+                            >
+                              削除
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
 
                   <div className="form-row">
-                    <label>新しい予算計画を追加</label>
+                    <label>{editingPlanId ? "予算計画を編集" : "新しい予算計画を追加"}</label>
                     <input
                       type="number"
                       value={newAmount}
@@ -141,13 +214,33 @@ export default function CategoryBudgetManageView() {
                     <label>いつまで(空欄で無期限)</label>
                     <input type="month" value={newTo} onChange={(e) => setNewTo(e.target.value)} />
                   </div>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => addBudgetPlan(major.id)}
-                  >
-                    追加
-                  </button>
+
+                  {overlapping.length > 0 && (
+                    <p className="muted" style={{ color: "var(--danger)" }}>
+                      {overlapping
+                        .map(
+                          (p) =>
+                            `${formatYearMonth(new Date(p.effectiveFrom))}〜${p.effectiveTo ? formatYearMonth(new Date(p.effectiveTo)) : "無期限"}(${formatYen(p.monthlyAmount)})`
+                        )
+                        .join("、")}
+                      の計画と期間が重なっています。重なる月は開始日がより新しい方の計画が優先されます。
+                    </p>
+                  )}
+
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => addOrUpdateBudgetPlan(major.id)}
+                    >
+                      {editingPlanId ? "更新" : "追加"}
+                    </button>
+                    {editingPlanId && (
+                      <button type="button" className="btn-secondary" onClick={resetPlanForm}>
+                        キャンセル
+                      </button>
+                    )}
+                  </div>
                   <p className="muted">
                     複数の期間の予算計画を持てます。過去月の実績評価には遡って影響しません
                   </p>
