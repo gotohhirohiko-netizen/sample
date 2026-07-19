@@ -165,12 +165,24 @@ export default function CategoryBudgetManageView() {
     return <p className="muted">読み込み中...</p>;
   }
 
+  const totalCurrentBudget = majorCategories.reduce(
+    (sum, major) => sum + (budgetAmount(major.id, new Date(), budgetSettings) ?? 0),
+    0
+  );
+
   return (
     <div>
       <Link to="/settings" className="back-link">
         ‹ 設定へ戻る
       </Link>
       <h1 className="screen-title">カテゴリ・予算管理</h1>
+
+      <div className="section card">
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <strong>トータル(今月の予算合計)</strong>
+          <span className="amount">{formatYen(totalCurrentBudget)}</span>
+        </div>
+      </div>
 
       <div className="list">
         {majorCategories.map((major) => {
