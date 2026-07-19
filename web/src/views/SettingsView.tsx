@@ -131,6 +131,9 @@ export default function SettingsView() {
         <Link to="/settings/import-history" className="list-row">
           取り込み履歴
         </Link>
+        <Link to="/settings/api-usage" className="list-row">
+          API使用量
+        </Link>
       </div>
     </div>
   );

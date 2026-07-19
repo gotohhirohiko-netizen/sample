@@ -12,6 +12,8 @@ export interface ExtractionResultItem {
 
 export interface ExtractionResult {
   transactions: ExtractionResultItem[];
+  /** Claude APIを呼び出した場合の使用量(決定的パーサーで解析した場合はnull) */
+  usage: { model: string; inputTokens: number; outputTokens: number } | null;
 }
 
 export interface FileForExtraction {
@@ -110,7 +112,15 @@ export async function extractTransactions(
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("Claude APIから有効なレスポンスが得られませんでした");
   }
-  return JSON.parse(textBlock.text) as ExtractionResult;
+  const parsed = JSON.parse(textBlock.text) as { transactions: ExtractionResultItem[] };
+  return {
+    transactions: parsed.transactions,
+    usage: {
+      model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+    },
+  };
 }
 
 /** Anthropic APIのエラーを、原因が分かるよう日本語の分かりやすいメッセージに変換する */

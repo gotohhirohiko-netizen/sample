@@ -19,6 +19,7 @@ import BackupView from "./views/BackupView";
 import ImportHistoryView from "./views/ImportHistoryView";
 import BonusBudgetView from "./views/BonusBudgetView";
 import BonusSettingsView from "./views/BonusSettingsView";
+import ApiUsageView from "./views/ApiUsageView";
 
 function AppContent() {
   const [ready, setReady] = useState(false);
@@ -52,6 +53,7 @@ function AppContent() {
             <Route path="/settings/sources" element={<FundingSourceManageView />} />
             <Route path="/settings/backup" element={<BackupView />} />
             <Route path="/settings/import-history" element={<ImportHistoryView />} />
+            <Route path="/settings/api-usage" element={<ApiUsageView />} />
             <Route path="/bonus-budget" element={<BonusBudgetView />} />
             <Route path="/settings/bonus" element={<BonusSettingsView />} />
           </Routes>

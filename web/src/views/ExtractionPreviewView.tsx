@@ -92,6 +92,7 @@ export default function ExtractionPreviewView() {
               majorCategory: null,
               subcategory: null,
             })),
+            usage: null,
           };
         } else {
           const apiKey = await loadApiKey();
@@ -103,6 +104,17 @@ export default function ExtractionPreviewView() {
             fundingSource.kind,
             majorCategories.map((c) => c.name)
           );
+
+          if (result.usage) {
+            await db.apiUsageLogs.add({
+              id: crypto.randomUUID(),
+              createdAt: new Date().toISOString(),
+              sourceInstitutionID: state.sourceId,
+              model: result.usage.model,
+              inputTokens: result.usage.inputTokens,
+              outputTokens: result.usage.outputTokens,
+            });
+          }
         }
 
         const resolved: PreviewItem[] = result.transactions.map((item, index) => {
