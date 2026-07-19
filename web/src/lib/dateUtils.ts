@@ -8,6 +8,11 @@ export function isSameMonth(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
 
+/** その月の日数(28〜31) */
+export function daysInMonth(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
 /** 2つの日付が同じ日かどうか(年月日が一致) */
 export function isSameDay(a: Date, b: Date): boolean {
   return (

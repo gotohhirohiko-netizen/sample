@@ -5,7 +5,7 @@ import type {
   Subcategory,
   Transaction,
 } from "../types/models";
-import { isSameMonth, startOfMonth } from "./dateUtils";
+import { daysInMonth, isSameMonth, startOfMonth } from "./dateUtils";
 
 /**
  * 指定した大カテゴリ・月に適用される予算額を取得する(docs/design.md 3.1)。
@@ -55,6 +55,17 @@ export function actualAmount(
     )
     .filter((t) => t.subcategoryID != null && subcategoryIDs.has(t.subcategoryID))
     .reduce((sum, t) => sum + t.amount, 0);
+}
+
+/**
+ * 表示中の月が今月の場合、「今日時点で消化しているべき割合の目安」を返す
+ * (例: 30日中20日目なら約2/3)。今月以外の月ではnullを返す(目安が意味を
+ * 持たないため)。
+ */
+export function expectedPaceRatio(month: Date): number | null {
+  const today = new Date();
+  if (!isSameMonth(month, today)) return null;
+  return today.getDate() / daysInMonth(month);
 }
 
 /** 月次サマリー(対予算・対収入)の計算(docs/design.md 3.3) */

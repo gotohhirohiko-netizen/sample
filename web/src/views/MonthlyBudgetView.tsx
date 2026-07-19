@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { actualAmount, budgetAmount } from "../lib/budgetCalculator";
+import { actualAmount, budgetAmount, expectedPaceRatio } from "../lib/budgetCalculator";
 import { formatYearMonth, formatYen, parseMonthParam } from "../lib/dateUtils";
 
 /** 月次収支確認機能(カテゴリ別 予算・実績)(要件定義書 4.5) */
@@ -20,6 +20,8 @@ export default function MonthlyBudgetView() {
   if (!majorCategories || !subcategories || !budgetSettings || !transactions) {
     return <p className="muted">読み込み中...</p>;
   }
+
+  const paceRatio = expectedPaceRatio(month);
 
   return (
     <div>
@@ -50,6 +52,12 @@ export default function MonthlyBudgetView() {
                 <>
                   <div className={`progress ${over ? "over" : ""}`}>
                     <div style={{ width: `${rate * 100}%` }} />
+                    {paceRatio !== null && (
+                      <div
+                        className="progress-pace-marker"
+                        style={{ left: `${Math.min(paceRatio, 1) * 100}%` }}
+                      />
+                    )}
                   </div>
                   <span className="muted">
                     予算 {formatYen(budget)} / 残り {formatYen(budget - actual)}
