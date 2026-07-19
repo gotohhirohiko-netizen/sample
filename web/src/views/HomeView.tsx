@@ -1,15 +1,23 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { monthlySummary } from "../lib/budgetCalculator";
 import { formatYen, monthToParam } from "../lib/dateUtils";
+import { loadLastBackupAt } from "../lib/keyStorage";
 import MonthPicker from "../components/MonthPicker";
+
+const BACKUP_REMINDER_DAYS = 7;
 
 /** ホーム画面: 対予算・対収入サマリー(要件定義書 4.7) */
 export default function HomeView() {
   const navigate = useNavigate();
   const [month, setMonth] = useState(() => new Date());
+  const [lastBackupAt, setLastBackupAt] = useState<Date | null | undefined>(undefined);
+
+  useEffect(() => {
+    loadLastBackupAt().then(setLastBackupAt);
+  }, []);
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
   const budgetSettings = useLiveQuery(() => db.categoryBudgetSettings.toArray(), []);
@@ -25,9 +33,27 @@ export default function HomeView() {
   const summary = monthlySummary(month, transactions, budgetSettings, majorCategories);
   const monthParam = monthToParam(month);
 
+  const daysSinceBackup = lastBackupAt
+    ? (Date.now() - lastBackupAt.getTime()) / (1000 * 60 * 60 * 24)
+    : null;
+  const needsBackupReminder =
+    lastBackupAt !== undefined && (lastBackupAt === null || daysSinceBackup! >= BACKUP_REMINDER_DAYS);
+
   return (
     <div>
       <h1 className="screen-title">ホーム</h1>
+
+      {needsBackupReminder && (
+        <div className="section card">
+          <p className="muted">
+            {lastBackupAt
+              ? `最終バックアップから${Math.floor(daysSinceBackup!)}日経過しています`
+              : "まだバックアップを取っていません"}
+          </p>
+          <Link to="/settings/backup">バックアップ/復元へ</Link>
+        </div>
+      )}
+
       <MonthPicker month={month} onChange={setMonth} />
 
       <div className="section card">

@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { loadApiKey } from "../lib/keyStorage";
+import { loadApiKey, loadAutoBackupOnImport } from "../lib/keyStorage";
 import {
   extractTransactions,
   type FileForExtraction,
 } from "../lib/claudeExtractionService";
 import { merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
+import { downloadBackup, exportBackup } from "../lib/backup";
 import type { FundingSource, Transaction } from "../types/models";
 
 interface LocationState {
@@ -196,6 +197,11 @@ export default function ExtractionPreviewView() {
       } else if (existingExclusion) {
         await db.merchantExclusions.delete(existingExclusion.id);
       }
+    }
+
+    if (itemsToCommit.length > 0 && (await loadAutoBackupOnImport())) {
+      const payload = await exportBackup();
+      downloadBackup(payload);
     }
 
     navigate("/");

@@ -1,7 +1,11 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import { downloadBackup, exportBackup, restoreBackup, type BackupPayload } from "../lib/backup";
-import { loadLastBackupAt } from "../lib/keyStorage";
+import {
+  loadAutoBackupOnImport,
+  loadLastBackupAt,
+  saveAutoBackupOnImport,
+} from "../lib/keyStorage";
 import { isStoragePersisted } from "../lib/storagePersistence";
 
 /**
@@ -13,11 +17,18 @@ export default function BackupView() {
   const [lastBackupAt, setLastBackupAt] = useState<Date | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
+  const [autoBackupOnImport, setAutoBackupOnImport] = useState(true);
 
   useEffect(() => {
     loadLastBackupAt().then(setLastBackupAt);
     isStoragePersisted().then(setPersisted);
+    loadAutoBackupOnImport().then(setAutoBackupOnImport);
   }, []);
+
+  function handleAutoBackupChange(checked: boolean) {
+    setAutoBackupOnImport(checked);
+    saveAutoBackupOnImport(checked);
+  }
 
   async function handleExport() {
     const payload = await exportBackup();
@@ -62,6 +73,20 @@ export default function BackupView() {
         <button type="button" className="btn-primary" onClick={handleExport}>
           バックアップをダウンロード
         </button>
+      </div>
+
+      <div className="section">
+        <label className="filter-row">
+          <input
+            type="checkbox"
+            checked={autoBackupOnImport}
+            onChange={(e) => handleAutoBackupChange(e.target.checked)}
+          />
+          取り込み確定時に自動でバックアップする
+        </label>
+        <p className="muted">
+          明細を取り込んで確定するたびに、その時点の全データのバックアップファイルが自動でダウンロードされます
+        </p>
       </div>
 
       <div className="section">

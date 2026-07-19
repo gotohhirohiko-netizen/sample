@@ -5,6 +5,7 @@ const LAST_BACKUP_SETTING = "lastBackupAt";
 const DAILY_LIST_UNCLASSIFIED_ONLY_SETTING = "dailyListUnclassifiedOnly";
 const DAILY_LIST_SORT_MODE_SETTING = "dailyListSortMode";
 const DAILY_LIST_SPONTANEOUS_ONLY_SETTING = "dailyListSpontaneousOnly";
+const AUTO_BACKUP_ON_IMPORT_SETTING = "autoBackupOnImport";
 
 export type DailyListSortMode = "date" | "amount";
 
@@ -62,4 +63,14 @@ export async function saveSpontaneousOnlyFilter(value: boolean): Promise<void> {
 export async function loadSpontaneousOnlyFilter(): Promise<boolean> {
   const entry = await db.settings.get(DAILY_LIST_SPONTANEOUS_ONLY_SETTING);
   return entry?.value === "true";
+}
+
+/** 取り込み確定時の自動バックアップ設定を保存する(デフォルトは有効) */
+export async function saveAutoBackupOnImport(value: boolean): Promise<void> {
+  await db.settings.put({ key: AUTO_BACKUP_ON_IMPORT_SETTING, value: String(value) });
+}
+
+export async function loadAutoBackupOnImport(): Promise<boolean> {
+  const entry = await db.settings.get(AUTO_BACKUP_ON_IMPORT_SETTING);
+  return entry ? entry.value === "true" : true;
 }
