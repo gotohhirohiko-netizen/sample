@@ -13,6 +13,14 @@ export function bonusPeriodRange(period: BonusPeriod, year: number): { start: Da
   return { start, end };
 }
 
+/** 指定した月(1-12)が属するボーナス集計期間を返す(例: 7月なら7-12月の期間) */
+export function findBonusPeriodForMonth(
+  periods: BonusPeriod[],
+  monthNumber: number
+): BonusPeriod | undefined {
+  return periods.find((p) => p.startMonth <= monthNumber && monthNumber <= p.endMonth);
+}
+
 /** 指定した期間内のボーナス収入の実績額を集計する */
 export function bonusIncomeActualAmount(
   start: Date,

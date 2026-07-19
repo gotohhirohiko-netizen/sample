@@ -4,6 +4,13 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { monthlySummary } from "../lib/budgetCalculator";
 import { monthEndExpenseProjection } from "../lib/projectionCalculator";
+import {
+  bonusActualAmount,
+  bonusCategoryPlanTotal,
+  bonusIncomeActualAmount,
+  bonusPeriodRange,
+  findBonusPeriodForMonth,
+} from "../lib/bonusCalculator";
 import { formatYen, monthToParam } from "../lib/dateUtils";
 import { loadLastBackupAt } from "../lib/keyStorage";
 import MonthPicker from "../components/MonthPicker";
@@ -27,14 +34,41 @@ export default function HomeView() {
     []
   );
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
+  const bonusPeriods = useLiveQuery(() => db.bonusPeriods.orderBy("displayOrder").toArray(), []);
+  const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
 
-  if (!transactions || !budgetSettings || !majorCategories || !recurringOverrides) {
+  if (
+    !transactions ||
+    !budgetSettings ||
+    !majorCategories ||
+    !recurringOverrides ||
+    !bonusPeriods ||
+    !bonusCategoryPlans
+  ) {
     return <p className="muted">読み込み中...</p>;
   }
 
   const summary = monthlySummary(month, transactions, budgetSettings, majorCategories);
   const monthParam = monthToParam(month);
   const projection = monthEndExpenseProjection(month, transactions, recurringOverrides);
+
+  const currentBonusPeriod = findBonusPeriodForMonth(bonusPeriods, month.getMonth() + 1);
+  const bonusSummary = currentBonusPeriod
+    ? (() => {
+        const { start, end } = bonusPeriodRange(currentBonusPeriod, month.getFullYear());
+        const actual = bonusActualAmount(start, end, transactions);
+        const income = bonusIncomeActualAmount(start, end, transactions);
+        const allocated = bonusCategoryPlanTotal(currentBonusPeriod.id, month.getFullYear(), bonusCategoryPlans);
+        return {
+          period: currentBonusPeriod,
+          actual,
+          income,
+          allocated,
+          budgetUsageRate: allocated > 0 ? actual / allocated : undefined,
+          incomeUsageRate: income > 0 ? actual / income : undefined,
+        };
+      })()
+    : null;
 
   const daysSinceBackup = lastBackupAt
     ? (Date.now() - lastBackupAt.getTime()) / (1000 * 60 * 60 * 24)
@@ -127,6 +161,40 @@ export default function HomeView() {
           </p>
         )}
       </div>
+
+      {bonusSummary && (
+        <div className="section card">
+          <div className="section-title">
+            ボーナス対予算・対収入({bonusSummary.period.label})
+          </div>
+          {bonusSummary.budgetUsageRate !== undefined ? (
+            <>
+              <p>対予算 {Math.round(bonusSummary.budgetUsageRate * 100)}%</p>
+              <div className={`progress ${bonusSummary.budgetUsageRate > 1 ? "over" : ""}`}>
+                <div style={{ width: `${Math.min(bonusSummary.budgetUsageRate * 100, 100)}%` }} />
+              </div>
+              <span className="muted">
+                {formatYen(bonusSummary.actual)} / 割り当て {formatYen(bonusSummary.allocated)}
+              </span>
+            </>
+          ) : (
+            <p className="muted">使用計画未設定</p>
+          )}
+          {bonusSummary.incomeUsageRate !== undefined ? (
+            <>
+              <p>対収入 {Math.round(bonusSummary.incomeUsageRate * 100)}%</p>
+              <div className={`progress ${bonusSummary.incomeUsageRate > 1 ? "over" : ""}`}>
+                <div style={{ width: `${Math.min(bonusSummary.incomeUsageRate * 100, 100)}%` }} />
+              </div>
+              <span className="muted">
+                {formatYen(bonusSummary.actual)} / 収入 {formatYen(bonusSummary.income)}
+              </span>
+            </>
+          ) : (
+            <p className="muted">ボーナス収入なし</p>
+          )}
+        </div>
+      )}
 
       <div className="section list">
         <button type="button" className="list-row" onClick={() => navigate(`/daily/${monthParam}`)}>
