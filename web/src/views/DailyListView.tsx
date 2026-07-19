@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { formatMonthDay, formatYearMonth, isSameMonth, parseMonthParam } from "../lib/dateUtils";
+import {
+  formatMonthDay,
+  isSameMonth,
+  monthToParam,
+  parseMonthParam,
+} from "../lib/dateUtils";
 import { useScrollRestoration } from "../lib/scrollRestoration";
 import {
   type DailyListSortMode,
@@ -15,14 +20,20 @@ import {
 } from "../lib/keyStorage";
 import { resolveRecurring } from "../lib/recurringResolver";
 import TransactionRow from "../components/TransactionRow";
+import MonthPicker from "../components/MonthPicker";
 
 /** 日次収支リスト表示機能(要件定義書 4.4) */
 export default function DailyListView() {
   const { month: monthParam } = useParams();
   const month = parseMonthParam(monthParam);
+  const navigate = useNavigate();
   const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
   const [spontaneousOnly, setSpontaneousOnly] = useState(false);
   const [sortMode, setSortMode] = useState<DailyListSortMode>("date");
+
+  function handleMonthChange(newMonth: Date) {
+    navigate(`/daily/${monthToParam(newMonth)}`, { replace: true });
+  }
 
   useEffect(() => {
     loadUnclassifiedOnlyFilter().then(setUnclassifiedOnly);
@@ -86,7 +97,8 @@ export default function DailyListView() {
       <Link to="/" className="back-link">
         ‹ ホームへ戻る
       </Link>
-      <h1 className="screen-title">{formatYearMonth(month)}</h1>
+      <h1 className="screen-title">日次収支リスト</h1>
+      <MonthPicker month={month} onChange={handleMonthChange} />
 
       <label className="filter-row">
         <input

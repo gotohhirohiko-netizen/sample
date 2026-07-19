@@ -1,13 +1,19 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { actualAmount, budgetAmount, expectedPaceRatio } from "../lib/budgetCalculator";
-import { formatYearMonth, formatYen, parseMonthParam } from "../lib/dateUtils";
+import { formatYen, monthToParam, parseMonthParam } from "../lib/dateUtils";
+import MonthPicker from "../components/MonthPicker";
 
 /** 月次収支確認機能(カテゴリ別 予算・実績)(要件定義書 4.5) */
 export default function MonthlyBudgetView() {
   const { month: monthParam } = useParams();
   const month = parseMonthParam(monthParam);
+  const navigate = useNavigate();
+
+  function handleMonthChange(newMonth: Date) {
+    navigate(`/budget/${monthToParam(newMonth)}`, { replace: true });
+  }
 
   const majorCategories = useLiveQuery(
     () => db.majorCategories.orderBy("displayOrder").toArray(),
@@ -28,7 +34,8 @@ export default function MonthlyBudgetView() {
       <Link to="/" className="back-link">
         ‹ ホームへ戻る
       </Link>
-      <h1 className="screen-title">{formatYearMonth(month)} 予実</h1>
+      <h1 className="screen-title">月次予実</h1>
+      <MonthPicker month={month} onChange={handleMonthChange} />
 
       <div className="list">
         {majorCategories.map((major) => {
