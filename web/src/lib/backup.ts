@@ -2,6 +2,7 @@ import { db } from "./db";
 import { saveLastBackupAt } from "./keyStorage";
 import type {
   BonusBudgetSetting,
+  BonusCategoryPlan,
   BonusPeriod,
   CategoryBudgetSetting,
   FundingSource,
@@ -31,6 +32,7 @@ export interface BackupPayload {
   bonusPeriods: BonusPeriod[];
   bonusBudgetSettings: BonusBudgetSetting[];
   recurringOverrides: RecurringOverride[];
+  bonusCategoryPlans: BonusCategoryPlan[];
 }
 
 export async function exportBackup(): Promise<BackupPayload> {
@@ -45,6 +47,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     bonusPeriods,
     bonusBudgetSettings,
     recurringOverrides,
+    bonusCategoryPlans,
   ] = await Promise.all([
     db.transactions.toArray(),
     db.fundingSources.toArray(),
@@ -56,6 +59,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     db.bonusPeriods.toArray(),
     db.bonusBudgetSettings.toArray(),
     db.recurringOverrides.toArray(),
+    db.bonusCategoryPlans.toArray(),
   ]);
 
   const payload: BackupPayload = {
@@ -70,6 +74,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     bonusPeriods,
     bonusBudgetSettings,
     recurringOverrides,
+    bonusCategoryPlans,
   };
 
   await saveLastBackupAt(new Date());
@@ -102,6 +107,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
       db.bonusPeriods,
       db.bonusBudgetSettings,
       db.recurringOverrides,
+      db.bonusCategoryPlans,
     ],
     async () => {
       await Promise.all([
@@ -115,6 +121,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.bonusPeriods.clear(),
         db.bonusBudgetSettings.clear(),
         db.recurringOverrides.clear(),
+        db.bonusCategoryPlans.clear(),
       ]);
       await Promise.all([
         db.transactions.bulkAdd(payload.transactions),
@@ -127,6 +134,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.bonusPeriods.bulkAdd(payload.bonusPeriods ?? []),
         db.bonusBudgetSettings.bulkAdd(payload.bonusBudgetSettings ?? []),
         db.recurringOverrides.bulkAdd(payload.recurringOverrides ?? []),
+        db.bonusCategoryPlans.bulkAdd(payload.bonusCategoryPlans ?? []),
       ]);
     }
   );

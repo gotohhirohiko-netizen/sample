@@ -2,7 +2,13 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { bonusActualAmount, bonusBudgetAmount, bonusPeriodRange } from "../lib/bonusCalculator";
+import {
+  bonusActualAmount,
+  bonusBudgetAmount,
+  bonusCategoryActualAmount,
+  bonusCategoryPlanAmount,
+  bonusPeriodRange,
+} from "../lib/bonusCalculator";
 import { formatYen } from "../lib/dateUtils";
 import type { BonusPeriod } from "../types/models";
 import TransactionRow from "../components/TransactionRow";
@@ -15,6 +21,7 @@ export default function BonusBudgetView() {
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const majorCategories = useLiveQuery(() => db.majorCategories.toArray(), []);
+  const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
 
   const [budgetInputs, setBudgetInputs] = useState<Record<string, string>>({});
   const [appliedId, setAppliedId] = useState<string | null>(null);
@@ -22,6 +29,8 @@ export default function BonusBudgetView() {
     {}
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [categoryPlanInputs, setCategoryPlanInputs] = useState<Record<string, string>>({});
+  const [categoryPlanAppliedId, setCategoryPlanAppliedId] = useState<string | null>(null);
 
   if (
     !bonusPeriods ||
@@ -29,7 +38,8 @@ export default function BonusBudgetView() {
     !transactions ||
     !fundingSources ||
     !subcategories ||
-    !majorCategories
+    !majorCategories ||
+    !bonusCategoryPlans
   ) {
     return <p className="muted">読み込み中...</p>;
   }
@@ -60,6 +70,29 @@ export default function BonusBudgetView() {
     if (startMonth < 1 || startMonth > 12 || endMonth < 1 || endMonth > 12) return;
     if (startMonth > endMonth) return;
     await db.bonusPeriods.update(period.id, { startMonth, endMonth });
+  }
+
+  async function applyCategoryPlan(period: BonusPeriod, majorCategoryID: string) {
+    const raw = categoryPlanInputs[majorCategoryID];
+    const amount = Number(raw);
+    if (!raw || !Number.isFinite(amount)) return;
+    const existing = bonusCategoryPlans!.find(
+      (p) => p.bonusPeriodID === period.id && p.year === year && p.majorCategoryID === majorCategoryID
+    );
+    if (existing) {
+      await db.bonusCategoryPlans.update(existing.id, { plannedAmount: amount });
+    } else {
+      await db.bonusCategoryPlans.add({
+        id: crypto.randomUUID(),
+        bonusPeriodID: period.id,
+        year,
+        majorCategoryID,
+        plannedAmount: amount,
+      });
+    }
+    setCategoryPlanInputs((prev) => ({ ...prev, [majorCategoryID]: "" }));
+    setCategoryPlanAppliedId(majorCategoryID);
+    setTimeout(() => setCategoryPlanAppliedId(null), 2000);
   }
 
   return (
@@ -196,6 +229,67 @@ export default function BonusBudgetView() {
                   {items.length === 0 && (
                     <p className="muted">この期間のボーナス払い案件はまだありません</p>
                   )}
+
+                  <div className="section-title" style={{ marginTop: 16 }}>
+                    カテゴリ別使用計画
+                  </div>
+                  <div className="list">
+                    {majorCategories.map((major) => {
+                      const planned = bonusCategoryPlanAmount(period.id, year, major.id, bonusCategoryPlans);
+                      const catActual = bonusCategoryActualAmount(
+                        major.id,
+                        start,
+                        end,
+                        transactions,
+                        subcategories
+                      );
+                      const catOver = planned !== undefined && catActual > planned;
+                      const catRate = planned ? Math.min(catActual / planned, 1) : 0;
+
+                      return (
+                        <div key={major.id} className="card">
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span>{major.name}</span>
+                            <span className={catOver ? "amount over-budget" : "amount"}>
+                              {formatYen(catActual)}
+                            </span>
+                          </div>
+                          {planned !== undefined ? (
+                            <>
+                              <div className={`progress ${catOver ? "over" : ""}`}>
+                                <div style={{ width: `${catRate * 100}%` }} />
+                              </div>
+                              <span className="muted">
+                                計画 {formatYen(planned)} / 残り {formatYen(planned - catActual)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="muted">計画未設定</span>
+                          )}
+                          <div className="button-row" style={{ marginTop: 8 }}>
+                            <input
+                              type="number"
+                              value={categoryPlanInputs[major.id] ?? ""}
+                              onChange={(e) =>
+                                setCategoryPlanInputs((prev) => ({ ...prev, [major.id]: e.target.value }))
+                              }
+                              placeholder="この用途の計画額"
+                            />
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => applyCategoryPlan(period, major.id)}
+                            >
+                              反映
+                            </button>
+                          </div>
+                          {categoryPlanAppliedId === major.id && (
+                            <p className="muted">計画を反映しました</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

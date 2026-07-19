@@ -33,10 +33,12 @@ export default function TransactionRow({
 
   const showSpontaneous = transaction.type === "expense" && isSpontaneous;
 
+  const isBonus = transaction.isBonusPayment || transaction.isBonusIncome;
+
   return (
     <Link
       to={`/transactions/${transaction.id}`}
-      className={`list-row ${transaction.isBonusPayment ? "bonus-payment" : ""} ${showSpontaneous ? "spontaneous-expense" : ""}`}
+      className={`list-row ${isBonus ? "bonus-payment" : ""} ${showSpontaneous ? "spontaneous-expense" : ""}`}
       style={transaction.excludedFromBudget ? { opacity: 0.5 } : undefined}
     >
       <div>
@@ -44,6 +46,7 @@ export default function TransactionRow({
           {transaction.merchant}
           {transaction.excludedFromBudget && <span className="muted"> (家計対象外)</span>}
           {transaction.isBonusPayment && <span className="bonus-label"> (ボーナス払い)</span>}
+          {transaction.isBonusIncome && <span className="bonus-label"> (ボーナス収入)</span>}
           {showSpontaneous && <span className="spontaneous-label"> (突発)</span>}
         </div>
         <div className="muted">

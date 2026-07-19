@@ -32,6 +32,7 @@ export default function TransactionDetailView() {
   }
 
   const isExpense = transaction.type === "expense";
+  const isIncome = transaction.type === "income";
   const isRecurring = resolveRecurring(transaction.merchant, allTransactions, recurringOverrides);
 
   const currentSubcategory = subcategories.find((s) => s.id === transaction.subcategoryID);
@@ -134,6 +135,11 @@ export default function TransactionDetailView() {
   async function handleBonusPaymentChange(isBonusPayment: boolean) {
     if (!transaction) return;
     await db.transactions.update(transaction.id, { isBonusPayment });
+  }
+
+  async function handleBonusIncomeChange(isBonusIncome: boolean) {
+    if (!transaction) return;
+    await db.transactions.update(transaction.id, { isBonusIncome });
   }
 
   async function handleRecurringChange(nextIsRecurring: boolean) {
@@ -287,6 +293,22 @@ export default function TransactionDetailView() {
           </label>
           <p className="muted">
             未設定の場合は履歴(同じ店名で2ヶ月以上発生していれば定常)から自動判定されます
+          </p>
+        </div>
+      )}
+
+      {isIncome && (
+        <div className="form-row">
+          <label className="filter-row">
+            <input
+              type="checkbox"
+              checked={!!transaction.isBonusIncome}
+              onChange={(e) => handleBonusIncomeChange(e.target.checked)}
+            />
+            ボーナス収入(賞与等)
+          </label>
+          <p className="muted">
+            ONにすると月次サマリーの収入集計から除外されます。振込名称からは自動判別できないため手動設定です
           </p>
         </div>
       )}

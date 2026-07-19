@@ -76,7 +76,11 @@ export function monthlySummary(
   majorCategories: MajorCategory[]
 ): MonthlySummary {
   const monthTx = transactions.filter(
-    (t) => !t.excludedFromBudget && !t.isBonusPayment && isSameMonth(new Date(t.date), month)
+    (t) =>
+      !t.excludedFromBudget &&
+      !t.isBonusPayment &&
+      !t.isBonusIncome &&
+      isSameMonth(new Date(t.date), month)
   );
   const totalExpense = monthTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const totalIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);

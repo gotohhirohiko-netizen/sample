@@ -10,6 +10,7 @@ import {
 import { merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
+import { suggestBonusIncome } from "../lib/bonusIncomeHeuristic";
 import type { FundingSource, Transaction } from "../types/models";
 
 interface LocationState {
@@ -26,6 +27,7 @@ interface PreviewItem {
   subcategoryID: string | null;
   isDuplicate: boolean;
   excludedFromBudget: boolean;
+  isBonusIncome: boolean;
 }
 
 /** 抽出結果プレビュー画面(要件定義書 4.2/4.9、docs/design.md 4.4/5章) */
@@ -97,6 +99,8 @@ export default function ExtractionPreviewView() {
           const excludedFromBudget = exclusions.some(
             (e) => e.merchantKey === merchantMatchKey(item.merchant)
           );
+          const isBonusIncome =
+            item.type === "income" && suggestBonusIncome(item.merchant, item.amount, existingTransactions);
           return {
             key: `${index}-${item.merchant}-${item.amount}`,
             date,
@@ -106,6 +110,7 @@ export default function ExtractionPreviewView() {
             subcategoryID,
             isDuplicate,
             excludedFromBudget,
+            isBonusIncome,
           };
         });
 
@@ -155,6 +160,7 @@ export default function ExtractionPreviewView() {
         importedAt: now,
         excludedFromBudget: item.excludedFromBudget,
         isBonusPayment: false,
+        isBonusIncome: item.isBonusIncome,
       };
       await db.transactions.add(transaction);
 
@@ -255,6 +261,17 @@ export default function ExtractionPreviewView() {
                   />
                   家計に含めない
                 </label>
+                {item.type === "income" && (
+                  <label className="filter-row">
+                    <input
+                      type="checkbox"
+                      checked={item.isBonusIncome}
+                      onChange={(e) => updateItem(item.key, { isBonusIncome: e.target.checked })}
+                    />
+                    ボーナス収入(賞与等)
+                    {item.isBonusIncome && <span className="muted">(金額から推定)</span>}
+                  </label>
+                )}
                 {item.type === "expense" && (
                   <select
                     value={item.subcategoryID ?? ""}

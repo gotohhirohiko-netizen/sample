@@ -1,4 +1,10 @@
-import type { BonusBudgetSetting, BonusPeriod, Transaction } from "../types/models";
+import type {
+  BonusBudgetSetting,
+  BonusCategoryPlan,
+  BonusPeriod,
+  Subcategory,
+  Transaction,
+} from "../types/models";
 
 /**
  * ボーナス払いの集計・予実ロジック。カテゴリ予算(budgetCalculator.ts)と
@@ -39,6 +45,46 @@ export function bonusActualAmount(
         t.type === "expense" &&
         t.isBonusPayment &&
         !t.excludedFromBudget &&
+        new Date(t.date) >= start &&
+        new Date(t.date) < end
+    )
+    .reduce((sum, t) => sum + t.amount, 0);
+}
+
+/**
+ * ボーナスの使用用途計画(要件: 消費カテゴリと同じ項目でボーナスの使い道を
+ * 計画できるように)。期間は毎年繰り返されるため年ごとに独立して管理する。
+ */
+export function bonusCategoryPlanAmount(
+  bonusPeriodID: string,
+  year: number,
+  majorCategoryID: string,
+  plans: BonusCategoryPlan[]
+): number | undefined {
+  return plans.find(
+    (p) => p.bonusPeriodID === bonusPeriodID && p.year === year && p.majorCategoryID === majorCategoryID
+  )?.plannedAmount;
+}
+
+/** 指定した期間・カテゴリのボーナス払い案件(支出)の実績額を集計する */
+export function bonusCategoryActualAmount(
+  majorCategoryID: string,
+  start: Date,
+  end: Date,
+  transactions: Transaction[],
+  subcategories: Subcategory[]
+): number {
+  const subcategoryIDs = new Set(
+    subcategories.filter((s) => s.majorCategoryID === majorCategoryID).map((s) => s.id)
+  );
+  return transactions
+    .filter(
+      (t) =>
+        t.type === "expense" &&
+        t.isBonusPayment &&
+        !t.excludedFromBudget &&
+        t.subcategoryID != null &&
+        subcategoryIDs.has(t.subcategoryID) &&
         new Date(t.date) >= start &&
         new Date(t.date) < end
     )

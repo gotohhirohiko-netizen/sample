@@ -64,6 +64,7 @@ export interface Transaction {
   importedAt: string; // ISO日時文字列(重複検知の補助情報)
   excludedFromBudget: boolean; // trueの場合、予算実績・月次サマリーの集計に含めない
   isBonusPayment: boolean; // ボーナス払い(クレジットカード)の案件かどうか
+  isBonusIncome: boolean; // ボーナス収入(賞与等)かどうか。trueの場合、月次サマリーの収入集計から除外する
 }
 
 /**
@@ -88,6 +89,20 @@ export interface BonusBudgetSetting {
   bonusPeriodID: string;
   amount: number;
   effectiveFrom: string; // ISO日付文字列
+}
+
+/**
+ * ボーナス期間・年ごとの、カテゴリ別の使用計画(要件: ボーナスの使用用途を
+ * 消費カテゴリと同じ項目で計画できるようにする)。期間は毎年繰り返される
+ * ため、年ごとに独立した計画として管理する(前の期の計画が翌年に
+ * 引き継がれて混乱しないように)。
+ */
+export interface BonusCategoryPlan {
+  id: string;
+  bonusPeriodID: string;
+  year: number;
+  majorCategoryID: string;
+  plannedAmount: number;
 }
 
 /**
