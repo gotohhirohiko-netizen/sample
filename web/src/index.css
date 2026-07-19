@@ -257,7 +257,7 @@ select {
   background: var(--danger);
 }
 
-.progress-pace-marker {
+.progress > .progress-pace-marker {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -266,7 +266,7 @@ select {
   opacity: 0.7;
 }
 
-.progress-marker-recurring {
+.progress > .progress-marker-recurring {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -274,7 +274,7 @@ select {
   background: var(--success);
 }
 
-.progress-marker-proportional {
+.progress > .progress-marker-proportional {
   position: absolute;
   top: 0;
   bottom: 0;
