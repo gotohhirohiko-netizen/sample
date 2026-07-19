@@ -10,7 +10,7 @@ import {
 import { merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
-import { suggestBonusIncome } from "../lib/bonusIncomeHeuristic";
+import { matchesBonusIncomeSchedule, suggestBonusIncome } from "../lib/bonusIncomeHeuristic";
 import type { FundingSource, Transaction } from "../types/models";
 
 interface LocationState {
@@ -44,6 +44,7 @@ export default function ExtractionPreviewView() {
   const mappings = useLiveQuery(() => db.merchantCategoryMappings.toArray(), []);
   const exclusions = useLiveQuery(() => db.merchantExclusions.toArray(), []);
   const existingTransactions = useLiveQuery(() => db.transactions.toArray(), []);
+  const bonusIncomeSchedules = useLiveQuery(() => db.bonusIncomeSchedules.toArray(), []);
   const fundingSource = useLiveQuery<FundingSource | undefined>(
     () => (state ? db.fundingSources.get(state.sourceId) : undefined),
     [state?.sourceId]
@@ -62,7 +63,8 @@ export default function ExtractionPreviewView() {
       !subcategories ||
       !mappings ||
       !exclusions ||
-      !existingTransactions
+      !existingTransactions ||
+      !bonusIncomeSchedules
     ) {
       return;
     }
@@ -100,7 +102,9 @@ export default function ExtractionPreviewView() {
             (e) => e.merchantKey === merchantMatchKey(item.merchant)
           );
           const isBonusIncome =
-            item.type === "income" && suggestBonusIncome(item.merchant, item.amount, existingTransactions);
+            item.type === "income" &&
+            (matchesBonusIncomeSchedule(item.date, state.sourceId, bonusIncomeSchedules) ||
+              suggestBonusIncome(item.merchant, item.amount, existingTransactions));
           return {
             key: `${index}-${item.merchant}-${item.amount}`,
             date,
@@ -126,7 +130,16 @@ export default function ExtractionPreviewView() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, fundingSource, majorCategories, subcategories, mappings, exclusions, existingTransactions]);
+  }, [
+    state,
+    fundingSource,
+    majorCategories,
+    subcategories,
+    mappings,
+    exclusions,
+    existingTransactions,
+    bonusIncomeSchedules,
+  ]);
 
   if (!state) {
     return (
@@ -269,7 +282,7 @@ export default function ExtractionPreviewView() {
                       onChange={(e) => updateItem(item.key, { isBonusIncome: e.target.checked })}
                     />
                     ボーナス収入(賞与等)
-                    {item.isBonusIncome && <span className="muted">(金額から推定)</span>}
+                    {item.isBonusIncome && <span className="muted">(自動推定)</span>}
                   </label>
                 )}
                 {item.type === "expense" && (

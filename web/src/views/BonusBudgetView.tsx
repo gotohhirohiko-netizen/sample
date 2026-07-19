@@ -10,7 +10,8 @@ import {
   bonusPeriodRange,
 } from "../lib/bonusCalculator";
 import { formatYen } from "../lib/dateUtils";
-import type { BonusPeriod } from "../types/models";
+import { matchesBonusIncomeSchedule } from "../lib/bonusIncomeHeuristic";
+import type { BonusIncomeSchedule, BonusPeriod } from "../types/models";
 import TransactionRow from "../components/TransactionRow";
 
 /** ボーナス払いの予実確認・設定画面 */
@@ -22,6 +23,7 @@ export default function BonusBudgetView() {
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const majorCategories = useLiveQuery(() => db.majorCategories.toArray(), []);
   const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
+  const bonusIncomeSchedules = useLiveQuery(() => db.bonusIncomeSchedules.toArray(), []);
 
   const [budgetInputs, setBudgetInputs] = useState<Record<string, string>>({});
   const [appliedId, setAppliedId] = useState<string | null>(null);
@@ -31,6 +33,10 @@ export default function BonusBudgetView() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [categoryPlanInputs, setCategoryPlanInputs] = useState<Record<string, string>>({});
   const [categoryPlanAppliedId, setCategoryPlanAppliedId] = useState<string | null>(null);
+  const [scheduleFundingSourceID, setScheduleFundingSourceID] = useState("");
+  const [scheduleMonth, setScheduleMonth] = useState("7");
+  const [scheduleDay, setScheduleDay] = useState("10");
+  const [scheduleAppliedCount, setScheduleAppliedCount] = useState<number | null>(null);
 
   if (
     !bonusPeriods ||
@@ -39,7 +45,8 @@ export default function BonusBudgetView() {
     !fundingSources ||
     !subcategories ||
     !majorCategories ||
-    !bonusCategoryPlans
+    !bonusCategoryPlans ||
+    !bonusIncomeSchedules
   ) {
     return <p className="muted">読み込み中...</p>;
   }
@@ -95,12 +102,118 @@ export default function BonusBudgetView() {
     setTimeout(() => setCategoryPlanAppliedId(null), 2000);
   }
 
+  async function addSchedule() {
+    const month = Number(scheduleMonth);
+    const day = Number(scheduleDay);
+    if (!scheduleFundingSourceID) return;
+    if (!Number.isInteger(month) || month < 1 || month > 12) return;
+    if (!Number.isInteger(day) || day < 1 || day > 31) return;
+
+    const id = crypto.randomUUID();
+    const schedule: BonusIncomeSchedule = {
+      id,
+      fundingSourceID: scheduleFundingSourceID,
+      month,
+      day,
+    };
+    await db.bonusIncomeSchedules.add(schedule);
+
+    const matching = transactions!.filter(
+      (t) =>
+        t.type === "income" &&
+        !t.isBonusIncome &&
+        matchesBonusIncomeSchedule(t.date, scheduleFundingSourceID, [schedule])
+    );
+    await Promise.all(matching.map((t) => db.transactions.update(t.id, { isBonusIncome: true })));
+
+    setScheduleFundingSourceID("");
+    setScheduleAppliedCount(matching.length);
+    setTimeout(() => setScheduleAppliedCount(null), 3000);
+  }
+
+  async function deleteSchedule(id: string) {
+    if (!confirm("このボーナス振込設定を削除しますか?")) return;
+    await db.bonusIncomeSchedules.delete(id);
+  }
+
   return (
     <div>
       <Link to="/" className="back-link">
         ‹ ホームへ戻る
       </Link>
       <h1 className="screen-title">ボーナス払い予実</h1>
+
+      <div className="section">
+        <div className="section-title">ボーナス振込設定</div>
+        <p className="muted">
+          振込先口座と振込予定日(毎年同じ月日)を設定すると、取り込み時にボーナス収入を自動判定します。
+          銀行の非営業日(土日等)で振込が前倒しになる場合を考慮し、設定日からさかのぼって数日以内の入金も対象にします(祝日までは判定していません)。
+        </p>
+
+        {bonusIncomeSchedules.length > 0 && (
+          <div className="list" style={{ marginBottom: 12 }}>
+            {bonusIncomeSchedules.map((schedule) => {
+              const source = fundingSources.find((s) => s.id === schedule.fundingSourceID);
+              return (
+                <div key={schedule.id} className="list-row">
+                  <div>
+                    <div>{source?.displayName ?? "不明な取り込み元"}</div>
+                    <div className="muted">
+                      {schedule.month}月{schedule.day}日ごろ
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => deleteSchedule(schedule.id)}
+                  >
+                    削除
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="form-row">
+          <label>振込先口座</label>
+          <select
+            value={scheduleFundingSourceID}
+            onChange={(e) => setScheduleFundingSourceID(e.target.value)}
+          >
+            <option value="">選択してください</option>
+            {fundingSources.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.displayName}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="button-row">
+          <input
+            type="number"
+            min={1}
+            max={12}
+            value={scheduleMonth}
+            onChange={(e) => setScheduleMonth(e.target.value)}
+            placeholder="月"
+          />
+          <input
+            type="number"
+            min={1}
+            max={31}
+            value={scheduleDay}
+            onChange={(e) => setScheduleDay(e.target.value)}
+            placeholder="日"
+          />
+          <button type="button" className="btn-primary" onClick={addSchedule}>
+            追加
+          </button>
+        </div>
+        {scheduleAppliedCount !== null && (
+          <p className="muted">既存の取引 {scheduleAppliedCount}件にも反映しました</p>
+        )}
+      </div>
 
       <div className="list">
         {bonusPeriods.map((period) => {

@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from "dexie";
 import type {
   BonusBudgetSetting,
   BonusCategoryPlan,
+  BonusIncomeSchedule,
   BonusPeriod,
   CategoryBudgetSetting,
   FundingSource,
@@ -37,6 +38,7 @@ export class KakeiboDB extends Dexie {
   bonusBudgetSettings!: EntityTable<BonusBudgetSetting, "id">;
   recurringOverrides!: EntityTable<RecurringOverride, "id">;
   bonusCategoryPlans!: EntityTable<BonusCategoryPlan, "id">;
+  bonusIncomeSchedules!: EntityTable<BonusIncomeSchedule, "id">;
   settings!: EntityTable<KeyValueEntry, "key">;
 
   constructor() {
@@ -97,6 +99,21 @@ export class KakeiboDB extends Dexie {
       bonusBudgetSettings: "id, bonusPeriodID, effectiveFrom",
       recurringOverrides: "id, merchantKey",
       bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID",
+      settings: "key",
+    });
+    this.version(6).stores({
+      transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+      fundingSources: "id",
+      majorCategories: "id, displayOrder",
+      subcategories: "id, majorCategoryID",
+      categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+      merchantCategoryMappings: "id, merchantKey",
+      merchantExclusions: "id, merchantKey",
+      bonusPeriods: "id, displayOrder",
+      bonusBudgetSettings: "id, bonusPeriodID, effectiveFrom",
+      recurringOverrides: "id, merchantKey",
+      bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID",
+      bonusIncomeSchedules: "id, fundingSourceID",
       settings: "key",
     });
   }

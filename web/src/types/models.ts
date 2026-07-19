@@ -92,6 +92,19 @@ export interface BonusBudgetSetting {
 }
 
 /**
+ * ボーナス収入の振込スケジュール(要件: 振込先口座・振込日が決まっている
+ * 場合はそれで判定する)。日付は毎年同じ月日として扱い、実際の振込が
+ * 銀行の非営業日回避で前倒しになる可能性を考慮して判定する
+ * (lib/bonusIncomeHeuristic.ts#matchesBonusIncomeSchedule参照)。
+ */
+export interface BonusIncomeSchedule {
+  id: string;
+  fundingSourceID: string;
+  month: number; // 1-12
+  day: number; // 1-31
+}
+
+/**
  * ボーナス期間・年ごとの、カテゴリ別の使用計画(要件: ボーナスの使用用途を
  * 消費カテゴリと同じ項目で計画できるようにする)。期間は毎年繰り返される
  * ため、年ごとに独立した計画として管理する(前の期の計画が翌年に
