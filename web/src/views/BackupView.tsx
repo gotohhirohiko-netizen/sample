@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import { downloadBackup, exportBackup, restoreBackup, type BackupPayload } from "../lib/backup";
 import { loadLastBackupAt } from "../lib/keyStorage";
+import { isStoragePersisted } from "../lib/storagePersistence";
 
 /**
  * バックアップ/復元画面(docs/design.md 8章)。
@@ -11,9 +12,11 @@ import { loadLastBackupAt } from "../lib/keyStorage";
 export default function BackupView() {
   const [lastBackupAt, setLastBackupAt] = useState<Date | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [persisted, setPersisted] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadLastBackupAt().then(setLastBackupAt);
+    isStoragePersisted().then(setPersisted);
   }, []);
 
   async function handleExport() {
@@ -46,6 +49,10 @@ export default function BackupView() {
 
       <p className="muted">
         iOS Safariは一定期間操作の無いサイトのデータを消去することがあります。定期的にバックアップを取ることを推奨します。
+      </p>
+      <p className="muted">
+        永続化ストレージ:{" "}
+        {persisted === null ? "確認中..." : persisted ? "有効" : "無効(この端末/ブラウザは対応していない可能性があります)"}
       </p>
       <p className="muted">
         最終バックアップ: {lastBackupAt ? lastBackupAt.toLocaleString("ja-JP") : "まだありません"}

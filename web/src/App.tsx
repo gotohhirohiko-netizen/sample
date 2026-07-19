@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { seedBonusPeriodsIfNeeded, seedCategoriesIfNeeded } from "./lib/seedData";
+import { requestPersistentStorage } from "./lib/storagePersistence";
 import BottomNav from "./components/BottomNav";
 import LockGate from "./components/LockGate";
 import HomeView from "./views/HomeView";
@@ -22,6 +23,7 @@ function AppContent() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    requestPersistentStorage();
     Promise.all([seedCategoriesIfNeeded(), seedBonusPeriodsIfNeeded()]).finally(() =>
       setReady(true)
     );
