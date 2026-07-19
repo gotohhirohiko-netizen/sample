@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { monthlySummary } from "../lib/budgetCalculator";
+import { monthEndExpenseProjection } from "../lib/projectionCalculator";
 import { formatYen, monthToParam } from "../lib/dateUtils";
 import { loadLastBackupAt } from "../lib/keyStorage";
 import MonthPicker from "../components/MonthPicker";
@@ -25,13 +26,15 @@ export default function HomeView() {
     () => db.majorCategories.orderBy("displayOrder").toArray(),
     []
   );
+  const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
 
-  if (!transactions || !budgetSettings || !majorCategories) {
+  if (!transactions || !budgetSettings || !majorCategories || !recurringOverrides) {
     return <p className="muted">読み込み中...</p>;
   }
 
   const summary = monthlySummary(month, transactions, budgetSettings, majorCategories);
   const monthParam = monthToParam(month);
+  const projection = monthEndExpenseProjection(month, transactions, recurringOverrides);
 
   const daysSinceBackup = lastBackupAt
     ? (Date.now() - lastBackupAt.getTime()) / (1000 * 60 * 60 * 24)
@@ -70,6 +73,22 @@ export default function HomeView() {
             <p>対予算 {Math.round(summary.budgetUsageRate * 100)}%</p>
             <div className={`progress ${summary.budgetUsageRate > 1 ? "over" : ""}`}>
               <div style={{ width: `${Math.min(summary.budgetUsageRate * 100, 100)}%` }} />
+              {projection && summary.totalBudget > 0 && (
+                <>
+                  <div
+                    className="progress-marker-recurring"
+                    style={{
+                      left: `${Math.min((projection.recurringProjected / summary.totalBudget) * 100, 100)}%`,
+                    }}
+                  />
+                  <div
+                    className="progress-marker-proportional"
+                    style={{
+                      left: `${Math.min((projection.totalProjected / summary.totalBudget) * 100, 100)}%`,
+                    }}
+                  />
+                </>
+              )}
             </div>
           </>
         ) : (
@@ -80,10 +99,32 @@ export default function HomeView() {
             <p>対収入 {Math.round(summary.incomeUsageRate * 100)}%</p>
             <div className={`progress ${summary.incomeUsageRate > 1 ? "over" : ""}`}>
               <div style={{ width: `${Math.min(summary.incomeUsageRate * 100, 100)}%` }} />
+              {projection && summary.totalIncome > 0 && (
+                <>
+                  <div
+                    className="progress-marker-recurring"
+                    style={{
+                      left: `${Math.min((projection.recurringProjected / summary.totalIncome) * 100, 100)}%`,
+                    }}
+                  />
+                  <div
+                    className="progress-marker-proportional"
+                    style={{
+                      left: `${Math.min((projection.totalProjected / summary.totalIncome) * 100, 100)}%`,
+                    }}
+                  />
+                </>
+              )}
             </div>
           </>
         ) : (
           <p className="muted">収入データなし</p>
+        )}
+        {projection && (
+          <p className="muted">
+            <span className="legend-recurring">■</span> 定常費用の予想({formatYen(projection.recurringProjected)})
+            <span className="legend-proportional">■</span> 月末着地予想({formatYen(projection.totalProjected)})
+          </p>
         )}
       </div>
 

@@ -262,6 +262,37 @@ select {
   opacity: 0.7;
 }
 
+.progress-marker-recurring {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--success);
+}
+
+.progress-marker-proportional {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--danger);
+}
+
+.legend-recurring,
+.legend-proportional {
+  display: inline-block;
+  margin-left: 8px;
+  margin-right: 4px;
+}
+
+.legend-recurring {
+  color: var(--success);
+}
+
+.legend-proportional {
+  color: var(--danger);
+}
+
 .bottom-nav {
   display: flex;
   border-top: 1px solid var(--border);
