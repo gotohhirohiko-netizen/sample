@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { seedBonusPeriodsIfNeeded, seedCategoriesIfNeeded } from "./lib/seedData";
 import BottomNav from "./components/BottomNav";
+import LockGate from "./components/LockGate";
 import HomeView from "./views/HomeView";
 import DailyListView from "./views/DailyListView";
 import MonthlyBudgetView from "./views/MonthlyBudgetView";
@@ -17,7 +18,7 @@ import BackupView from "./views/BackupView";
 import ImportHistoryView from "./views/ImportHistoryView";
 import BonusBudgetView from "./views/BonusBudgetView";
 
-export default function App() {
+function AppContent() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -54,5 +55,13 @@ export default function App() {
         <BottomNav />
       </div>
     </HashRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <LockGate>
+      <AppContent />
+    </LockGate>
   );
 }
