@@ -124,6 +124,9 @@ export default function HomeView() {
                 </>
               )}
             </div>
+            <span className="muted">
+              {formatYen(summary.totalExpense)} / 予算 {formatYen(summary.totalBudget)}
+            </span>
           </>
         ) : (
           <p className="muted">予算未設定</p>
@@ -150,6 +153,9 @@ export default function HomeView() {
                 </>
               )}
             </div>
+            <span className="muted">
+              {formatYen(summary.totalExpense)} / 収入 {formatYen(summary.totalIncome)}
+            </span>
           </>
         ) : (
           <p className="muted">収入データなし</p>
