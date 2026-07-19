@@ -23,6 +23,7 @@ export default function BonusBudgetView() {
   const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [yearByPeriod, setYearByPeriod] = useState<Record<string, number>>({});
   const [categoryPlanInputs, setCategoryPlanInputs] = useState<Record<string, string>>({});
   const [categoryPlanAppliedId, setCategoryPlanAppliedId] = useState<string | null>(null);
 
@@ -37,10 +38,19 @@ export default function BonusBudgetView() {
     return <p className="muted">読み込み中...</p>;
   }
 
-  const year = new Date().getFullYear();
+  const currentYear = new Date().getFullYear();
 
-  async function applyCategoryPlan(period: BonusPeriod, majorCategoryID: string) {
-    const raw = categoryPlanInputs[majorCategoryID];
+  function yearFor(periodId: string): number {
+    return yearByPeriod[periodId] ?? currentYear;
+  }
+
+  function changeYear(periodId: string, delta: number) {
+    setYearByPeriod((prev) => ({ ...prev, [periodId]: yearFor(periodId) + delta }));
+  }
+
+  async function applyCategoryPlan(period: BonusPeriod, year: number, majorCategoryID: string) {
+    const inputKey = `${period.id}-${year}-${majorCategoryID}`;
+    const raw = categoryPlanInputs[inputKey];
     const amount = Number(raw);
     if (!raw || !Number.isFinite(amount)) return;
     const existing = bonusCategoryPlans!.find(
@@ -57,8 +67,8 @@ export default function BonusBudgetView() {
         plannedAmount: amount,
       });
     }
-    setCategoryPlanInputs((prev) => ({ ...prev, [majorCategoryID]: "" }));
-    setCategoryPlanAppliedId(majorCategoryID);
+    setCategoryPlanInputs((prev) => ({ ...prev, [inputKey]: "" }));
+    setCategoryPlanAppliedId(inputKey);
     setTimeout(() => setCategoryPlanAppliedId(null), 2000);
   }
 
@@ -74,6 +84,7 @@ export default function BonusBudgetView() {
 
       <div className="list">
         {bonusPeriods.map((period) => {
+          const year = yearFor(period.id);
           const { start, end } = bonusPeriodRange(period, year);
           const income = bonusIncomeActualAmount(start, end, transactions);
           const allocated = bonusCategoryPlanTotal(period.id, year, bonusCategoryPlans);
@@ -104,10 +115,26 @@ export default function BonusBudgetView() {
 
           return (
             <div key={period.id} className="card">
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <strong>
-                  {period.label}({year}年)
-                </strong>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="month-picker" style={{ margin: 0 }}>
+                  <button
+                    type="button"
+                    aria-label="前年"
+                    onClick={() => changeYear(period.id, -1)}
+                  >
+                    ‹
+                  </button>
+                  <strong>
+                    {period.label}({year}年)
+                  </strong>
+                  <button
+                    type="button"
+                    aria-label="翌年"
+                    onClick={() => changeYear(period.id, 1)}
+                  >
+                    ›
+                  </button>
+                </div>
                 <span className="amount">収入 {formatYen(income)}</span>
               </div>
 
@@ -178,6 +205,7 @@ export default function BonusBudgetView() {
                       );
                       const catOver = planned !== undefined && catActual > planned;
                       const catRate = planned ? Math.min(catActual / planned, 1) : 0;
+                      const inputKey = `${period.id}-${year}-${major.id}`;
 
                       return (
                         <div key={major.id} className="card">
@@ -202,21 +230,21 @@ export default function BonusBudgetView() {
                           <div className="button-row" style={{ marginTop: 8 }}>
                             <input
                               type="number"
-                              value={categoryPlanInputs[major.id] ?? ""}
+                              value={categoryPlanInputs[inputKey] ?? ""}
                               onChange={(e) =>
-                                setCategoryPlanInputs((prev) => ({ ...prev, [major.id]: e.target.value }))
+                                setCategoryPlanInputs((prev) => ({ ...prev, [inputKey]: e.target.value }))
                               }
                               placeholder="この用途の計画額"
                             />
                             <button
                               type="button"
                               className="btn-secondary"
-                              onClick={() => applyCategoryPlan(period, major.id)}
+                              onClick={() => applyCategoryPlan(period, year, major.id)}
                             >
                               反映
                             </button>
                           </div>
-                          {categoryPlanAppliedId === major.id && (
+                          {categoryPlanAppliedId === inputKey && (
                             <p className="muted">計画を反映しました</p>
                           )}
                         </div>
