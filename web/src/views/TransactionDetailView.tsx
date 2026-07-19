@@ -132,6 +132,15 @@ export default function TransactionDetailView() {
     setTimeout(() => setExclusionAppliedCount(null), 3000);
   }
 
+  async function handleTypeChange(nextType: Transaction["type"]) {
+    if (!transaction || nextType === transaction.type) return;
+    const patch: Partial<Transaction> =
+      nextType === "income"
+        ? { type: nextType, subcategoryID: null, isBonusPayment: false }
+        : { type: nextType, isBonusIncome: false };
+    await db.transactions.update(transaction.id, patch);
+  }
+
   async function handleBonusPaymentChange(isBonusPayment: boolean) {
     if (!transaction) return;
     await db.transactions.update(transaction.id, { isBonusPayment });
@@ -204,6 +213,29 @@ export default function TransactionDetailView() {
           onChange={(e) => setAmount(e.target.value)}
           onBlur={() => saveField({ amount: Number(currentAmount) })}
         />
+      </div>
+
+      <div className="form-row">
+        <label>収入・支出</label>
+        <div className="button-row">
+          <button
+            type="button"
+            className={isExpense ? "btn-primary" : "btn-secondary"}
+            onClick={() => handleTypeChange("expense")}
+          >
+            支出
+          </button>
+          <button
+            type="button"
+            className={isIncome ? "btn-primary" : "btn-secondary"}
+            onClick={() => handleTypeChange("income")}
+          >
+            収入
+          </button>
+        </div>
+        <p className="muted">
+          取り込み時の解析結果が誤っている場合(例: 銀行明細の符号の読み違え)は、ここで修正できます
+        </p>
       </div>
 
       {transaction.type === "expense" && (
