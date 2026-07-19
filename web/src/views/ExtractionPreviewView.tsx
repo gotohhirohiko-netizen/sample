@@ -256,9 +256,14 @@ export default function ExtractionPreviewView() {
               <div key={item.key} className="card" style={willBeExcluded ? { opacity: 0.5 } : undefined}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <strong>{item.merchant}</strong>
-                  <span>{formatYen(item.amount)}</span>
+                  <span className={`amount ${item.type === "income" ? "income" : "expense"}`}>
+                    {item.type === "income" ? "+" : "-"}
+                    {formatYen(item.amount)}
+                  </span>
                 </div>
-                <p className="muted">{item.date}</p>
+                <p className="muted">
+                  {item.date} ・ {item.type === "income" ? "収入" : "支出"}
+                </p>
                 {item.isDuplicate && (
                   <p style={{ color: "var(--danger)" }}>
                     重複の可能性があります{willBeExcluded && "(取り込まれません)"}

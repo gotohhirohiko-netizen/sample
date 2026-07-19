@@ -132,11 +132,15 @@ button.list-row {
   margin-bottom: 10px;
 }
 
-.list-row .amount.income {
+.amount.income {
   color: var(--success);
 }
 
-.list-row .amount.over-budget {
+.amount.expense {
+  color: var(--danger);
+}
+
+.amount.over-budget {
   color: var(--danger);
 }
 
