@@ -29,6 +29,17 @@ export default function MonthlyBudgetView() {
 
   const paceRatio = expectedPaceRatio(month);
 
+  const totalBudget = majorCategories.reduce(
+    (sum, major) => sum + (budgetAmount(major.id, month, budgetSettings) ?? 0),
+    0
+  );
+  const totalActual = majorCategories.reduce(
+    (sum, major) => sum + actualAmount(major.id, month, transactions, subcategories),
+    0
+  );
+  const totalOver = totalBudget > 0 && totalActual > totalBudget;
+  const totalRate = totalBudget > 0 ? Math.min(totalActual / totalBudget, 1) : 0;
+
   return (
     <div>
       <Link to="/" className="back-link">
@@ -36,6 +47,31 @@ export default function MonthlyBudgetView() {
       </Link>
       <h1 className="screen-title">月次予実</h1>
       <MonthPicker month={month} onChange={handleMonthChange} />
+
+      <div className="section card">
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <strong>トータル</strong>
+          <span className={totalOver ? "amount over-budget" : "amount"}>{formatYen(totalActual)}</span>
+        </div>
+        {totalBudget > 0 ? (
+          <>
+            <div className={`progress ${totalOver ? "over" : ""}`}>
+              <div style={{ width: `${totalRate * 100}%` }} />
+              {paceRatio !== null && (
+                <div
+                  className="progress-pace-marker"
+                  style={{ left: `${Math.min(paceRatio, 1) * 100}%` }}
+                />
+              )}
+            </div>
+            <span className="muted">
+              予算 {formatYen(totalBudget)} / 残り {formatYen(totalBudget - totalActual)}
+            </span>
+          </>
+        ) : (
+          <span className="muted">予算未設定</span>
+        )}
+      </div>
 
       <div className="list">
         {majorCategories.map((major) => {
