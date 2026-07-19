@@ -5,8 +5,10 @@ import { db } from "../lib/db";
 import { loadApiKey, loadAutoBackupOnImport } from "../lib/keyStorage";
 import {
   extractTransactions,
+  type ExtractionResult,
   type FileForExtraction,
 } from "../lib/claudeExtractionService";
+import { tryParseSignedAmountBankCsv } from "../lib/bankCsvParser";
 import { merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
@@ -72,15 +74,36 @@ export default function ExtractionPreviewView() {
 
     (async () => {
       try {
-        const apiKey = await loadApiKey();
-        if (!apiKey) throw new Error("Anthropic APIキーが未設定です。設定画面から登録してください。");
+        const parsedCsv =
+          state.file.mimeType === "text/csv" && fundingSource.kind === "bankAccount"
+            ? tryParseSignedAmountBankCsv(state.file.data)
+            : null;
 
-        const result = await extractTransactions(
-          apiKey,
-          state.file,
-          fundingSource.kind,
-          majorCategories.map((c) => c.name)
-        );
+        let result: ExtractionResult;
+        if (parsedCsv) {
+          // 列構成が既知の形式(取引日・符号付き入出金額・入出金内容)に一致する場合は、
+          // 金額の符号からコード側で確実にtypeを判定し、AIによる読み違えを避ける。
+          result = {
+            transactions: parsedCsv.map((row) => ({
+              date: row.date,
+              merchant: row.merchant,
+              amount: row.amount,
+              type: row.type,
+              majorCategory: null,
+              subcategory: null,
+            })),
+          };
+        } else {
+          const apiKey = await loadApiKey();
+          if (!apiKey) throw new Error("Anthropic APIキーが未設定です。設定画面から登録してください。");
+
+          result = await extractTransactions(
+            apiKey,
+            state.file,
+            fundingSource.kind,
+            majorCategories.map((c) => c.name)
+          );
+        }
 
         const resolved: PreviewItem[] = result.transactions.map((item, index) => {
           const date = item.date;
