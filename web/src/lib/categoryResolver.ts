@@ -11,6 +11,23 @@ export function merchantMatchKey(merchant: string): string {
 }
 
 /**
+ * 重複判定専用の緩い店名一致判定。クレジットカード明細やPDFはClaudeによる
+ * AI解析を経るため、同じ取引を再度取り込んでも摘要文字列がスペース区切り
+ * 以外の位置で微妙に変わることがある(余分な語句が付く・表記が変わる等)。
+ * merchantMatchKey(スペース以前の完全一致)では検知漏れが起きるため、
+ * 空白を除去した上で短い方が長い方の前方一致(4文字以上)であれば
+ * 同一店名とみなす。カテゴリ学習等の用途にはmerchantMatchKeyを使うこと。
+ */
+export function isLikelySameMerchant(a: string, b: string): boolean {
+  const normalize = (s: string) => s.replace(/[\s　]/g, "");
+  const na = normalize(a);
+  const nb = normalize(b);
+  if (na === nb) return true;
+  const [shorter, longer] = na.length <= nb.length ? [na, nb] : [nb, na];
+  return shorter.length >= 4 && longer.startsWith(shorter);
+}
+
+/**
  * カテゴリ自動判定ロジック(要件定義書 4.9 / docs/design.md 4.4)。
  * 優先順位: ①学習マッピング(店名の類似判定) → ②Claudeによる推定 → ③未分類(null)
  */

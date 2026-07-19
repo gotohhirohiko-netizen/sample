@@ -9,7 +9,7 @@ import {
   type FileForExtraction,
 } from "../lib/claudeExtractionService";
 import { tryParseSignedAmountBankCsv } from "../lib/bankCsvParser";
-import { merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
+import { isLikelySameMerchant, merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
 import { matchesBonusIncomeSchedule, suggestBonusIncome } from "../lib/bonusIncomeHeuristic";
@@ -119,7 +119,7 @@ export default function ExtractionPreviewView() {
             (t) =>
               t.sourceInstitutionID === state.sourceId &&
               isSameDay(new Date(t.date), new Date(date)) &&
-              merchantMatchKey(t.merchant) === merchantMatchKey(item.merchant) &&
+              isLikelySameMerchant(t.merchant, item.merchant) &&
               t.amount === item.amount
           );
           const excludedFromBudget = exclusions.some(
