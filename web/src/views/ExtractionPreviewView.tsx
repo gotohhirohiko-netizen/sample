@@ -117,6 +117,7 @@ export default function ExtractionPreviewView() {
           );
           const isDuplicate = existingTransactions.some(
             (t) =>
+              t.sourceInstitutionID === state.sourceId &&
               isSameDay(new Date(t.date), new Date(date)) &&
               merchantMatchKey(t.merchant) === merchantMatchKey(item.merchant) &&
               t.amount === item.amount
