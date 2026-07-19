@@ -63,40 +63,82 @@ export default function CategoryBudgetManageView() {
     setNewTo(plan.effectiveTo ? monthToParam(new Date(plan.effectiveTo)) : "");
   }
 
-  function findOverlappingPlans(majorCategoryID: string): CategoryBudgetSetting[] {
-    if (!budgetSettings || !newFrom) return [];
-    const effectiveFrom = monthParamToDate(newFrom).toISOString();
-    const effectiveTo = newTo ? monthParamToDate(newTo).toISOString() : null;
-    return budgetSettings.filter(
+  /**
+   * 新しい期間の開始月の前月までに、無期限だった過去の計画を自動的に
+   * 短縮するとした場合の、それでもなお重なる計画(=保存をブロックすべき計画)を求める。
+   */
+  function resolveOverlaps(
+    majorCategoryID: string,
+    effectiveFromDate: Date,
+    effectiveTo: string | null,
+    excludeId: string | null
+  ): { toAutoCap: CategoryBudgetSetting[]; blocking: CategoryBudgetSetting[]; cappedTo: string } {
+    const effectiveFrom = effectiveFromDate.toISOString();
+    const toAutoCap = (budgetSettings ?? []).filter(
       (s) =>
         s.majorCategoryID === majorCategoryID &&
-        s.id !== editingPlanId &&
-        rangesOverlap(effectiveFrom, effectiveTo, s.effectiveFrom, s.effectiveTo)
+        s.id !== excludeId &&
+        s.effectiveTo === null &&
+        new Date(s.effectiveFrom) < effectiveFromDate
     );
+    const cappedTo = new Date(
+      effectiveFromDate.getFullYear(),
+      effectiveFromDate.getMonth() - 1,
+      1
+    ).toISOString();
+    const cappedIds = new Set(toAutoCap.map((p) => p.id));
+
+    const blocking = (budgetSettings ?? []).filter((s) => {
+      if (s.majorCategoryID !== majorCategoryID || s.id === excludeId) return false;
+      const effectiveToForCheck = cappedIds.has(s.id) ? cappedTo : s.effectiveTo;
+      return rangesOverlap(effectiveFrom, effectiveTo, s.effectiveFrom, effectiveToForCheck);
+    });
+
+    return { toAutoCap, blocking, cappedTo };
+  }
+
+  function currentResolution(majorCategoryID: string) {
+    if (!newFrom) return null;
+    const effectiveTo = newTo ? monthParamToDate(newTo).toISOString() : null;
+    return resolveOverlaps(majorCategoryID, monthParamToDate(newFrom), effectiveTo, editingPlanId);
   }
 
   async function addOrUpdateBudgetPlan(majorCategoryID: string) {
     const amount = Number(newAmount);
     if (!newFrom || !Number.isFinite(amount)) return;
     if (newTo && newTo < newFrom) return;
-    const effectiveFrom = monthParamToDate(newFrom).toISOString();
+    const effectiveFromDate = monthParamToDate(newFrom);
+    const effectiveFrom = effectiveFromDate.toISOString();
     const effectiveTo = newTo ? monthParamToDate(newTo).toISOString() : null;
 
-    if (editingPlanId) {
-      await db.categoryBudgetSettings.update(editingPlanId, {
-        monthlyAmount: amount,
-        effectiveFrom,
-        effectiveTo,
-      });
-    } else {
-      await db.categoryBudgetSettings.add({
-        id: crypto.randomUUID(),
-        majorCategoryID,
-        monthlyAmount: amount,
-        effectiveFrom,
-        effectiveTo,
-      });
-    }
+    const { toAutoCap, blocking, cappedTo } = resolveOverlaps(
+      majorCategoryID,
+      effectiveFromDate,
+      effectiveTo,
+      editingPlanId
+    );
+    if (blocking.length > 0) return;
+
+    await db.transaction("rw", db.categoryBudgetSettings, async () => {
+      for (const plan of toAutoCap) {
+        await db.categoryBudgetSettings.update(plan.id, { effectiveTo: cappedTo });
+      }
+      if (editingPlanId) {
+        await db.categoryBudgetSettings.update(editingPlanId, {
+          monthlyAmount: amount,
+          effectiveFrom,
+          effectiveTo,
+        });
+      } else {
+        await db.categoryBudgetSettings.add({
+          id: crypto.randomUUID(),
+          majorCategoryID,
+          monthlyAmount: amount,
+          effectiveFrom,
+          effectiveTo,
+        });
+      }
+    });
     resetPlanForm();
   }
 
@@ -137,7 +179,7 @@ export default function CategoryBudgetManageView() {
           const plans = budgetSettings
             .filter((s) => s.majorCategoryID === major.id)
             .sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
-          const overlapping = expanded ? findOverlappingPlans(major.id) : [];
+          const resolution = expanded ? currentResolution(major.id) : null;
 
           return (
             <div key={major.id} className="card">
@@ -215,15 +257,23 @@ export default function CategoryBudgetManageView() {
                     <input type="month" value={newTo} onChange={(e) => setNewTo(e.target.value)} />
                   </div>
 
-                  {overlapping.length > 0 && (
+                  {resolution && resolution.toAutoCap.length > 0 && (
+                    <p className="muted">
+                      {resolution.toAutoCap
+                        .map((p) => formatYen(p.monthlyAmount))
+                        .join("、")}
+                      (無期限)の計画は、自動的に{formatYearMonth(new Date(resolution.cappedTo))}までに短縮されます
+                    </p>
+                  )}
+                  {resolution && resolution.blocking.length > 0 && (
                     <p className="muted" style={{ color: "var(--danger)" }}>
-                      {overlapping
+                      {resolution.blocking
                         .map(
                           (p) =>
                             `${formatYearMonth(new Date(p.effectiveFrom))}〜${p.effectiveTo ? formatYearMonth(new Date(p.effectiveTo)) : "無期限"}(${formatYen(p.monthlyAmount)})`
                         )
                         .join("、")}
-                      の計画と期間が重なっています。重なる月は開始日がより新しい方の計画が優先されます。
+                      の計画と期間が重なるため保存できません。期間を調整するか、対象の計画を編集・削除してください。
                     </p>
                   )}
 
@@ -232,6 +282,7 @@ export default function CategoryBudgetManageView() {
                       type="button"
                       className="btn-primary"
                       onClick={() => addOrUpdateBudgetPlan(major.id)}
+                      disabled={!!resolution && resolution.blocking.length > 0}
                     >
                       {editingPlanId ? "更新" : "追加"}
                     </button>
