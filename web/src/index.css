@@ -202,7 +202,8 @@ button {
 }
 
 input,
-select {
+select,
+textarea {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--border);

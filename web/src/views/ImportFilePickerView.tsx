@@ -6,11 +6,12 @@ interface LocationState {
   sourceId: string;
 }
 
-/** ファイル選択画面(要件定義書 4.1)。ダウンロード済みのCSV/PDFを選択する */
+/** ファイル選択画面(要件定義書 4.1)。ダウンロード済みのCSV/PDFを選択するか、明細ページの内容を貼り付ける */
 export default function ImportFilePickerView() {
   const location = useLocation();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [pastedText, setPastedText] = useState("");
   const state = location.state as LocationState | null;
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -22,6 +23,13 @@ export default function ImportFilePickerView() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "ファイルの読み込みに失敗しました");
     }
+  }
+
+  function handlePastedTextSubmit() {
+    if (!state || pastedText.trim() === "") return;
+    navigate("/import/preview", {
+      state: { sourceId: state.sourceId, file: { data: pastedText, mimeType: "text/csv" } },
+    });
   }
 
   if (!state) {
@@ -44,6 +52,28 @@ export default function ImportFilePickerView() {
       <input type="file" accept=".csv,text/csv,application/pdf" onChange={handleFileChange} />
 
       {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
+
+      <div className="section">
+        <div className="section-title">明細ページの内容を貼り付け</div>
+        <p className="muted">
+          CSVがまだダウンロードできない場合(当月分の未確定明細など)は、明細ページを開いて表示内容を選択・コピーし、ここに貼り付けてください。
+        </p>
+        <textarea
+          rows={8}
+          value={pastedText}
+          onChange={(e) => setPastedText(e.target.value)}
+          placeholder="明細ページからコピーした内容をここに貼り付け"
+        />
+        <button
+          type="button"
+          className="btn-primary"
+          style={{ marginTop: 8 }}
+          disabled={pastedText.trim() === ""}
+          onClick={handlePastedTextSubmit}
+        >
+          貼り付けた内容を解析
+        </button>
+      </div>
     </div>
   );
 }
