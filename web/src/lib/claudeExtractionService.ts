@@ -84,28 +84,52 @@ export async function extractTransactions(
         } as const)
       : ({ type: "text", text: file.data } as const);
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: 8000,
-    output_config: {
-      format: {
-        type: "json_schema",
-        schema: buildExtractionSchema(majorCategoryNames),
+  let response;
+  try {
+    response = await client.messages.create({
+      model,
+      max_tokens: 8000,
+      output_config: {
+        format: {
+          type: "json_schema",
+          schema: buildExtractionSchema(majorCategoryNames),
+        },
       },
-    },
-    messages: [
-      {
-        role: "user",
-        content: [documentBlock, { type: "text", text: buildInstruction(sourceKind) }],
-      },
-    ],
-  });
+      messages: [
+        {
+          role: "user",
+          content: [documentBlock, { type: "text", text: buildInstruction(sourceKind) }],
+        },
+      ],
+    });
+  } catch (err) {
+    throw new Error(describeApiError(err));
+  }
 
   const textBlock = response.content.find((block) => block.type === "text");
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("Claude APIから有効なレスポンスが得られませんでした");
   }
   return JSON.parse(textBlock.text) as ExtractionResult;
+}
+
+/** Anthropic APIのエラーを、原因が分かるよう日本語の分かりやすいメッセージに変換する */
+function describeApiError(err: unknown): string {
+  if (err instanceof Anthropic.APIError) {
+    if (err.status === 401) {
+      return "Anthropic APIキーが正しくありません。設定画面でキーを確認してください。";
+    }
+    if (err.status === 400 && /credit balance is too low/i.test(err.message)) {
+      return "Anthropicのクレジット残高が不足しています。Anthropic ConsoleのPlans & Billingからクレジットを購入・チャージしてください。";
+    }
+    if (err.status === 429) {
+      return "Anthropic APIのレート制限に達しました。しばらく待ってから再試行してください。";
+    }
+    if (err.status && err.status >= 500) {
+      return "Anthropic APIが一時的に利用できません。しばらく待ってから再試行してください。";
+    }
+  }
+  return err instanceof Error ? err.message : "Claude APIの呼び出しに失敗しました";
 }
 
 /**
