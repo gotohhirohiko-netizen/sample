@@ -129,6 +129,29 @@ export class KakeiboDB extends Dexie {
       bonusIncomeSchedules: "id, fundingSourceID",
       settings: "key",
     });
+    this.version(8)
+      .stores({
+        transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+        fundingSources: "id",
+        majorCategories: "id, displayOrder",
+        subcategories: "id, majorCategoryID",
+        categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+        merchantCategoryMappings: "id, merchantKey",
+        merchantExclusions: "id, merchantKey",
+        bonusPeriods: "id, displayOrder",
+        recurringOverrides: "id, merchantKey",
+        bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+        bonusIncomeSchedules: "id, fundingSourceID",
+        settings: "key",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("bonusCategoryPlans")
+          .toCollection()
+          .modify((plan) => {
+            if (plan.subcategoryID === undefined) plan.subcategoryID = null;
+          });
+      });
   }
 }
 

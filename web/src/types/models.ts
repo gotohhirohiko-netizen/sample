@@ -104,6 +104,7 @@ export interface BonusCategoryPlan {
   bonusPeriodID: string;
   year: number;
   majorCategoryID: string;
+  subcategoryID: string | null; // null=大カテゴリ全体への計画。指定時はその小カテゴリのみへの計画
   plannedAmount: number;
 }
 

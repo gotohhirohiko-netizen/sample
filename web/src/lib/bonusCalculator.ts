@@ -59,6 +59,7 @@ export function bonusActualAmount(
 /**
  * ボーナスの使用用途計画(要件: 消費カテゴリと同じ項目でボーナスの使い道を
  * 計画できるように)。期間は毎年繰り返されるため年ごとに独立して管理する。
+ * 大カテゴリ全体への計画(subcategoryID=null)を対象とする。
  */
 export function bonusCategoryPlanAmount(
   bonusPeriodID: string,
@@ -67,7 +68,23 @@ export function bonusCategoryPlanAmount(
   plans: BonusCategoryPlan[]
 ): number | undefined {
   return plans.find(
-    (p) => p.bonusPeriodID === bonusPeriodID && p.year === year && p.majorCategoryID === majorCategoryID
+    (p) =>
+      p.bonusPeriodID === bonusPeriodID &&
+      p.year === year &&
+      p.majorCategoryID === majorCategoryID &&
+      p.subcategoryID == null
+  )?.plannedAmount;
+}
+
+/** 特定の小カテゴリへの使用計画額を求める */
+export function bonusSubcategoryPlanAmount(
+  bonusPeriodID: string,
+  year: number,
+  subcategoryID: string,
+  plans: BonusCategoryPlan[]
+): number | undefined {
+  return plans.find(
+    (p) => p.bonusPeriodID === bonusPeriodID && p.year === year && p.subcategoryID === subcategoryID
   )?.plannedAmount;
 }
 
@@ -82,7 +99,7 @@ export function bonusCategoryPlanTotal(
     .reduce((sum, p) => sum + p.plannedAmount, 0);
 }
 
-/** 指定した期間・カテゴリのボーナス払い案件(支出)の実績額を集計する */
+/** 指定した期間・大カテゴリ(配下の全小カテゴリ)のボーナス払い案件(支出)の実績額を集計する */
 export function bonusCategoryActualAmount(
   majorCategoryID: string,
   start: Date,
@@ -101,6 +118,26 @@ export function bonusCategoryActualAmount(
         !t.excludedFromBudget &&
         t.subcategoryID != null &&
         subcategoryIDs.has(t.subcategoryID) &&
+        new Date(t.date) >= start &&
+        new Date(t.date) < end
+    )
+    .reduce((sum, t) => sum + t.amount, 0);
+}
+
+/** 指定した期間・小カテゴリのボーナス払い案件(支出)の実績額を集計する */
+export function bonusSubcategoryActualAmount(
+  subcategoryID: string,
+  start: Date,
+  end: Date,
+  transactions: Transaction[]
+): number {
+  return transactions
+    .filter(
+      (t) =>
+        t.type === "expense" &&
+        t.isBonusPayment &&
+        !t.excludedFromBudget &&
+        t.subcategoryID === subcategoryID &&
         new Date(t.date) >= start &&
         new Date(t.date) < end
     )

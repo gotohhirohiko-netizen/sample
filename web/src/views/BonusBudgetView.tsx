@@ -4,16 +4,15 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import {
   bonusCategoryActualAmount,
-  bonusCategoryPlanAmount,
   bonusCategoryPlanTotal,
   bonusIncomeActualAmount,
   bonusPeriodRange,
+  bonusSubcategoryActualAmount,
 } from "../lib/bonusCalculator";
 import { formatYen } from "../lib/dateUtils";
 import TransactionRow from "../components/TransactionRow";
-import type { BonusPeriod } from "../types/models";
 
-/** ボーナス払いの予実確認画面(設定は/settings/bonusへ移動) */
+/** ボーナス払いの予実確認画面(設定・計画の編集は/settings/bonusへ移動) */
 export default function BonusBudgetView() {
   const bonusPeriods = useLiveQuery(() => db.bonusPeriods.orderBy("displayOrder").toArray(), []);
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
@@ -24,8 +23,6 @@ export default function BonusBudgetView() {
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [yearByPeriod, setYearByPeriod] = useState<Record<string, number>>({});
-  const [categoryPlanInputs, setCategoryPlanInputs] = useState<Record<string, string>>({});
-  const [categoryPlanAppliedId, setCategoryPlanAppliedId] = useState<string | null>(null);
 
   if (
     !bonusPeriods ||
@@ -46,30 +43,6 @@ export default function BonusBudgetView() {
 
   function changeYear(periodId: string, delta: number) {
     setYearByPeriod((prev) => ({ ...prev, [periodId]: yearFor(periodId) + delta }));
-  }
-
-  async function applyCategoryPlan(period: BonusPeriod, year: number, majorCategoryID: string) {
-    const inputKey = `${period.id}-${year}-${majorCategoryID}`;
-    const raw = categoryPlanInputs[inputKey];
-    const amount = Number(raw);
-    if (!raw || !Number.isFinite(amount)) return;
-    const existing = bonusCategoryPlans!.find(
-      (p) => p.bonusPeriodID === period.id && p.year === year && p.majorCategoryID === majorCategoryID
-    );
-    if (existing) {
-      await db.bonusCategoryPlans.update(existing.id, { plannedAmount: amount });
-    } else {
-      await db.bonusCategoryPlans.add({
-        id: crypto.randomUUID(),
-        bonusPeriodID: period.id,
-        year,
-        majorCategoryID,
-        plannedAmount: amount,
-      });
-    }
-    setCategoryPlanInputs((prev) => ({ ...prev, [inputKey]: "" }));
-    setCategoryPlanAppliedId(inputKey);
-    setTimeout(() => setCategoryPlanAppliedId(null), 2000);
   }
 
   return (
@@ -190,66 +163,63 @@ export default function BonusBudgetView() {
                     <p className="muted">この期間のボーナス払い案件はまだありません</p>
                   )}
 
-                  <div className="section-title" style={{ marginTop: 16 }}>
-                    カテゴリ別使用計画
+                  <div
+                    className="section-title"
+                    style={{
+                      marginTop: 16,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span>カテゴリ別使用計画</span>
+                    <Link to="/settings/bonus" className="muted">
+                      計画を編集 ›
+                    </Link>
                   </div>
                   <div className="list">
-                    {majorCategories.map((major) => {
-                      const planned = bonusCategoryPlanAmount(period.id, year, major.id, bonusCategoryPlans);
-                      const catActual = bonusCategoryActualAmount(
-                        major.id,
-                        start,
-                        end,
-                        transactions,
-                        subcategories
-                      );
-                      const catOver = planned !== undefined && catActual > planned;
-                      const catRate = planned ? Math.min(catActual / planned, 1) : 0;
-                      const inputKey = `${period.id}-${year}-${major.id}`;
+                    {bonusCategoryPlans
+                      .filter((p) => p.bonusPeriodID === period.id && p.year === year)
+                      .map((plan) => {
+                        const major = majorCategories.find((m) => m.id === plan.majorCategoryID);
+                        const sub = plan.subcategoryID
+                          ? subcategories.find((s) => s.id === plan.subcategoryID)
+                          : undefined;
+                        const label = sub ? `${major?.name ?? "不明"} / ${sub.name}` : major?.name ?? "不明";
+                        const catActual = plan.subcategoryID
+                          ? bonusSubcategoryActualAmount(plan.subcategoryID, start, end, transactions)
+                          : bonusCategoryActualAmount(
+                              plan.majorCategoryID,
+                              start,
+                              end,
+                              transactions,
+                              subcategories
+                            );
+                        const catOver = catActual > plan.plannedAmount;
+                        const catRate = plan.plannedAmount
+                          ? Math.min(catActual / plan.plannedAmount, 1)
+                          : 0;
 
-                      return (
-                        <div key={major.id} className="card">
-                          <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span>{major.name}</span>
-                            <span className={catOver ? "amount over-budget" : "amount"}>
-                              {formatYen(catActual)}
+                        return (
+                          <div key={plan.id} className="card">
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span>{label}</span>
+                              <span className={catOver ? "amount over-budget" : "amount"}>
+                                {formatYen(catActual)}
+                              </span>
+                            </div>
+                            <div className={`progress ${catOver ? "over" : ""}`}>
+                              <div style={{ width: `${catRate * 100}%` }} />
+                            </div>
+                            <span className="muted">
+                              計画 {formatYen(plan.plannedAmount)} / 残り{" "}
+                              {formatYen(plan.plannedAmount - catActual)}
                             </span>
                           </div>
-                          {planned !== undefined ? (
-                            <>
-                              <div className={`progress ${catOver ? "over" : ""}`}>
-                                <div style={{ width: `${catRate * 100}%` }} />
-                              </div>
-                              <span className="muted">
-                                計画 {formatYen(planned)} / 残り {formatYen(planned - catActual)}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="muted">計画未設定</span>
-                          )}
-                          <div className="button-row" style={{ marginTop: 8 }}>
-                            <input
-                              type="number"
-                              value={categoryPlanInputs[inputKey] ?? ""}
-                              onChange={(e) =>
-                                setCategoryPlanInputs((prev) => ({ ...prev, [inputKey]: e.target.value }))
-                              }
-                              placeholder="この用途の計画額"
-                            />
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => applyCategoryPlan(period, year, major.id)}
-                            >
-                              反映
-                            </button>
-                          </div>
-                          {categoryPlanAppliedId === inputKey && (
-                            <p className="muted">計画を反映しました</p>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    {bonusCategoryPlans.filter((p) => p.bonusPeriodID === period.id && p.year === year)
+                      .length === 0 && <p className="muted">この期間の使用計画はまだありません</p>}
                   </div>
                 </div>
               )}
