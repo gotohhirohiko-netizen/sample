@@ -119,6 +119,9 @@ export default function SettingsView() {
         <Link to="/settings/categories" className="list-row">
           カテゴリ・予算管理
         </Link>
+        <Link to="/settings/bonus" className="list-row">
+          ボーナス設定
+        </Link>
         <Link to="/settings/sources" className="list-row">
           取り込み元管理
         </Link>

@@ -81,17 +81,6 @@ export interface BonusPeriod {
 }
 
 /**
- * ボーナス期間ごとの予算設定。CategoryBudgetSettingと同様に追加のみで
- * 上書きせず、effectiveFrom以降に開始する期間にのみ適用される(非遡及)。
- */
-export interface BonusBudgetSetting {
-  id: string;
-  bonusPeriodID: string;
-  amount: number;
-  effectiveFrom: string; // ISO日付文字列
-}
-
-/**
  * ボーナス収入の振込スケジュール(要件: 振込先口座・振込日が決まっている
  * 場合はそれで判定する)。日付は毎年同じ月日として扱い、実際の振込が
  * 銀行の非営業日回避で前倒しになる可能性を考慮して判定する

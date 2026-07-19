@@ -1,7 +1,6 @@
 import { db } from "./db";
 import { saveLastBackupAt } from "./keyStorage";
 import type {
-  BonusBudgetSetting,
   BonusCategoryPlan,
   BonusIncomeSchedule,
   BonusPeriod,
@@ -31,7 +30,6 @@ export interface BackupPayload {
   merchantCategoryMappings: MerchantCategoryMapping[];
   merchantExclusions: MerchantExclusion[];
   bonusPeriods: BonusPeriod[];
-  bonusBudgetSettings: BonusBudgetSetting[];
   recurringOverrides: RecurringOverride[];
   bonusCategoryPlans: BonusCategoryPlan[];
   bonusIncomeSchedules: BonusIncomeSchedule[];
@@ -47,7 +45,6 @@ export async function exportBackup(): Promise<BackupPayload> {
     merchantCategoryMappings,
     merchantExclusions,
     bonusPeriods,
-    bonusBudgetSettings,
     recurringOverrides,
     bonusCategoryPlans,
     bonusIncomeSchedules,
@@ -60,7 +57,6 @@ export async function exportBackup(): Promise<BackupPayload> {
     db.merchantCategoryMappings.toArray(),
     db.merchantExclusions.toArray(),
     db.bonusPeriods.toArray(),
-    db.bonusBudgetSettings.toArray(),
     db.recurringOverrides.toArray(),
     db.bonusCategoryPlans.toArray(),
     db.bonusIncomeSchedules.toArray(),
@@ -76,7 +72,6 @@ export async function exportBackup(): Promise<BackupPayload> {
     merchantCategoryMappings,
     merchantExclusions,
     bonusPeriods,
-    bonusBudgetSettings,
     recurringOverrides,
     bonusCategoryPlans,
     bonusIncomeSchedules,
@@ -110,7 +105,6 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
       db.merchantCategoryMappings,
       db.merchantExclusions,
       db.bonusPeriods,
-      db.bonusBudgetSettings,
       db.recurringOverrides,
       db.bonusCategoryPlans,
       db.bonusIncomeSchedules,
@@ -125,7 +119,6 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.merchantCategoryMappings.clear(),
         db.merchantExclusions.clear(),
         db.bonusPeriods.clear(),
-        db.bonusBudgetSettings.clear(),
         db.recurringOverrides.clear(),
         db.bonusCategoryPlans.clear(),
         db.bonusIncomeSchedules.clear(),
@@ -139,7 +132,6 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.merchantCategoryMappings.bulkAdd(payload.merchantCategoryMappings),
         db.merchantExclusions.bulkAdd(payload.merchantExclusions ?? []),
         db.bonusPeriods.bulkAdd(payload.bonusPeriods ?? []),
-        db.bonusBudgetSettings.bulkAdd(payload.bonusBudgetSettings ?? []),
         db.recurringOverrides.bulkAdd(payload.recurringOverrides ?? []),
         db.bonusCategoryPlans.bulkAdd(payload.bonusCategoryPlans ?? []),
         db.bonusIncomeSchedules.bulkAdd(payload.bonusIncomeSchedules ?? []),
