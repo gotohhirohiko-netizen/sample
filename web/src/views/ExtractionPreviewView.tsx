@@ -9,6 +9,7 @@ import {
   type FileForExtraction,
 } from "../lib/claudeExtractionService";
 import { tryParseSignedAmountBankCsv } from "../lib/bankCsvParser";
+import { tryParseMarkdownTransactionTable } from "../lib/markdownTableParser";
 import { isLikelySameMerchant, merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
@@ -78,6 +79,10 @@ export default function ExtractionPreviewView() {
           state.file.mimeType === "text/csv" && fundingSource.kind === "bankAccount"
             ? tryParseSignedAmountBankCsv(state.file.data)
             : null;
+        const parsedMarkdown =
+          !parsedCsv && state.file.mimeType === "text/csv"
+            ? tryParseMarkdownTransactionTable(state.file.data)
+            : null;
 
         let result: ExtractionResult;
         if (parsedCsv) {
@@ -85,6 +90,20 @@ export default function ExtractionPreviewView() {
           // 金額の符号からコード側で確実にtypeを判定し、AIによる読み違えを避ける。
           result = {
             transactions: parsedCsv.map((row) => ({
+              date: row.date,
+              merchant: row.merchant,
+              amount: row.amount,
+              type: row.type,
+              majorCategory: null,
+              subcategory: null,
+            })),
+            usage: null,
+          };
+        } else if (parsedMarkdown) {
+          // 「日付・内容・金額・区分」のmarkdownテーブル(statement-fetcherスキル等の
+          // 出力形式)に一致する場合は、Claude APIを呼ばずコード側でそのまま解析する。
+          result = {
+            transactions: parsedMarkdown.map((row) => ({
               date: row.date,
               merchant: row.merchant,
               amount: row.amount,

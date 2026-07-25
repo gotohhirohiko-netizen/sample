@@ -57,6 +57,7 @@ export default function ImportFilePickerView() {
         <div className="section-title">明細ページの内容を貼り付け</div>
         <p className="muted">
           CSVがまだダウンロードできない場合(当月分の未確定明細など)は、明細ページを開いて表示内容を選択・コピーし、ここに貼り付けてください。
+          「日付・内容・金額・区分」の列を持つmarkdown表形式(Claude Desktop等で明細を読み取った結果など)であれば、Claude APIを呼ばずに取り込めます。
         </p>
         <textarea
           rows={8}
