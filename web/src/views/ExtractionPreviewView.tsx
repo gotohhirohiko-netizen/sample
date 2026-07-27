@@ -199,7 +199,11 @@ export default function ExtractionPreviewView() {
 
         if (!cancelled) setItems(resolved);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "抽出に失敗しました");
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : "抽出に失敗しました";
+          const stack = err instanceof Error ? err.stack : undefined;
+          setError(stack ? `${message}\n\n${stack}` : message);
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -231,6 +235,11 @@ export default function ExtractionPreviewView() {
 
   function updateItem(key: string, patch: Partial<PreviewItem>) {
     setItems((prev) => prev?.map((it) => (it.key === key ? { ...it, ...patch } : it)) ?? prev);
+  }
+
+  async function handleCopyError() {
+    if (!error) return;
+    await navigator.clipboard.writeText(error);
   }
 
   async function handleCommit() {
@@ -313,7 +322,14 @@ export default function ExtractionPreviewView() {
       <h1 className="screen-title">抽出結果</h1>
 
       {isLoading && <p className="muted">解析中...</p>}
-      {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
+      {error && (
+        <div>
+          <p style={{ color: "var(--danger)", whiteSpace: "pre-wrap" }}>{error}</p>
+          <button type="button" onClick={handleCopyError}>
+            エラー内容をコピー
+          </button>
+        </div>
+      )}
 
       {items && majorCategories && subcategories && (
         <>

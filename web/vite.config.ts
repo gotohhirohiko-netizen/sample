@@ -10,6 +10,10 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 // https://vite.dev/config/
 export default defineConfig({
   base: "./",
+  build: {
+    // 本番ビルドのスタックトレースを元のソースに対応付けて調査できるようにする
+    sourcemap: true,
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
