@@ -16,7 +16,11 @@ export interface TextItem {
 
 function configureWorker(): void {
   if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL}pdfjs/pdf.worker.min.mjs`;
+    // worker-entry.mjsは、古いSafari(iOS 17.4未満)向けにPromise.withResolvers()の
+    // ポリフィルを適用してからpdf.worker.min.mjs本体を読み込むラッパー。
+    // Workerは独立したグローバルスコープを持つため、メインスレッド側の
+    // ポリフィル(polyfills.ts)はここには効かず、Worker側にも別途必要になる。
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL}pdfjs/worker-entry.mjs`;
   }
 }
 
