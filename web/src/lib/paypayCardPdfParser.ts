@@ -1,5 +1,5 @@
-import * as pdfjsLib from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { getPageItems as getRawPageItems, loadPdfDocument, type TextItem } from "./pdfjsSetup";
 
 /**
  * PayPayカードの「ご利用代金請求明細書」PDF(会員メニューからダウンロードした
@@ -25,12 +25,6 @@ export interface ParsedCreditCardPdfRow {
   merchant: string;
   amount: number; // 支出は正、返金等のキャンセルはマイナス
   type: "expense";
-}
-
-interface TextItem {
-  x: number;
-  y: number;
-  str: string;
 }
 
 const COLUMNS = [
@@ -105,14 +99,8 @@ function toRow(cols: Record<string, string>): ParsedCreditCardPdfRow | null {
 }
 
 async function getPageItems(doc: PDFDocumentProxy, pageNumber: number): Promise<TextItem[]> {
-  const page = await doc.getPage(pageNumber);
-  const content = await page.getTextContent();
-  return content.items
-    .map((it) => {
-      const textItem = it as { str: string; transform: number[] };
-      return { x: textItem.transform[4], y: textItem.transform[5], str: textItem.str };
-    })
-    .filter((it) => it.str.trim() !== "" && it.y >= FOOTER_Y_CUTOFF);
+  const items = await getRawPageItems(doc, pageNumber);
+  return items.filter((it) => it.y >= FOOTER_Y_CUTOFF);
 }
 
 function clusterByRow(items: TextItem[]): TextItem[][] {
@@ -185,38 +173,12 @@ async function extractDeclaredTotal(doc: PDFDocumentProxy): Promise<number | nul
   return null;
 }
 
-function configureWorker(): void {
-  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL}pdfjs/pdf.worker.min.mjs`;
-  }
-}
-
-function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
 /** @param base64Pdf `readFileForExtraction`が返すbase64文字列(FileForExtraction.data) */
 export async function tryParsePayPayCardPdf(
   base64Pdf: string
 ): Promise<ParsedCreditCardPdfRow[] | null> {
-  configureWorker();
-
-  let doc: PDFDocumentProxy;
-  try {
-    doc = await pdfjsLib.getDocument({
-      data: base64ToBytes(base64Pdf),
-      cMapUrl: `${import.meta.env.BASE_URL}pdfjs/cmaps/`,
-      cMapPacked: true,
-      standardFontDataUrl: `${import.meta.env.BASE_URL}pdfjs/standard_fonts/`,
-    }).promise;
-  } catch {
-    return null;
-  }
+  const doc = await loadPdfDocument(base64Pdf);
+  if (!doc) return null;
 
   const rows = await extractRows(doc);
   if (rows.length === 0) return null;

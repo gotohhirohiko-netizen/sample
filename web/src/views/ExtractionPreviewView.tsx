@@ -11,6 +11,7 @@ import {
 import { tryParseSeparateColumnBankCsv, tryParseSignedAmountBankCsv } from "../lib/bankCsvParser";
 import { tryParseMarkdownTransactionTable } from "../lib/markdownTableParser";
 import { tryParsePayPayCardPdf } from "../lib/paypayCardPdfParser";
+import { tryParseRakutenCardPdf } from "../lib/rakutenCardPdfParser";
 import { isLikelySameMerchant, merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
@@ -86,11 +87,9 @@ export default function ExtractionPreviewView() {
             ? tryParseMarkdownTransactionTable(state.file.data)
             : null;
         const parsedCreditCardPdf =
-          !parsedCsv &&
-          !parsedMarkdown &&
-          state.file.mimeType === "application/pdf" &&
-          fundingSource.kind === "creditCard"
-            ? await tryParsePayPayCardPdf(state.file.data)
+          !parsedCsv && !parsedMarkdown && state.file.mimeType === "application/pdf" && fundingSource.kind === "creditCard"
+            ? ((await tryParsePayPayCardPdf(state.file.data)) ??
+              (await tryParseRakutenCardPdf(state.file.data)))
             : null;
 
         let result: ExtractionResult;
@@ -124,7 +123,7 @@ export default function ExtractionPreviewView() {
             usage: null,
           };
         } else if (parsedCreditCardPdf) {
-          // PayPayカードの請求明細PDF(既知のテンプレート)は、座標ベースで
+          // PayPayカード・楽天カードの請求明細PDF(既知のテンプレート)は
           // コード側で解析し、明細書内の「ご請求金額」との検算にも成功した場合のみ
           // ここに来る。AIによる読み違えを避けられる。
           result = {

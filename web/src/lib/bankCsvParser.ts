@@ -84,12 +84,21 @@ function detectSeparateColumnDelimiter(headerLine: string): string | null {
   return null;
 }
 
-/** "2026/6/1"のようにゼロ埋めされていない月日にも対応した日付パース */
+/**
+ * 「2026/6/1」のようにゼロ埋めされていない月日、および「20260601」のような
+ * 区切り文字なしのYYYYMMDD(楽天銀行の取引日等)の両方に対応した日付パース
+ */
 function parseDateCell(raw: string): string | null {
-  const match = raw.trim().match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
-  if (!match) return null;
-  const [, year, month, day] = match;
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const trimmed = raw.trim();
+  const withSeparator = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (withSeparator) {
+    const [, year, month, day] = withSeparator;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  if (/^\d{8}$/.test(trimmed)) {
+    return `${trimmed.slice(0, 4)}-${trimmed.slice(4, 6)}-${trimmed.slice(6, 8)}`;
+  }
+  return null;
 }
 
 export function tryParseSignedAmountBankCsv(text: string): ParsedBankCsvRow[] | null {
