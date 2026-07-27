@@ -8,8 +8,9 @@ import {
   type ExtractionResult,
   type FileForExtraction,
 } from "../lib/claudeExtractionService";
-import { tryParseSignedAmountBankCsv } from "../lib/bankCsvParser";
+import { tryParseSeparateColumnBankCsv, tryParseSignedAmountBankCsv } from "../lib/bankCsvParser";
 import { tryParseMarkdownTransactionTable } from "../lib/markdownTableParser";
+import { tryParsePayPayCardPdf } from "../lib/paypayCardPdfParser";
 import { isLikelySameMerchant, merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
@@ -77,17 +78,26 @@ export default function ExtractionPreviewView() {
       try {
         const parsedCsv =
           state.file.mimeType === "text/csv" && fundingSource.kind === "bankAccount"
-            ? tryParseSignedAmountBankCsv(state.file.data)
+            ? (tryParseSignedAmountBankCsv(state.file.data) ??
+              tryParseSeparateColumnBankCsv(state.file.data))
             : null;
         const parsedMarkdown =
           !parsedCsv && state.file.mimeType === "text/csv"
             ? tryParseMarkdownTransactionTable(state.file.data)
             : null;
+        const parsedCreditCardPdf =
+          !parsedCsv &&
+          !parsedMarkdown &&
+          state.file.mimeType === "application/pdf" &&
+          fundingSource.kind === "creditCard"
+            ? await tryParsePayPayCardPdf(state.file.data)
+            : null;
 
         let result: ExtractionResult;
         if (parsedCsv) {
-          // 列構成が既知の形式(取引日・符号付き入出金額・入出金内容)に一致する場合は、
-          // 金額の符号からコード側で確実にtypeを判定し、AIによる読み違えを避ける。
+          // 列構成が既知の形式(取引日・符号付き入出金額・入出金内容、または
+          // 支払い/預かり分離の2列形式)に一致する場合は、金額からコード側で
+          // 確実にtypeを判定し、AIによる読み違えを避ける。
           result = {
             transactions: parsedCsv.map((row) => ({
               date: row.date,
@@ -104,6 +114,21 @@ export default function ExtractionPreviewView() {
           // 出力形式)に一致する場合は、Claude APIを呼ばずコード側でそのまま解析する。
           result = {
             transactions: parsedMarkdown.map((row) => ({
+              date: row.date,
+              merchant: row.merchant,
+              amount: row.amount,
+              type: row.type,
+              majorCategory: null,
+              subcategory: null,
+            })),
+            usage: null,
+          };
+        } else if (parsedCreditCardPdf) {
+          // PayPayカードの請求明細PDF(既知のテンプレート)は、座標ベースで
+          // コード側で解析し、明細書内の「ご請求金額」との検算にも成功した場合のみ
+          // ここに来る。AIによる読み違えを避けられる。
+          result = {
+            transactions: parsedCreditCardPdf.map((row) => ({
               date: row.date,
               merchant: row.merchant,
               amount: row.amount,

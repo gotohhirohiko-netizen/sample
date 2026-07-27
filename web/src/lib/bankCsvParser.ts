@@ -1,8 +1,11 @@
 /**
- * 「取引日・符号付き入出金額・入出金内容」の3列を持つ銀行口座CSV
- * (楽天銀行の入出金明細等)を判定・解析する。AIによる符号の読み違えを防ぐため、
- * 列構成が一致する場合はコード側で機械的に金額の符号からtype(収入/支出)を判定する。
- * 列構成が一致しない場合はnullを返し、Claudeによる解析にフォールバックする。
+ * 銀行口座CSVの2つの列構成を判定・解析する。AIによる符号の読み違えを防ぐため、
+ * 列構成が一致する場合はコード側で機械的に金額からtype(収入/支出)を判定する。
+ * どちらの形式にも一致しない場合はnullを返し、Claudeによる解析にフォールバックする。
+ *
+ * 1. 符号付き1列形式(楽天銀行の入出金明細等): 「入出金」列の符号(プラス/マイナス)で判定
+ * 2. 支払い/預かり分離2列形式(三菱UFJ銀行の入出金明細等): 値がある方の列で判定
+ *    (1行につきどちらか一方にのみ値が入っている想定)
  */
 export interface ParsedBankCsvRow {
   date: string; // "YYYY-MM-DD"
@@ -14,9 +17,44 @@ export interface ParsedBankCsvRow {
 const DATE_HEADER_NAMES = ["取引日", "日付"];
 const AMOUNT_HEADER_NAMES = ["入出金(円)", "入出金", "入出金金額(円)", "入出金金額"];
 const DESCRIPTION_HEADER_NAMES = ["入出金内容", "摘要", "摘要内容", "内容"];
+const WITHDRAWAL_HEADER_NAMES = ["支払い金額", "支払金額", "お支払い金額", "出金金額"];
+const DEPOSIT_HEADER_NAMES = ["預かり金額", "預り金額", "お預り金額", "入金金額"];
+const SUMMARY_HEADER_NAMES = ["摘要"];
+const SUMMARY_DETAIL_HEADER_NAMES = ["摘要内容"];
 
+/**
+ * CSVの1行をセルに分割する。金額列が「"250,000"」のように区切り文字を含んだ
+ * まま引用符で囲まれることがあるため、単純な文字列split(delimiter)ではなく、
+ * 引用符内の区切り文字を無視するパーサーを使う。
+ */
 function splitLine(line: string, delimiter: string): string[] {
-  return line.split(delimiter).map((cell) => cell.trim().replace(/^"|"$/g, ""));
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === delimiter) {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
 }
 
 function detectDelimiter(headerLine: string): string | null {
@@ -32,10 +70,26 @@ function detectDelimiter(headerLine: string): string | null {
   return null;
 }
 
+function detectSeparateColumnDelimiter(headerLine: string): string | null {
+  for (const delimiter of [",", "\t"]) {
+    const cells = splitLine(headerLine, delimiter);
+    if (
+      cells.some((c) => DATE_HEADER_NAMES.includes(c)) &&
+      cells.some((c) => WITHDRAWAL_HEADER_NAMES.includes(c)) &&
+      cells.some((c) => DEPOSIT_HEADER_NAMES.includes(c))
+    ) {
+      return delimiter;
+    }
+  }
+  return null;
+}
+
+/** "2026/6/1"のようにゼロ埋めされていない月日にも対応した日付パース */
 function parseDateCell(raw: string): string | null {
-  const digits = raw.replace(/[^0-9]/g, "");
-  if (digits.length !== 8) return null;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  const match = raw.trim().match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
 export function tryParseSignedAmountBankCsv(text: string): ParsedBankCsvRow[] | null {
@@ -67,6 +121,53 @@ export function tryParseSignedAmountBankCsv(text: string): ParsedBankCsvRow[] | 
       amount: Math.abs(amountRaw),
       type: amountRaw > 0 ? "income" : "expense",
     });
+  }
+
+  return rows.length > 0 ? rows : null;
+}
+
+export function tryParseSeparateColumnBankCsv(text: string): ParsedBankCsvRow[] | null {
+  const lines = text.split(/\r\n|\r|\n/).filter((line) => line.trim() !== "");
+  if (lines.length < 2) return null;
+
+  const delimiter = detectSeparateColumnDelimiter(lines[0]);
+  if (!delimiter) return null;
+
+  const headerCells = splitLine(lines[0], delimiter);
+  const dateIndex = headerCells.findIndex((c) => DATE_HEADER_NAMES.includes(c));
+  const withdrawalIndex = headerCells.findIndex((c) => WITHDRAWAL_HEADER_NAMES.includes(c));
+  const depositIndex = headerCells.findIndex((c) => DEPOSIT_HEADER_NAMES.includes(c));
+  const summaryIndex = headerCells.findIndex((c) => SUMMARY_HEADER_NAMES.includes(c));
+  const summaryDetailIndex = headerCells.findIndex((c) => SUMMARY_DETAIL_HEADER_NAMES.includes(c));
+  if (dateIndex === -1 || withdrawalIndex === -1 || depositIndex === -1) return null;
+  if (summaryIndex === -1 && summaryDetailIndex === -1) return null;
+
+  const requiredIndexes = [dateIndex, withdrawalIndex, depositIndex, summaryIndex, summaryDetailIndex].filter(
+    (i) => i !== -1
+  );
+  const maxIndex = Math.max(...requiredIndexes);
+
+  const rows: ParsedBankCsvRow[] = [];
+  for (const line of lines.slice(1)) {
+    const cells = splitLine(line, delimiter);
+    if (cells.length <= maxIndex) continue;
+
+    const date = parseDateCell(cells[dateIndex]);
+    const detail = summaryDetailIndex === -1 ? "" : cells[summaryDetailIndex];
+    const summary = summaryIndex === -1 ? "" : cells[summaryIndex];
+    const merchant = detail !== "" ? detail : summary;
+    if (!date || !merchant) continue;
+
+    const withdrawalRaw = cells[withdrawalIndex];
+    const depositRaw = cells[depositIndex];
+    const hasWithdrawal = withdrawalRaw !== "";
+    const hasDeposit = depositRaw !== "";
+    if (hasWithdrawal === hasDeposit) continue; // 両方空欄/両方値ありは判定不能としてスキップ
+
+    const amountRaw = Number((hasWithdrawal ? withdrawalRaw : depositRaw).replace(/,/g, ""));
+    if (!Number.isFinite(amountRaw) || amountRaw <= 0) continue;
+
+    rows.push({ date, merchant, amount: amountRaw, type: hasWithdrawal ? "expense" : "income" });
   }
 
   return rows.length > 0 ? rows : null;
