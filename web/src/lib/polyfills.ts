@@ -15,3 +15,35 @@ if (typeof Promise.withResolvers !== "function") {
     return { promise, resolve, reject };
   };
 }
+
+/**
+ * SafariがReadableStreamの非同期反復(`for await...of`)に対応したのは
+ * Safari 26.4からで、それより前のバージョンでは
+ * `ReadableStream.prototype[Symbol.asyncIterator]`が存在しない。
+ * pdf.jsの`getTextContent()`はこれを前提に`for await (const value of stream)`を
+ * 直接使っているため、無いと「undefined is not a function」で失敗する。
+ */
+if (
+  typeof ReadableStream !== "undefined" &&
+  typeof (ReadableStream.prototype as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !==
+    "function"
+) {
+  (ReadableStream.prototype as unknown as Record<typeof Symbol.asyncIterator, () => AsyncIterator<unknown>>)[
+    Symbol.asyncIterator
+  ] = function (this: ReadableStream) {
+    const reader = this.getReader();
+    return {
+      async next() {
+        const { done, value } = await reader.read();
+        return { done: !!done, value };
+      },
+      async return(value?: unknown) {
+        reader.releaseLock();
+        return { done: true, value };
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  };
+}

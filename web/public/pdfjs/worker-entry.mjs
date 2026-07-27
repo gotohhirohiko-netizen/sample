@@ -15,4 +15,27 @@ if (typeof Promise.withResolvers !== "function") {
     return { promise, resolve, reject };
   };
 }
+// SafariがReadableStreamの非同期反復に対応したのはSafari 26.4からで、
+// それより前のバージョンでは`for await...of`がストリームに使えない。
+if (
+  typeof ReadableStream !== "undefined" &&
+  typeof ReadableStream.prototype[Symbol.asyncIterator] !== "function"
+) {
+  ReadableStream.prototype[Symbol.asyncIterator] = function () {
+    const reader = this.getReader();
+    return {
+      async next() {
+        const { done, value } = await reader.read();
+        return { done: !!done, value };
+      },
+      async return(value) {
+        reader.releaseLock();
+        return { done: true, value };
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  };
+}
 await import("./pdf.worker.min.mjs");
