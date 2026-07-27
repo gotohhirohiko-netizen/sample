@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useRegisterSW } from "virtual:pwa-register/react";
 import { loadApiKey, saveApiKey } from "../lib/keyStorage";
 import {
   isLockEnabled,
@@ -7,6 +8,8 @@ import {
   registerLock,
   removeLock,
 } from "../lib/webauthnLock";
+import { clearPwaCachesAndReload } from "../lib/pwaMaintenance";
+import { formatDateTime } from "../lib/dateUtils";
 
 /** 設定画面: APIキー入力、各種管理画面への導線(要件定義書 5.1) */
 export default function SettingsView() {
@@ -17,6 +20,17 @@ export default function SettingsView() {
   const [lockEnabled, setLockEnabled] = useState(false);
   const [platformAuthAvailable, setPlatformAuthAvailable] = useState(false);
   const [lockMessage, setLockMessage] = useState<string | null>(null);
+  const [checkingForUpdate, setCheckingForUpdate] = useState(false);
+  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
+
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegisteredSW(_url, registration) {
+      registrationRef.current = registration ?? null;
+    },
+  });
 
   useEffect(() => {
     loadApiKey().then((key) => setApiKey(key ?? ""));
@@ -56,6 +70,25 @@ export default function SettingsView() {
     await navigator.clipboard.writeText(apiKey);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleCheckForUpdate() {
+    setCheckingForUpdate(true);
+    try {
+      await registrationRef.current?.update();
+    } finally {
+      setTimeout(() => setCheckingForUpdate(false), 1500);
+    }
+  }
+
+  async function handleClearCache() {
+    if (
+      !confirm(
+        "アプリのキャッシュを削除して再読み込みします。保存されている家計簿データは削除されません。よろしいですか?"
+      )
+    )
+      return;
+    await clearPwaCachesAndReload();
   }
 
   return (
@@ -113,6 +146,27 @@ export default function SettingsView() {
           </>
         )}
         {lockMessage && <p className="muted">{lockMessage}</p>}
+      </div>
+
+      <div className="section">
+        <div className="section-title">アプリ情報</div>
+        <p className="muted">
+          バージョン {__APP_VERSION__}(ビルド: {formatDateTime(new Date(__BUILD_TIME__))})
+        </p>
+        <div className="button-row">
+          {needRefresh ? (
+            <button type="button" className="btn-primary" onClick={() => updateServiceWorker(true)}>
+              新しいバージョンに更新
+            </button>
+          ) : (
+            <button type="button" onClick={handleCheckForUpdate} disabled={checkingForUpdate}>
+              {checkingForUpdate ? "確認中..." : "更新を確認"}
+            </button>
+          )}
+          <button type="button" onClick={handleClearCache}>
+            キャッシュを削除して再読み込み
+          </button>
+        </div>
       </div>
 
       <div className="section list">
