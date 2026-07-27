@@ -59,6 +59,7 @@ export default function ExtractionPreviewView() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
+  const [isCommitting, setIsCommitting] = useState(false);
 
   useEffect(() => {
     if (
@@ -245,7 +246,8 @@ export default function ExtractionPreviewView() {
   }
 
   async function handleCommit() {
-    if (!items || !state) return;
+    if (!items || !state || isCommitting) return;
+    setIsCommitting(true);
     const now = new Date().toISOString();
     const itemsToCommit = excludeDuplicates ? items.filter((i) => !i.isDuplicate) : items;
 
@@ -416,11 +418,13 @@ export default function ExtractionPreviewView() {
           <button
             type="button"
             className="btn-primary"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isCommitting}
             onClick={handleCommit}
             style={{ marginTop: 16 }}
           >
-            確定 ({(excludeDuplicates ? items.filter((i) => !i.isDuplicate) : items).length}件)
+            {isCommitting
+              ? "登録中..."
+              : `確定 (${(excludeDuplicates ? items.filter((i) => !i.isDuplicate) : items).length}件)`}
           </button>
         </>
       )}
