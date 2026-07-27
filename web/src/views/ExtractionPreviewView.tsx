@@ -160,7 +160,8 @@ export default function ExtractionPreviewView() {
           }
         }
 
-        const resolved: PreviewItem[] = result.transactions.map((item, index) => {
+        const resolved: PreviewItem[] = [];
+        result.transactions.forEach((item, index) => {
           const date = item.date;
           const subcategoryID = resolveCategory(
             item.merchant,
@@ -170,13 +171,14 @@ export default function ExtractionPreviewView() {
             subcategories,
             majorCategories
           );
-          const isDuplicate = existingTransactions.some(
-            (t) =>
-              t.sourceInstitutionID === state.sourceId &&
-              isSameDay(new Date(t.date), new Date(date)) &&
-              isLikelySameMerchant(t.merchant, item.merchant) &&
-              t.amount === item.amount
-          );
+          const matchesItem = (t: { date: string; merchant: string; amount: number }) =>
+            isSameDay(new Date(t.date), new Date(date)) &&
+            isLikelySameMerchant(t.merchant, item.merchant) &&
+            t.amount === item.amount;
+          const isDuplicate =
+            existingTransactions.some(
+              (t) => t.sourceInstitutionID === state.sourceId && matchesItem(t)
+            ) || resolved.some(matchesItem);
           const excludedFromBudget = exclusions.some(
             (e) => e.merchantKey === merchantMatchKey(item.merchant)
           );
@@ -184,7 +186,7 @@ export default function ExtractionPreviewView() {
             item.type === "income" &&
             (matchesBonusIncomeSchedule(item.date, state.sourceId, bonusIncomeSchedules) ||
               suggestBonusIncome(item.merchant, item.amount, existingTransactions));
-          return {
+          resolved.push({
             key: `${index}-${item.merchant}-${item.amount}`,
             date,
             merchant: item.merchant,
@@ -194,7 +196,7 @@ export default function ExtractionPreviewView() {
             isDuplicate,
             excludedFromBudget,
             isBonusIncome,
-          };
+          });
         });
 
         if (!cancelled) setItems(resolved);
