@@ -1,13 +1,25 @@
 import type { MajorCategory, MerchantCategoryMapping, Subcategory } from "../types/models";
 
 /**
+ * 店名の全角/半角表記ゆれを吸収する。同じ取引でも、Claude APIによる解析では
+ * 全角/半角が正規化された表記になり、コード側の決定的パーサーはPDF/CSVの
+ * 原文(半角カナや全角英数字が混在する)をそのまま使うため、同一店名でも
+ * 見た目上の文字コードが一致しないことがある。NFKC正規化で半角カナは
+ * 全角に、全角英数字は半角に統一される。
+ */
+function normalizeWidth(s: string): string {
+  return s.normalize("NFKC");
+}
+
+/**
  * 店名の類似判定キーを抽出する。「ETCカード売上 ○○インター」のように
  * 半角/全角スペースの後に可変の文字列が続く店名は、スペースより手前の
  * 部分だけを同一店名とみなして判定する(要件定義書 4.9)。
  */
 export function merchantMatchKey(merchant: string): string {
-  const spaceIndex = merchant.search(/[ 　]/);
-  return spaceIndex === -1 ? merchant : merchant.slice(0, spaceIndex);
+  const normalized = normalizeWidth(merchant);
+  const spaceIndex = normalized.search(/[ 　]/);
+  return spaceIndex === -1 ? normalized : normalized.slice(0, spaceIndex);
 }
 
 /**
@@ -19,7 +31,7 @@ export function merchantMatchKey(merchant: string): string {
  * 同一店名とみなす。カテゴリ学習等の用途にはmerchantMatchKeyを使うこと。
  */
 export function isLikelySameMerchant(a: string, b: string): boolean {
-  const normalize = (s: string) => s.replace(/[\s　]/g, "");
+  const normalize = (s: string) => normalizeWidth(s).replace(/[\s　]/g, "");
   const na = normalize(a);
   const nb = normalize(b);
   if (na === nb) return true;
