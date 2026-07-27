@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
@@ -60,8 +60,14 @@ export default function ExtractionPreviewView() {
   const [error, setError] = useState<string | null>(null);
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
   const [isCommitting, setIsCommitting] = useState(false);
+  const hasStartedExtractionRef = useRef(false);
 
   useEffect(() => {
+    // mappings/exclusions/existingTransactionsは確定処理自身の書き込みでも
+    // 変化するため、これらを依存配列に含めたまま毎回再実行すると、確定処理の
+    // 途中で抽出処理全体(PDF解析含む)が再度走ってしまい、コミット中の画面が
+    // 中途半端な状態のプレビューに戻ってしまう。抽出は最初の1回だけ実行する。
+    if (hasStartedExtractionRef.current) return;
     if (
       !state ||
       !fundingSource ||
@@ -74,6 +80,7 @@ export default function ExtractionPreviewView() {
     ) {
       return;
     }
+    hasStartedExtractionRef.current = true;
     let cancelled = false;
 
     (async () => {
