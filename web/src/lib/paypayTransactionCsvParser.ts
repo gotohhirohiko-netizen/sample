@@ -6,8 +6,13 @@ import { parseCsvDateCell, splitCsvLine } from "./csvUtils";
  * PayPayアプリ自体の取引履歴はいつでもCSVでエクスポートできるため、
  * 当月未確定分の取り込みに使う。
  *
- * このCSVには「支払い」(実際の購入)と「ポイント、残高の獲得」(ポイント還元等)の
- * 両方が記録されているが、後者は実際の支出ではないため対象外とする。
+ * このCSVには「支払い」(実際の購入)、「請求書払い」(税金・公共料金等)、
+ * 「ポイント、残高の獲得」(ポイント還元等)など複数の「取引内容」が記録される。
+ * 「取引内容」による許可リスト方式では今後増える種別を網羅できないため
+ * (実際に「請求書払い」が対象外になり取り込み漏れが発生した)、「取引内容」では
+ * 絞り込まず、「出金金額」列に実際の出金額があり、かつクレジットカード決済分が
+ * 存在する行のみを対象とする(ポイント獲得等の入金のみの行は出金金額が無く
+ * 自然に除外される)。
  *
  * 「取引方法」列には、PayPay残高/ポイントとクレジットカードを併用した場合、
  * 「PayPayポイント (268円), クレジット Mastercard 3476 (5,797円)」のように
@@ -28,8 +33,6 @@ const WITHDRAWAL_HEADER = "出金金額（円）";
 const CONTENT_HEADER = "取引内容";
 const MERCHANT_HEADER = "取引先";
 const PAYMENT_METHOD_HEADER = "取引方法";
-
-const PAYMENT_CONTENT_VALUE = "支払い";
 
 /** 「クレジット Mastercard 3476 (5,797円)」のような内訳表記からカード決済分の金額を取り出す */
 const CREDIT_BREAKDOWN_REGEX = /クレジット[^,()]*\(([\d,]+)円\)/;
@@ -80,7 +83,6 @@ export function tryParsePayPayTransactionCsv(text: string): ParsedPayPayTransact
   for (const line of lines.slice(1)) {
     const cells = splitCsvLine(line, delimiter);
     if (cells.length <= maxIndex) continue;
-    if (cells[contentIndex] !== PAYMENT_CONTENT_VALUE) continue; // ポイント獲得等は対象外
 
     const dateRaw = cells[dateIndex].split(" ")[0]; // "2026/07/28 13:35:16" -> "2026/07/28"
     const date = parseCsvDateCell(dateRaw);
