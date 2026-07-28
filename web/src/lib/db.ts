@@ -7,6 +7,7 @@ import type {
   CategoryBudgetSetting,
   FundingSource,
   MajorCategory,
+  MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusion,
   RecurringOverride,
@@ -34,6 +35,7 @@ export class KakeiboDB extends Dexie {
   categoryBudgetSettings!: EntityTable<CategoryBudgetSetting, "id">;
   merchantCategoryMappings!: EntityTable<MerchantCategoryMapping, "id">;
   merchantExclusions!: EntityTable<MerchantExclusion, "id">;
+  merchantAmbiguousFlags!: EntityTable<MerchantAmbiguousFlag, "id">;
   bonusPeriods!: EntityTable<BonusPeriod, "id">;
   recurringOverrides!: EntityTable<RecurringOverride, "id">;
   bonusCategoryPlans!: EntityTable<BonusCategoryPlan, "id">;
@@ -162,6 +164,22 @@ export class KakeiboDB extends Dexie {
       categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
       merchantCategoryMappings: "id, merchantKey",
       merchantExclusions: "id, merchantKey",
+      bonusPeriods: "id, displayOrder",
+      recurringOverrides: "id, merchantKey",
+      bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+      bonusIncomeSchedules: "id, fundingSourceID",
+      apiUsageLogs: "id, createdAt",
+      settings: "key",
+    });
+    this.version(10).stores({
+      transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+      fundingSources: "id",
+      majorCategories: "id, displayOrder",
+      subcategories: "id, majorCategoryID",
+      categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+      merchantCategoryMappings: "id, merchantKey",
+      merchantExclusions: "id, merchantKey",
+      merchantAmbiguousFlags: "id, merchantKey",
       bonusPeriods: "id, displayOrder",
       recurringOverrides: "id, merchantKey",
       bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",

@@ -51,6 +51,19 @@ export interface MerchantCategoryMapping {
   updatedAt: string; // ISO日時文字列
 }
 
+/**
+ * 店名ごとに「カテゴリが一意に決まらない(都度変わる)」ことを示すフラグ
+ * (例: Yahoo!ショッピングのように何を買うかで支出カテゴリが変わる店)。
+ * 立っている店名は、学習マッピングによるカテゴリ自動反映・複数取引への
+ * 一括反映の対象外とする。ユーザーが手動で設定するほか、同じ店名で異なる
+ * 小カテゴリが設定された履歴を検知した時点で自動的に立てる。
+ */
+export interface MerchantAmbiguousFlag {
+  id: string;
+  merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKey)
+  updatedAt: string; // ISO日時文字列
+}
+
 /** 取引データ */
 export interface Transaction {
   id: string;

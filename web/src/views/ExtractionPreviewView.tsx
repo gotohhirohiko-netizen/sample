@@ -14,7 +14,12 @@ import { tryParsePayPayCardPdf } from "../lib/paypayCardPdfParser";
 import { tryParseRakutenCardPdf } from "../lib/rakutenCardPdfParser";
 import { tryParseRakutenCardCsv } from "../lib/rakutenCardCsvParser";
 import { tryParsePayPayTransactionCsv } from "../lib/paypayTransactionCsvParser";
-import { isLikelySameMerchant, merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
+import {
+  isLikelySameMerchant,
+  isMerchantAmbiguous,
+  merchantMatchKey,
+  resolveCategory,
+} from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
 import { matchesBonusIncomeSchedule, suggestBonusIncome } from "../lib/bonusIncomeHeuristic";
@@ -50,6 +55,7 @@ export default function ExtractionPreviewView() {
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const mappings = useLiveQuery(() => db.merchantCategoryMappings.toArray(), []);
   const exclusions = useLiveQuery(() => db.merchantExclusions.toArray(), []);
+  const ambiguousFlags = useLiveQuery(() => db.merchantAmbiguousFlags.toArray(), []);
   const existingTransactions = useLiveQuery(() => db.transactions.toArray(), []);
   const bonusIncomeSchedules = useLiveQuery(() => db.bonusIncomeSchedules.toArray(), []);
   const fundingSource = useLiveQuery<FundingSource | undefined>(
@@ -78,7 +84,8 @@ export default function ExtractionPreviewView() {
       !mappings ||
       !exclusions ||
       !existingTransactions ||
-      !bonusIncomeSchedules
+      !bonusIncomeSchedules ||
+      !ambiguousFlags
     ) {
       return;
     }
@@ -203,7 +210,8 @@ export default function ExtractionPreviewView() {
             item.subcategory,
             mappings,
             subcategories,
-            majorCategories
+            majorCategories,
+            ambiguousFlags
           );
           const isDuplicate = existingTransactions.some(
             (t) =>
@@ -257,6 +265,7 @@ export default function ExtractionPreviewView() {
     exclusions,
     existingTransactions,
     bonusIncomeSchedules,
+    ambiguousFlags,
   ]);
 
   if (!state) {
@@ -301,7 +310,7 @@ export default function ExtractionPreviewView() {
       };
       await db.transactions.add(transaction);
 
-      if (item.subcategoryID) {
+      if (item.subcategoryID && !isMerchantAmbiguous(item.merchant, ambiguousFlags ?? [])) {
         const key = merchantMatchKey(item.merchant);
         const existing = await db.merchantCategoryMappings
           .where("merchantKey")

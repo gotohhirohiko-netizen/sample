@@ -2,7 +2,11 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { merchantMatchKey } from "../lib/categoryResolver";
+import {
+  hasDivergentCategoryHistory,
+  isMerchantAmbiguous,
+  merchantMatchKey,
+} from "../lib/categoryResolver";
 import { resolveRecurring } from "../lib/recurringResolver";
 import type { Transaction } from "../types/models";
 
@@ -19,6 +23,7 @@ export default function TransactionDetailView() {
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const allTransactions = useLiveQuery(() => db.transactions.toArray(), []);
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
+  const ambiguousFlags = useLiveQuery(() => db.merchantAmbiguousFlags.toArray(), []);
 
   const [merchant, setMerchant] = useState<string | null>(null);
   const [amount, setAmount] = useState<string | null>(null);
@@ -27,7 +32,14 @@ export default function TransactionDetailView() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [exclusionAppliedCount, setExclusionAppliedCount] = useState<number | null>(null);
 
-  if (!transaction || !majorCategories || !subcategories || !allTransactions || !recurringOverrides) {
+  if (
+    !transaction ||
+    !majorCategories ||
+    !subcategories ||
+    !allTransactions ||
+    !recurringOverrides ||
+    !ambiguousFlags
+  ) {
     return <p className="muted">読み込み中...</p>;
   }
 
@@ -44,6 +56,7 @@ export default function TransactionDetailView() {
       ? `${currentMajorCategory.name} / ${currentSubcategory.name}`
       : currentSubcategory.name
     : "未分類";
+  const isAmbiguousMerchant = isMerchantAmbiguous(transaction.merchant, ambiguousFlags);
 
   const currentMerchant = merchant ?? transaction.merchant;
   const currentAmount = amount ?? String(transaction.amount);
@@ -60,40 +73,73 @@ export default function TransactionDetailView() {
     await db.transactions.update(transaction.id, { subcategoryID: nextID });
     setPickerOpen(false);
 
-    if (nextID) {
-      const key = merchantMatchKey(transaction.merchant);
-      const existing = await db.merchantCategoryMappings
-        .where("merchantKey")
-        .equals(key)
-        .first();
-      if (existing) {
-        await db.merchantCategoryMappings.update(existing.id, {
-          subcategoryID: nextID,
-          updatedAt: new Date().toISOString(),
-        });
-      } else {
-        await db.merchantCategoryMappings.add({
+    if (!nextID) return;
+
+    const key = merchantMatchKey(transaction.merchant);
+    const divergent = hasDivergentCategoryHistory(
+      transaction.merchant,
+      nextID,
+      allTransactions!,
+      transaction.id
+    );
+
+    if (divergent && !isAmbiguousMerchant) {
+      // 同じ店名で異なるカテゴリが設定された履歴があるため、以後この店名は
+      // 自動学習・一括反映の対象外にする(例: Yahoo!ショッピング等)
+      await db.merchantAmbiguousFlags.add({
+        id: crypto.randomUUID(),
+        merchantKey: key,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (divergent || isAmbiguousMerchant) return;
+
+    const existing = await db.merchantCategoryMappings.where("merchantKey").equals(key).first();
+    if (existing) {
+      await db.merchantCategoryMappings.update(existing.id, {
+        subcategoryID: nextID,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      await db.merchantCategoryMappings.add({
+        id: crypto.randomUUID(),
+        merchantKey: key,
+        subcategoryID: nextID,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const sameMerchantTx = await db.transactions
+      .filter(
+        (t) =>
+          t.id !== transaction.id &&
+          t.type === "expense" &&
+          merchantMatchKey(t.merchant) === key &&
+          t.subcategoryID !== nextID
+      )
+      .toArray();
+    await Promise.all(
+      sameMerchantTx.map((t) => db.transactions.update(t.id, { subcategoryID: nextID }))
+    );
+    setAppliedCount(sameMerchantTx.length);
+    setTimeout(() => setAppliedCount(null), 3000);
+  }
+
+  async function handleAmbiguousChange(ambiguous: boolean) {
+    if (!transaction) return;
+    const key = merchantMatchKey(transaction.merchant);
+    const existing = await db.merchantAmbiguousFlags.where("merchantKey").equals(key).first();
+    if (ambiguous) {
+      if (!existing) {
+        await db.merchantAmbiguousFlags.add({
           id: crypto.randomUUID(),
           merchantKey: key,
-          subcategoryID: nextID,
           updatedAt: new Date().toISOString(),
         });
       }
-
-      const sameMerchantTx = await db.transactions
-        .filter(
-          (t) =>
-            t.id !== transaction.id &&
-            t.type === "expense" &&
-            merchantMatchKey(t.merchant) === key &&
-            t.subcategoryID !== nextID
-        )
-        .toArray();
-      await Promise.all(
-        sameMerchantTx.map((t) => db.transactions.update(t.id, { subcategoryID: nextID }))
-      );
-      setAppliedCount(sameMerchantTx.length);
-      setTimeout(() => setAppliedCount(null), 3000);
+    } else if (existing) {
+      await db.merchantAmbiguousFlags.delete(existing.id);
     }
   }
 
@@ -283,6 +329,19 @@ export default function TransactionDetailView() {
           {appliedCount !== null && appliedCount > 0 && (
             <p className="muted">同じ店名の他の取引 {appliedCount}件にも反映しました</p>
           )}
+
+          <label className="filter-row">
+            <input
+              type="checkbox"
+              checked={isAmbiguousMerchant}
+              onChange={(e) => handleAmbiguousChange(e.target.checked)}
+            />
+            この店名はカテゴリが一意に決まらない
+          </label>
+          <p className="muted">
+            ONにすると、この店名は次回以降の自動カテゴリ判定や、同じ店名の他の取引への一括反映の対象外になります(例:
+            Yahoo!ショッピングのように何を買うかでカテゴリが変わる店)。同じ店名で異なるカテゴリが設定された履歴を検知すると自動的にONになります。
+          </p>
         </div>
       )}
 

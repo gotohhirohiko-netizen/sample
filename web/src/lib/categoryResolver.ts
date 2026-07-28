@@ -1,4 +1,10 @@
-import type { MajorCategory, MerchantCategoryMapping, Subcategory } from "../types/models";
+import type {
+  MajorCategory,
+  MerchantAmbiguousFlag,
+  MerchantCategoryMapping,
+  Subcategory,
+  Transaction,
+} from "../types/models";
 
 /**
  * 店名の全角/半角表記ゆれを吸収する。同じ取引でも、Claude APIによる解析では
@@ -40,8 +46,45 @@ export function isLikelySameMerchant(a: string, b: string): boolean {
 }
 
 /**
+ * 店名が「カテゴリが一意に決まらない店」としてフラグされているかどうか
+ * (要件定義書 4.9関連。Yahoo!ショッピングのように何を買うかでカテゴリが
+ * 変わる店は、店名だけでの自動学習・一括反映がそもそも成立しないため)。
+ */
+export function isMerchantAmbiguous(
+  merchant: string,
+  ambiguousFlags: MerchantAmbiguousFlag[]
+): boolean {
+  const key = merchantMatchKey(merchant);
+  return ambiguousFlags.some((f) => merchantMatchKey(f.merchantKey) === key);
+}
+
+/**
+ * ある店名について、指定した小カテゴリとは異なる小カテゴリが設定された
+ * 取引が(指定した取引以外に)既に存在するかどうかを調べる。存在する場合、
+ * その店名は「カテゴリが一意に決まらない店」であると自動的に判断できる。
+ */
+export function hasDivergentCategoryHistory(
+  merchant: string,
+  newSubcategoryID: string,
+  transactions: Transaction[],
+  excludeTransactionId?: string
+): boolean {
+  const key = merchantMatchKey(merchant);
+  return transactions.some(
+    (t) =>
+      t.id !== excludeTransactionId &&
+      t.type === "expense" &&
+      merchantMatchKey(t.merchant) === key &&
+      t.subcategoryID != null &&
+      t.subcategoryID !== newSubcategoryID
+  );
+}
+
+/**
  * カテゴリ自動判定ロジック(要件定義書 4.9 / docs/design.md 4.4)。
  * 優先順位: ①学習マッピング(店名の類似判定) → ②Claudeによる推定 → ③未分類(null)
+ * ただし「カテゴリが一意に決まらない店」としてフラグされている場合は、
+ * 店名だけでの自動反映が誤りやすいため学習マッピングを使わない。
  */
 export function resolveCategory(
   merchant: string,
@@ -49,11 +92,14 @@ export function resolveCategory(
   claudeSuggestedSub: string | null,
   mappings: MerchantCategoryMapping[],
   subcategories: Subcategory[],
-  majorCategories: MajorCategory[]
+  majorCategories: MajorCategory[],
+  ambiguousFlags: MerchantAmbiguousFlag[]
 ): string | null {
   const key = merchantMatchKey(merchant);
-  const learned = mappings.find((m) => merchantMatchKey(m.merchantKey) === key);
-  if (learned) return learned.subcategoryID;
+  if (!isMerchantAmbiguous(merchant, ambiguousFlags)) {
+    const learned = mappings.find((m) => merchantMatchKey(m.merchantKey) === key);
+    if (learned) return learned.subcategoryID;
+  }
 
   if (claudeSuggestedMajor && claudeSuggestedSub) {
     const major = majorCategories.find((m) => m.name === claudeSuggestedMajor);
