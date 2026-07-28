@@ -10,15 +10,16 @@ export default function ImportSourceSelectView() {
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
 
   function openSource(sourceId: string, url: string) {
-    // window.open()だとホーム画面追加(スタンドアロン)状態のiOSで、開いたSafari
-    // タブがバックグラウンドのままになりダウンロードが即座に始まらないことが
-    // あるため、実際のリンク要素をクリックする形で遷移させる
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.click();
+    // target="_blank"で新しいタブを開く形(window.open/リンク要素どちらも)だと、
+    // ホーム画面追加(スタンドアロン)状態のiOSでそのタブがバックグラウンドの
+    // ままになり、ログイン後もアプリに戻るまでダウンロードが始まらないことが
+    // あった。新しいタブを作らず現在のウィンドウ自体を外部サイトへ遷移させる
+    // ことで、iOSにSafariへの通常のアプリ切り替え(フォアグラウンド)として
+    // 扱わせる。Reactの画面遷移を先に反映させてから遷移する。
     navigate("/import/file", { state: { sourceId } });
+    setTimeout(() => {
+      window.location.href = url;
+    }, 0);
   }
 
   function lastImportedAt(sourceId: string): string | null {
@@ -31,7 +32,7 @@ export default function ImportSourceSelectView() {
     <div>
       <h1 className="screen-title">取り込み元を選択</h1>
       <p className="muted">
-        タップすると明細ページが新しいタブで開きます。ログインしてCSV/PDFをダウンロードしたら、このタブに戻ってきてください。
+        タップすると明細ページに移動します。ログインしてCSV/PDFをダウンロードしたら、ホーム画面のアイコンからこのアプリに戻ってきてください。
       </p>
 
       <div className="list">
