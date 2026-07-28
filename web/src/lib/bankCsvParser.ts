@@ -7,6 +7,8 @@
  * 2. 支払い/預かり分離2列形式(三菱UFJ銀行の入出金明細等): 値がある方の列で判定
  *    (1行につきどちらか一方にのみ値が入っている想定)
  */
+import { parseCsvDateCell, splitCsvLine } from "./csvUtils";
+
 export interface ParsedBankCsvRow {
   date: string; // "YYYY-MM-DD"
   merchant: string;
@@ -22,44 +24,9 @@ const DEPOSIT_HEADER_NAMES = ["預かり金額", "預り金額", "お預り金�
 const SUMMARY_HEADER_NAMES = ["摘要"];
 const SUMMARY_DETAIL_HEADER_NAMES = ["摘要内容"];
 
-/**
- * CSVの1行をセルに分割する。金額列が「"250,000"」のように区切り文字を含んだ
- * まま引用符で囲まれることがあるため、単純な文字列split(delimiter)ではなく、
- * 引用符内の区切り文字を無視するパーサーを使う。
- */
-function splitLine(line: string, delimiter: string): string[] {
-  const cells: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        current += char;
-      }
-    } else if (char === '"') {
-      inQuotes = true;
-    } else if (char === delimiter) {
-      cells.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  cells.push(current.trim());
-  return cells;
-}
-
 function detectDelimiter(headerLine: string): string | null {
   for (const delimiter of [",", "\t"]) {
-    const cells = splitLine(headerLine, delimiter);
+    const cells = splitCsvLine(headerLine, delimiter);
     if (
       cells.some((c) => DATE_HEADER_NAMES.includes(c)) &&
       cells.some((c) => AMOUNT_HEADER_NAMES.includes(c))
@@ -72,7 +39,7 @@ function detectDelimiter(headerLine: string): string | null {
 
 function detectSeparateColumnDelimiter(headerLine: string): string | null {
   for (const delimiter of [",", "\t"]) {
-    const cells = splitLine(headerLine, delimiter);
+    const cells = splitCsvLine(headerLine, delimiter);
     if (
       cells.some((c) => DATE_HEADER_NAMES.includes(c)) &&
       cells.some((c) => WITHDRAWAL_HEADER_NAMES.includes(c)) &&
@@ -84,23 +51,6 @@ function detectSeparateColumnDelimiter(headerLine: string): string | null {
   return null;
 }
 
-/**
- * 「2026/6/1」のようにゼロ埋めされていない月日、および「20260601」のような
- * 区切り文字なしのYYYYMMDD(楽天銀行の取引日等)の両方に対応した日付パース
- */
-function parseDateCell(raw: string): string | null {
-  const trimmed = raw.trim();
-  const withSeparator = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
-  if (withSeparator) {
-    const [, year, month, day] = withSeparator;
-    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-  }
-  if (/^\d{8}$/.test(trimmed)) {
-    return `${trimmed.slice(0, 4)}-${trimmed.slice(4, 6)}-${trimmed.slice(6, 8)}`;
-  }
-  return null;
-}
-
 export function tryParseSignedAmountBankCsv(text: string): ParsedBankCsvRow[] | null {
   const lines = text.split(/\r\n|\r|\n/).filter((line) => line.trim() !== "");
   if (lines.length < 2) return null;
@@ -108,7 +58,7 @@ export function tryParseSignedAmountBankCsv(text: string): ParsedBankCsvRow[] | 
   const delimiter = detectDelimiter(lines[0]);
   if (!delimiter) return null;
 
-  const headerCells = splitLine(lines[0], delimiter);
+  const headerCells = splitCsvLine(lines[0], delimiter);
   const dateIndex = headerCells.findIndex((c) => DATE_HEADER_NAMES.includes(c));
   const amountIndex = headerCells.findIndex((c) => AMOUNT_HEADER_NAMES.includes(c));
   const descriptionIndex = headerCells.findIndex((c) => DESCRIPTION_HEADER_NAMES.includes(c));
@@ -116,10 +66,10 @@ export function tryParseSignedAmountBankCsv(text: string): ParsedBankCsvRow[] | 
 
   const rows: ParsedBankCsvRow[] = [];
   for (const line of lines.slice(1)) {
-    const cells = splitLine(line, delimiter);
+    const cells = splitCsvLine(line, delimiter);
     if (cells.length <= Math.max(dateIndex, amountIndex, descriptionIndex)) continue;
 
-    const date = parseDateCell(cells[dateIndex]);
+    const date = parseCsvDateCell(cells[dateIndex]);
     const amountRaw = Number(cells[amountIndex].replace(/,/g, ""));
     const merchant = cells[descriptionIndex];
     if (!date || !Number.isFinite(amountRaw) || amountRaw === 0 || !merchant) continue;
@@ -142,7 +92,7 @@ export function tryParseSeparateColumnBankCsv(text: string): ParsedBankCsvRow[] 
   const delimiter = detectSeparateColumnDelimiter(lines[0]);
   if (!delimiter) return null;
 
-  const headerCells = splitLine(lines[0], delimiter);
+  const headerCells = splitCsvLine(lines[0], delimiter);
   const dateIndex = headerCells.findIndex((c) => DATE_HEADER_NAMES.includes(c));
   const withdrawalIndex = headerCells.findIndex((c) => WITHDRAWAL_HEADER_NAMES.includes(c));
   const depositIndex = headerCells.findIndex((c) => DEPOSIT_HEADER_NAMES.includes(c));
@@ -158,10 +108,10 @@ export function tryParseSeparateColumnBankCsv(text: string): ParsedBankCsvRow[] 
 
   const rows: ParsedBankCsvRow[] = [];
   for (const line of lines.slice(1)) {
-    const cells = splitLine(line, delimiter);
+    const cells = splitCsvLine(line, delimiter);
     if (cells.length <= maxIndex) continue;
 
-    const date = parseDateCell(cells[dateIndex]);
+    const date = parseCsvDateCell(cells[dateIndex]);
     const detail = summaryDetailIndex === -1 ? "" : cells[summaryDetailIndex];
     const summary = summaryIndex === -1 ? "" : cells[summaryIndex];
     const merchant = detail !== "" ? detail : summary;

@@ -12,6 +12,7 @@ import { tryParseSeparateColumnBankCsv, tryParseSignedAmountBankCsv } from "../l
 import { tryParseMarkdownTransactionTable } from "../lib/markdownTableParser";
 import { tryParsePayPayCardPdf } from "../lib/paypayCardPdfParser";
 import { tryParseRakutenCardPdf } from "../lib/rakutenCardPdfParser";
+import { tryParseRakutenCardCsv } from "../lib/rakutenCardCsvParser";
 import { isLikelySameMerchant, merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
@@ -90,12 +91,20 @@ export default function ExtractionPreviewView() {
             ? (tryParseSignedAmountBankCsv(state.file.data) ??
               tryParseSeparateColumnBankCsv(state.file.data))
             : null;
+        const parsedCreditCardCsv =
+          !parsedCsv && state.file.mimeType === "text/csv" && fundingSource.kind === "creditCard"
+            ? tryParseRakutenCardCsv(state.file.data)
+            : null;
         const parsedMarkdown =
-          !parsedCsv && state.file.mimeType === "text/csv"
+          !parsedCsv && !parsedCreditCardCsv && state.file.mimeType === "text/csv"
             ? tryParseMarkdownTransactionTable(state.file.data)
             : null;
         const parsedCreditCardPdf =
-          !parsedCsv && !parsedMarkdown && state.file.mimeType === "application/pdf" && fundingSource.kind === "creditCard"
+          !parsedCsv &&
+          !parsedCreditCardCsv &&
+          !parsedMarkdown &&
+          state.file.mimeType === "application/pdf" &&
+          fundingSource.kind === "creditCard"
             ? ((await tryParsePayPayCardPdf(state.file.data)) ??
               (await tryParseRakutenCardPdf(state.file.data)))
             : null;
@@ -107,6 +116,21 @@ export default function ExtractionPreviewView() {
           // 確実にtypeを判定し、AIによる読み違えを避ける。
           result = {
             transactions: parsedCsv.map((row) => ({
+              date: row.date,
+              merchant: row.merchant,
+              amount: row.amount,
+              type: row.type,
+              majorCategory: null,
+              subcategory: null,
+            })),
+            usage: null,
+          };
+        } else if (parsedCreditCardCsv) {
+          // 楽天カード(e-NAVI)の当月未確定分CSV(列構成が既知の形式)は、
+          // 「当月請求額」列(キャンセル等が反映済みのネット金額)を使って
+          // コード側で解析し、AIによる読み違えを避ける。
+          result = {
+            transactions: parsedCreditCardCsv.map((row) => ({
               date: row.date,
               merchant: row.merchant,
               amount: row.amount,
@@ -179,14 +203,13 @@ export default function ExtractionPreviewView() {
             subcategories,
             majorCategories
           );
-          const matchesItem = (t: { date: string; merchant: string; amount: number }) =>
-            isSameDay(new Date(t.date), new Date(date)) &&
-            isLikelySameMerchant(t.merchant, item.merchant) &&
-            t.amount === item.amount;
-          const isDuplicate =
-            existingTransactions.some(
-              (t) => t.sourceInstitutionID === state.sourceId && matchesItem(t)
-            ) || resolved.some(matchesItem);
+          const isDuplicate = existingTransactions.some(
+            (t) =>
+              t.sourceInstitutionID === state.sourceId &&
+              isSameDay(new Date(t.date), new Date(date)) &&
+              isLikelySameMerchant(t.merchant, item.merchant) &&
+              t.amount === item.amount
+          );
           const excludedFromBudget = exclusions.some(
             (e) => e.merchantKey === merchantMatchKey(item.merchant)
           );
