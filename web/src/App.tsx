@@ -19,6 +19,8 @@ import BackupView from "./views/BackupView";
 import ImportHistoryView from "./views/ImportHistoryView";
 import BonusPlanListView from "./views/BonusPlanListView";
 import BonusPlanDetailView from "./views/BonusPlanDetailView";
+import BonusActualView from "./views/BonusActualView";
+import BonusCategoryHistoryView from "./views/BonusCategoryHistoryView";
 import ApiUsageView from "./views/ApiUsageView";
 
 function AppContent() {
@@ -56,6 +58,11 @@ function AppContent() {
             <Route path="/settings/api-usage" element={<ApiUsageView />} />
             <Route path="/bonus" element={<BonusPlanListView />} />
             <Route path="/bonus/:periodId" element={<BonusPlanDetailView />} />
+            <Route path="/bonus-actual/:periodId/:year" element={<BonusActualView />} />
+            <Route
+              path="/bonus-actual/:periodId/:year/:planId"
+              element={<BonusCategoryHistoryView />}
+            />
           </Routes>
         </main>
         <BottomNav />

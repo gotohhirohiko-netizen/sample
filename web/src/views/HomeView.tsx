@@ -203,8 +203,12 @@ export default function HomeView() {
             <p className="muted">ボーナス収入なし</p>
           )}
           <div className="list" style={{ marginTop: 8 }}>
-            <button type="button" className="list-row" onClick={() => navigate("/bonus")}>
-              <span>ボーナス計画</span>
+            <button
+              type="button"
+              className="list-row"
+              onClick={() => navigate(`/bonus-actual/${bonusSummary.period.id}/${month.getFullYear()}`)}
+            >
+              <span>ボーナス予実</span>
               <span className="muted">›</span>
             </button>
           </div>
