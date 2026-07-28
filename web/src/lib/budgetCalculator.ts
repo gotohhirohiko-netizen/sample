@@ -58,6 +58,28 @@ export function actualAmount(
 }
 
 /**
+ * 小カテゴリの月次実績額(支出)の集計。大カテゴリ内訳(CategoryDrilldownView)
+ * から小カテゴリ単位でさらに内訳を見られるようにするために使う。
+ * actualAmountと同じ条件(ボーナス払い・家計対象外を除く)で絞り込む。
+ */
+export function subcategoryActualAmount(
+  subcategoryID: string,
+  month: Date,
+  transactions: Transaction[]
+): number {
+  return transactions
+    .filter(
+      (t) =>
+        t.type === "expense" &&
+        !t.excludedFromBudget &&
+        !t.isBonusPayment &&
+        t.subcategoryID === subcategoryID &&
+        isSameMonth(new Date(t.date), month)
+    )
+    .reduce((sum, t) => sum + t.amount, 0);
+}
+
+/**
  * 表示中の月が今月の場合、「今日時点で消化しているべき割合の目安」を返す
  * (例: 30日中20日目なら約2/3)。今月以外の月ではnullを返す(目安が意味を
  * 持たないため)。

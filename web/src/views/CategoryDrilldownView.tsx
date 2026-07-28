@@ -1,12 +1,11 @@
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { isSameMonth, parseMonthParam } from "../lib/dateUtils";
+import { subcategoryActualAmount } from "../lib/budgetCalculator";
+import { formatYen, parseMonthParam } from "../lib/dateUtils";
 import { useScrollRestoration } from "../lib/scrollRestoration";
-import { resolveRecurring } from "../lib/recurringResolver";
-import TransactionRow from "../components/TransactionRow";
 
-/** カテゴリ別取引一覧(月次予実画面からのドリルダウン) */
+/** カテゴリ別内訳(月次予実画面からのドリルダウン)。小カテゴリごとの実績額一覧を表示する */
 export default function CategoryDrilldownView() {
   const { month: monthParam, majorCategoryId } = useParams();
   const month = parseMonthParam(monthParam);
@@ -17,23 +16,17 @@ export default function CategoryDrilldownView() {
   );
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
-  const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
-  const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
 
-  const ready = !!(subcategories && transactions && fundingSources && recurringOverrides);
+  const ready = !!(subcategories && transactions);
   useScrollRestoration(ready);
 
-  if (!subcategories || !transactions || !fundingSources || !recurringOverrides) {
+  if (!subcategories || !transactions) {
     return <p className="muted">読み込み中...</p>;
   }
 
-  const subcategoryIDs = new Set(
-    subcategories.filter((s) => s.majorCategoryID === majorCategoryId).map((s) => s.id)
-  );
-  const items = transactions
-    .filter((t) => t.type === "expense" && isSameMonth(new Date(t.date), month))
-    .filter((t) => t.subcategoryID != null && subcategoryIDs.has(t.subcategoryID))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const categorySubcategories = subcategories
+    .filter((s) => s.majorCategoryID === majorCategoryId)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
 
   return (
     <div>
@@ -43,17 +36,21 @@ export default function CategoryDrilldownView() {
       <h1 className="screen-title">{majorCategory?.name ?? ""}</h1>
 
       <div className="list">
-        {items.map((tx) => (
-          <TransactionRow
-            key={tx.id}
-            transaction={tx}
-            fundingSources={fundingSources}
-            subcategories={subcategories}
-            isSpontaneous={!resolveRecurring(tx.merchant, transactions, recurringOverrides)}
-          />
-        ))}
+        {categorySubcategories.map((sub) => {
+          const actual = subcategoryActualAmount(sub.id, month, transactions);
+          return (
+            <Link
+              key={sub.id}
+              to={`/budget/${monthParam}/${majorCategoryId}/${sub.id}`}
+              className="list-row"
+            >
+              <span>{sub.name}</span>
+              <span className="amount">{formatYen(actual)}</span>
+            </Link>
+          );
+        })}
       </div>
-      {items.length === 0 && <p className="muted">この月・カテゴリの取引はありません</p>}
+      {categorySubcategories.length === 0 && <p className="muted">小カテゴリがありません</p>}
     </div>
   );
 }

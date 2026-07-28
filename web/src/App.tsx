@@ -8,6 +8,7 @@ import HomeView from "./views/HomeView";
 import DailyListView from "./views/DailyListView";
 import MonthlyBudgetView from "./views/MonthlyBudgetView";
 import CategoryDrilldownView from "./views/CategoryDrilldownView";
+import SubcategoryDrilldownView from "./views/SubcategoryDrilldownView";
 import TransactionDetailView from "./views/TransactionDetailView";
 import ImportSourceSelectView from "./views/ImportSourceSelectView";
 import ImportFilePickerView from "./views/ImportFilePickerView";
@@ -47,6 +48,10 @@ function AppContent() {
             <Route path="/daily/:month" element={<DailyListView />} />
             <Route path="/budget/:month" element={<MonthlyBudgetView />} />
             <Route path="/budget/:month/:majorCategoryId" element={<CategoryDrilldownView />} />
+            <Route
+              path="/budget/:month/:majorCategoryId/:subcategoryId"
+              element={<SubcategoryDrilldownView />}
+            />
             <Route path="/transactions/:id" element={<TransactionDetailView />} />
             <Route path="/import" element={<ImportSourceSelectView />} />
             <Route path="/import/file" element={<ImportFilePickerView />} />
