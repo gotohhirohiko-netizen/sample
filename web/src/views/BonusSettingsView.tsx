@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { matchesBonusIncomeSchedule } from "../lib/bonusIncomeHeuristic";
 import { formatYen } from "../lib/dateUtils";
-import type { BonusIncomeSchedule, BonusPeriod } from "../types/models";
+import type { BonusCategoryPlan, BonusIncomeSchedule, BonusPeriod } from "../types/models";
 
 /** ボーナス払いの設定画面(集計対象月・振込判定スケジュール・カテゴリ別使用計画) */
 export default function BonusSettingsView() {
@@ -34,6 +34,7 @@ export default function BonusSettingsView() {
   const [planSubcategoryID, setPlanSubcategoryID] = useState("");
   const [planAmount, setPlanAmount] = useState("");
   const [planMessage, setPlanMessage] = useState<string | null>(null);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
 
   if (
     !bonusPeriods ||
@@ -94,6 +95,20 @@ export default function BonusSettingsView() {
     await db.bonusIncomeSchedules.delete(id);
   }
 
+  function startEditPlan(plan: BonusCategoryPlan) {
+    setEditingPlanId(plan.id);
+    setPlanPeriodID(plan.bonusPeriodID);
+    setPlanYear(String(plan.year));
+    setPlanMajorCategoryID(plan.majorCategoryID);
+    setPlanSubcategoryID(plan.subcategoryID ?? "");
+    setPlanAmount(String(plan.plannedAmount));
+  }
+
+  function resetPlanForm() {
+    setEditingPlanId(null);
+    setPlanAmount("");
+  }
+
   async function addOrUpdatePlan() {
     const year = Number(planYear);
     const amount = Number(planAmount);
@@ -102,26 +117,36 @@ export default function BonusSettingsView() {
     if (!planAmount || !Number.isFinite(amount)) return;
     const subcategoryID = planSubcategoryID || null;
 
-    const existing = bonusCategoryPlans!.find(
-      (p) =>
-        p.bonusPeriodID === planPeriodID &&
-        p.year === year &&
-        p.majorCategoryID === planMajorCategoryID &&
-        (p.subcategoryID ?? null) === subcategoryID
-    );
-    if (existing) {
-      await db.bonusCategoryPlans.update(existing.id, { plannedAmount: amount });
-    } else {
-      await db.bonusCategoryPlans.add({
-        id: crypto.randomUUID(),
+    if (editingPlanId) {
+      await db.bonusCategoryPlans.update(editingPlanId, {
         bonusPeriodID: planPeriodID,
         year,
         majorCategoryID: planMajorCategoryID,
         subcategoryID,
         plannedAmount: amount,
       });
+    } else {
+      const existing = bonusCategoryPlans!.find(
+        (p) =>
+          p.bonusPeriodID === planPeriodID &&
+          p.year === year &&
+          p.majorCategoryID === planMajorCategoryID &&
+          (p.subcategoryID ?? null) === subcategoryID
+      );
+      if (existing) {
+        await db.bonusCategoryPlans.update(existing.id, { plannedAmount: amount });
+      } else {
+        await db.bonusCategoryPlans.add({
+          id: crypto.randomUUID(),
+          bonusPeriodID: planPeriodID,
+          year,
+          majorCategoryID: planMajorCategoryID,
+          subcategoryID,
+          plannedAmount: amount,
+        });
+      }
     }
-    setPlanAmount("");
+    resetPlanForm();
     setPlanMessage("計画を反映しました");
     setTimeout(() => setPlanMessage(null), 2000);
   }
@@ -129,6 +154,7 @@ export default function BonusSettingsView() {
   async function deletePlan(id: string) {
     if (!confirm("この使用計画を削除しますか?")) return;
     await db.bonusCategoryPlans.delete(id);
+    if (editingPlanId === id) resetPlanForm();
   }
 
   return (
@@ -331,8 +357,13 @@ export default function BonusSettingsView() {
             placeholder="計画額"
           />
           <button type="button" className="btn-primary" onClick={addOrUpdatePlan}>
-            反映
+            {editingPlanId ? "更新" : "反映"}
           </button>
+          {editingPlanId && (
+            <button type="button" className="btn-secondary" onClick={resetPlanForm}>
+              キャンセル
+            </button>
+          )}
         </div>
         {planMessage && <p className="muted">{planMessage}</p>}
 
@@ -348,16 +379,25 @@ export default function BonusSettingsView() {
                   : undefined;
                 const label = sub ? `${major?.name ?? "不明"} / ${sub.name}` : major?.name ?? "不明";
                 return (
-                  <div key={plan.id} className="list-row">
+                  <div
+                    key={plan.id}
+                    className="list-row"
+                    style={editingPlanId === plan.id ? { borderColor: "var(--accent)" } : undefined}
+                  >
                     <div>
                       <div>
                         {label}({period?.label ?? "不明な期間"} {plan.year}年)
                       </div>
                       <div className="muted">{formatYen(plan.plannedAmount)}</div>
                     </div>
-                    <button type="button" className="btn-secondary" onClick={() => deletePlan(plan.id)}>
-                      削除
-                    </button>
+                    <div className="button-row">
+                      <button type="button" className="btn-secondary" onClick={() => startEditPlan(plan)}>
+                        編集
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={() => deletePlan(plan.id)}>
+                        削除
+                      </button>
+                    </div>
                   </div>
                 );
               })}
