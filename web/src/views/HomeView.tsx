@@ -94,13 +94,6 @@ export default function HomeView() {
       <MonthPicker month={month} onChange={setMonth} />
 
       <div className="section card">
-        <div className="section-title">収支サマリー</div>
-        <p>支出合計: {formatYen(summary.totalExpense)}</p>
-        <p>収入合計: {formatYen(summary.totalIncome)}</p>
-        <p>収支差額: {formatYen(summary.savings)}</p>
-      </div>
-
-      <div className="section card">
         <div className="section-title">対予算・対収入</div>
         {summary.budgetUsageRate !== undefined ? (
           <>
@@ -166,6 +159,16 @@ export default function HomeView() {
             <span className="legend-proportional">■</span> 月末着地予想({formatYen(projection.totalProjected)})
           </p>
         )}
+        <div className="list" style={{ marginTop: 8 }}>
+          <button type="button" className="list-row" onClick={() => navigate(`/daily/${monthParam}`)}>
+            <span>日次収支リスト</span>
+            <span className="muted">›</span>
+          </button>
+          <button type="button" className="list-row" onClick={() => navigate(`/budget/${monthParam}`)}>
+            <span>月次予実(カテゴリ別)</span>
+            <span className="muted">›</span>
+          </button>
+        </div>
       </div>
 
       {bonusSummary && (
@@ -199,20 +202,14 @@ export default function HomeView() {
           ) : (
             <p className="muted">ボーナス収入なし</p>
           )}
+          <div className="list" style={{ marginTop: 8 }}>
+            <button type="button" className="list-row" onClick={() => navigate("/bonus")}>
+              <span>ボーナス計画</span>
+              <span className="muted">›</span>
+            </button>
+          </div>
         </div>
       )}
-
-      <div className="section list">
-        <button type="button" className="list-row" onClick={() => navigate(`/daily/${monthParam}`)}>
-          日次収支リスト
-        </button>
-        <button type="button" className="list-row" onClick={() => navigate(`/budget/${monthParam}`)}>
-          月次予実(カテゴリ別)
-        </button>
-        <button type="button" className="list-row" onClick={() => navigate("/bonus")}>
-          ボーナス計画
-        </button>
-      </div>
     </div>
   );
 }
