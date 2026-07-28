@@ -12,6 +12,11 @@ export default function FundingSourceManageView() {
   const [url, setUrl] = useState("");
   const [kind, setKind] = useState<FundingSourceKind>("creditCard");
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+  const [editKind, setEditKind] = useState<FundingSourceKind>("creditCard");
+
   async function addSource() {
     if (displayName.trim() === "" || url.trim() === "") return;
     await db.fundingSources.add({
@@ -29,6 +34,27 @@ export default function FundingSourceManageView() {
     await db.fundingSources.delete(id);
   }
 
+  function startEdit(source: { id: string; displayName: string; kind: FundingSourceKind; statementDeepLinkURL: string }) {
+    setEditingId(source.id);
+    setEditDisplayName(source.displayName);
+    setEditUrl(source.statementDeepLinkURL);
+    setEditKind(source.kind);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function saveEdit() {
+    if (!editingId || editDisplayName.trim() === "" || editUrl.trim() === "") return;
+    await db.fundingSources.update(editingId, {
+      displayName: editDisplayName.trim(),
+      kind: editKind,
+      statementDeepLinkURL: editUrl.trim(),
+    });
+    setEditingId(null);
+  }
+
   return (
     <div>
       <Link to="/settings" className="back-link">
@@ -37,18 +63,51 @@ export default function FundingSourceManageView() {
       <h1 className="screen-title">取り込み元管理</h1>
 
       <div className="list">
-        {fundingSources?.map((source) => (
-          <div key={source.id} className="card">
-            <div>{source.displayName}</div>
-            <div className="muted">{source.kind === "bankAccount" ? "銀行口座" : "クレジットカード"}</div>
-            <div className="muted" style={{ wordBreak: "break-all" }}>
-              {source.statementDeepLinkURL}
+        {fundingSources?.map((source) =>
+          editingId === source.id ? (
+            <div key={source.id} className="card">
+              <div className="form-row">
+                <label>表示名</label>
+                <input value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} />
+              </div>
+              <div className="form-row">
+                <label>明細ページURL</label>
+                <input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} />
+              </div>
+              <div className="form-row">
+                <label>種別</label>
+                <select value={editKind} onChange={(e) => setEditKind(e.target.value as FundingSourceKind)}>
+                  <option value="bankAccount">銀行口座</option>
+                  <option value="creditCard">クレジットカード</option>
+                </select>
+              </div>
+              <div className="button-row">
+                <button type="button" className="btn-primary" onClick={saveEdit}>
+                  保存
+                </button>
+                <button type="button" className="btn-secondary" onClick={cancelEdit}>
+                  キャンセル
+                </button>
+              </div>
             </div>
-            <button type="button" className="btn-secondary" onClick={() => removeSource(source.id)}>
-              削除
-            </button>
-          </div>
-        ))}
+          ) : (
+            <div key={source.id} className="card">
+              <div>{source.displayName}</div>
+              <div className="muted">{source.kind === "bankAccount" ? "銀行口座" : "クレジットカード"}</div>
+              <div className="muted" style={{ wordBreak: "break-all" }}>
+                {source.statementDeepLinkURL}
+              </div>
+              <div className="button-row">
+                <button type="button" className="btn-secondary" onClick={() => startEdit(source)}>
+                  編集
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => removeSource(source.id)}>
+                  削除
+                </button>
+              </div>
+            </div>
+          )
+        )}
       </div>
 
       <div className="section" style={{ marginTop: 16 }}>
