@@ -3,11 +3,6 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { matchesBonusIncomeSchedule } from "../lib/bonusIncomeHeuristic";
-import {
-  bonusCategoryActualAmount,
-  bonusPeriodRange,
-  bonusSubcategoryActualAmount,
-} from "../lib/bonusCalculator";
 import { formatYen } from "../lib/dateUtils";
 import type { BonusCategoryPlan, BonusIncomeSchedule } from "../types/models";
 
@@ -79,7 +74,7 @@ export default function BonusPlanDetailView() {
     (s) => s.month >= period.startMonth && s.month <= period.endMonth
   );
   const plans = bonusCategoryPlans.filter((p) => p.bonusPeriodID === period.id && p.year === year);
-  const { start, end } = bonusPeriodRange(period, year);
+  const totalPlannedAmount = plans.reduce((sum, p) => sum + p.plannedAmount, 0);
 
   async function deletePlanPeriod() {
     if (!confirm(`「${period!.label}」を削除しますか?この計画の使用計画も全て削除されます。`)) return;
@@ -272,27 +267,32 @@ export default function BonusPlanDetailView() {
             ))}
           </select>
         </div>
-        <div className="button-row">
-          <input
-            type="number"
-            min={1}
-            max={12}
-            value={scheduleMonthValue}
-            onChange={(e) => setScheduleMonth(e.target.value)}
-            placeholder="月"
-          />
-          <input
-            type="number"
-            min={1}
-            max={31}
-            value={scheduleDay}
-            onChange={(e) => setScheduleDay(e.target.value)}
-            placeholder="日"
-          />
-          <button type="button" className="btn-primary" onClick={addSchedule}>
-            追加
-          </button>
+        <div className="form-row">
+          <label>振込予定日(月・日)</label>
+          <div className="button-row">
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={scheduleMonthValue}
+              onChange={(e) => setScheduleMonth(e.target.value)}
+              placeholder="月"
+            />
+            <span>月</span>
+            <input
+              type="number"
+              min={1}
+              max={31}
+              value={scheduleDay}
+              onChange={(e) => setScheduleDay(e.target.value)}
+              placeholder="日"
+            />
+            <span>日</span>
+          </div>
         </div>
+        <button type="button" className="btn-primary" onClick={addSchedule}>
+          追加
+        </button>
         {scheduleAppliedCount !== null && (
           <p className="muted">既存の取引 {scheduleAppliedCount}件にも反映しました</p>
         )}
@@ -334,7 +334,6 @@ export default function BonusPlanDetailView() {
         <div className="section-title">使用用途の登録</div>
         <p className="muted">
           ボーナスの使用用途を計画します。小カテゴリを指定しなければ大カテゴリ全体への計画になります。
-          計画額に対する実績(累計金額)・残額もあわせて表示します。
         </p>
 
         <div className="form-row">
@@ -388,36 +387,31 @@ export default function BonusPlanDetailView() {
         {planMessage && <p className="muted">{planMessage}</p>}
 
         {plans.length > 0 && (
-          <div className="list" style={{ marginTop: 12 }}>
-            {plans.map((plan) => {
-              const major = majorCategories.find((m) => m.id === plan.majorCategoryID);
-              const sub = plan.subcategoryID
-                ? subcategories.find((s) => s.id === plan.subcategoryID)
-                : undefined;
-              const planLabel = sub ? `${major?.name ?? "不明"} / ${sub.name}` : major?.name ?? "不明";
-              const actual = plan.subcategoryID
-                ? bonusSubcategoryActualAmount(plan.subcategoryID, start, end, transactions)
-                : bonusCategoryActualAmount(plan.majorCategoryID, start, end, transactions, subcategories);
-              const over = actual > plan.plannedAmount;
-              const rate = plan.plannedAmount ? Math.min(actual / plan.plannedAmount, 1) : 0;
+          <>
+            <div className="section-title" style={{ marginTop: 12 }}>
+              <span>総額</span>
+              <span className="amount" style={{ float: "right" }}>
+                {formatYen(totalPlannedAmount)}
+              </span>
+            </div>
+            <div className="list">
+              {plans.map((plan) => {
+                const major = majorCategories.find((m) => m.id === plan.majorCategoryID);
+                const sub = plan.subcategoryID
+                  ? subcategories.find((s) => s.id === plan.subcategoryID)
+                  : undefined;
+                const planLabel = sub ? `${major?.name ?? "不明"} / ${sub.name}` : major?.name ?? "不明";
 
-              return (
-                <div
-                  key={plan.id}
-                  className="card"
-                  style={editingPlanId === plan.id ? { borderColor: "var(--accent)" } : undefined}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>{planLabel}</span>
-                    <span className={over ? "amount over-budget" : "amount"}>{formatYen(actual)}</span>
-                  </div>
-                  <div className={`progress ${over ? "over" : ""}`}>
-                    <div style={{ width: `${rate * 100}%` }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className="muted">
-                      計画 {formatYen(plan.plannedAmount)} / 残り {formatYen(plan.plannedAmount - actual)}
-                    </span>
+                return (
+                  <div
+                    key={plan.id}
+                    className="list-row"
+                    style={editingPlanId === plan.id ? { borderColor: "var(--accent)" } : undefined}
+                  >
+                    <div>
+                      <div>{planLabel}</div>
+                      <div className="muted">{formatYen(plan.plannedAmount)}</div>
+                    </div>
                     <div className="button-row">
                       <button type="button" className="btn-secondary" onClick={() => startEditPlan(plan)}>
                         編集
@@ -427,10 +421,10 @@ export default function BonusPlanDetailView() {
                       </button>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
         {plans.length === 0 && <p className="muted">この年の使用計画はまだありません</p>}
       </div>
