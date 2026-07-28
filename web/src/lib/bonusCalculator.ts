@@ -143,3 +143,40 @@ export function bonusSubcategoryActualAmount(
     )
     .reduce((sum, t) => sum + t.amount, 0);
 }
+
+/** ある取引が、使用計画のいずれか(小カテゴリ指定または大カテゴリ全体指定)に該当するか */
+export function isBonusTransactionCoveredByPlan(
+  transaction: Transaction,
+  plans: BonusCategoryPlan[],
+  subcategories: Subcategory[]
+): boolean {
+  if (transaction.subcategoryID == null) return false;
+  const subcategory = subcategories.find((s) => s.id === transaction.subcategoryID);
+  return plans.some(
+    (p) =>
+      p.subcategoryID === transaction.subcategoryID ||
+      (p.subcategoryID == null && subcategory != null && p.majorCategoryID === subcategory.majorCategoryID)
+  );
+}
+
+/**
+ * 指定した期間内のボーナス払い案件(支出)のうち、どの使用計画にも
+ * 割り当てられていないもの(「その他」)を返す
+ */
+export function bonusUncoveredTransactions(
+  start: Date,
+  end: Date,
+  transactions: Transaction[],
+  plans: BonusCategoryPlan[],
+  subcategories: Subcategory[]
+): Transaction[] {
+  return transactions.filter(
+    (t) =>
+      t.type === "expense" &&
+      t.isBonusPayment &&
+      !t.excludedFromBudget &&
+      new Date(t.date) >= start &&
+      new Date(t.date) < end &&
+      !isBonusTransactionCoveredByPlan(t, plans, subcategories)
+  );
+}

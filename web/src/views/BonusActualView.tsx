@@ -7,6 +7,7 @@ import {
   bonusCategoryPlanTotal,
   bonusPeriodRange,
   bonusSubcategoryActualAmount,
+  bonusUncoveredTransactions,
 } from "../lib/bonusCalculator";
 import { formatYen } from "../lib/dateUtils";
 
@@ -47,6 +48,9 @@ export default function BonusActualView() {
   const totalActual = bonusActualAmount(start, end, transactions);
   const totalOver = totalPlanned > 0 && totalActual > totalPlanned;
   const totalRate = totalPlanned > 0 ? Math.min(totalActual / totalPlanned, 1) : 0;
+
+  const otherItems = bonusUncoveredTransactions(start, end, transactions, plans, subcategories);
+  const otherTotal = otherItems.reduce((sum, t) => sum + t.amount, 0);
 
   return (
     <div>
@@ -128,8 +132,24 @@ export default function BonusActualView() {
             </button>
           );
         })}
+        {otherItems.length > 0 && (
+          <button
+            type="button"
+            className="list-row"
+            style={{ flexDirection: "column", alignItems: "stretch" }}
+            onClick={() => navigate(`/bonus-actual/${period.id}/${year}/other`)}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>その他</span>
+              <span className="amount">{formatYen(otherTotal)}</span>
+            </div>
+            <span className="muted">計画に割り当てられていないボーナス払い</span>
+          </button>
+        )}
       </div>
-      {plans.length === 0 && <p className="muted">この年の使用計画はまだありません</p>}
+      {plans.length === 0 && otherItems.length === 0 && (
+        <p className="muted">この年の使用計画はまだありません</p>
+      )}
     </div>
   );
 }

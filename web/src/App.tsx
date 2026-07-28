@@ -20,6 +20,7 @@ import ImportHistoryView from "./views/ImportHistoryView";
 import BonusPlanListView from "./views/BonusPlanListView";
 import BonusPlanDetailView from "./views/BonusPlanDetailView";
 import BonusActualView from "./views/BonusActualView";
+import BonusOtherView from "./views/BonusOtherView";
 import BonusCategoryHistoryView from "./views/BonusCategoryHistoryView";
 import ApiUsageView from "./views/ApiUsageView";
 
@@ -59,6 +60,7 @@ function AppContent() {
             <Route path="/bonus" element={<BonusPlanListView />} />
             <Route path="/bonus/:periodId" element={<BonusPlanDetailView />} />
             <Route path="/bonus-actual/:periodId/:year" element={<BonusActualView />} />
+            <Route path="/bonus-actual/:periodId/:year/other" element={<BonusOtherView />} />
             <Route
               path="/bonus-actual/:periodId/:year/:planId"
               element={<BonusCategoryHistoryView />}
