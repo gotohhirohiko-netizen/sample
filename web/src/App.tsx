@@ -17,8 +17,8 @@ import CategoryBudgetManageView from "./views/CategoryBudgetManageView";
 import FundingSourceManageView from "./views/FundingSourceManageView";
 import BackupView from "./views/BackupView";
 import ImportHistoryView from "./views/ImportHistoryView";
-import BonusBudgetView from "./views/BonusBudgetView";
-import BonusSettingsView from "./views/BonusSettingsView";
+import BonusPlanListView from "./views/BonusPlanListView";
+import BonusPlanDetailView from "./views/BonusPlanDetailView";
 import ApiUsageView from "./views/ApiUsageView";
 
 function AppContent() {
@@ -54,8 +54,8 @@ function AppContent() {
             <Route path="/settings/backup" element={<BackupView />} />
             <Route path="/settings/import-history" element={<ImportHistoryView />} />
             <Route path="/settings/api-usage" element={<ApiUsageView />} />
-            <Route path="/bonus-budget" element={<BonusBudgetView />} />
-            <Route path="/settings/bonus" element={<BonusSettingsView />} />
+            <Route path="/bonus" element={<BonusPlanListView />} />
+            <Route path="/bonus/:periodId" element={<BonusPlanDetailView />} />
           </Routes>
         </main>
         <BottomNav />

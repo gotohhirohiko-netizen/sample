@@ -1,13 +1,24 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { matchesBonusIncomeSchedule } from "../lib/bonusIncomeHeuristic";
+import {
+  bonusCategoryActualAmount,
+  bonusPeriodRange,
+  bonusSubcategoryActualAmount,
+} from "../lib/bonusCalculator";
 import { formatYen } from "../lib/dateUtils";
-import type { BonusCategoryPlan, BonusIncomeSchedule, BonusPeriod } from "../types/models";
+import type { BonusCategoryPlan, BonusIncomeSchedule } from "../types/models";
 
-/** ボーナス払いの設定画面(集計対象月・振込判定スケジュール・カテゴリ別使用計画) */
-export default function BonusSettingsView() {
+/**
+ * ボーナス計画詳細画面。1つの計画(集計対象月の期間)について、
+ * 振込先口座の設定・集計対象月の設定・使用用途の登録と予実を1画面にまとめる。
+ */
+export default function BonusPlanDetailView() {
+  const { periodId } = useParams<{ periodId: string }>();
+  const navigate = useNavigate();
+
   const bonusPeriods = useLiveQuery(() => db.bonusPeriods.orderBy("displayOrder").toArray(), []);
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
@@ -19,22 +30,23 @@ export default function BonusSettingsView() {
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
 
-  const [periodEdits, setPeriodEdits] = useState<Record<string, { startMonth: string; endMonth: string }>>(
-    {}
-  );
-  const [periodAppliedId, setPeriodAppliedId] = useState<string | null>(null);
+  const [year, setYear] = useState(new Date().getFullYear());
+
+  const [labelEdit, setLabelEdit] = useState<string | null>(null);
+  const [startMonthEdit, setStartMonthEdit] = useState("");
+  const [endMonthEdit, setEndMonthEdit] = useState("");
+  const [periodMessage, setPeriodMessage] = useState<string | null>(null);
+
   const [scheduleFundingSourceID, setScheduleFundingSourceID] = useState("");
-  const [scheduleMonth, setScheduleMonth] = useState("7");
+  const [scheduleMonth, setScheduleMonth] = useState("");
   const [scheduleDay, setScheduleDay] = useState("10");
   const [scheduleAppliedCount, setScheduleAppliedCount] = useState<number | null>(null);
 
-  const [planPeriodID, setPlanPeriodID] = useState("");
-  const [planYear, setPlanYear] = useState(String(new Date().getFullYear()));
   const [planMajorCategoryID, setPlanMajorCategoryID] = useState("");
   const [planSubcategoryID, setPlanSubcategoryID] = useState("");
   const [planAmount, setPlanAmount] = useState("");
-  const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [planMessage, setPlanMessage] = useState<string | null>(null);
 
   if (
     !bonusPeriods ||
@@ -48,21 +60,59 @@ export default function BonusSettingsView() {
     return <p className="muted">読み込み中...</p>;
   }
 
-  async function updatePeriodRange(period: BonusPeriod) {
-    const edit = periodEdits[period.id];
-    if (!edit) return;
-    const startMonth = Number(edit.startMonth);
-    const endMonth = Number(edit.endMonth);
-    if (!Number.isInteger(startMonth) || !Number.isInteger(endMonth)) return;
-    if (startMonth < 1 || startMonth > 12 || endMonth < 1 || endMonth > 12) return;
-    if (startMonth > endMonth) return;
-    await db.bonusPeriods.update(period.id, { startMonth, endMonth });
-    setPeriodAppliedId(period.id);
-    setTimeout(() => setPeriodAppliedId(null), 2000);
+  const period = bonusPeriods.find((p) => p.id === periodId);
+  if (!period) {
+    return (
+      <div>
+        <p className="muted">ボーナス計画が見つかりません。</p>
+        <Link to="/bonus">‹ ボーナス計画へ戻る</Link>
+      </div>
+    );
+  }
+
+  const startMonth = startMonthEdit === "" ? String(period.startMonth) : startMonthEdit;
+  const endMonth = endMonthEdit === "" ? String(period.endMonth) : endMonthEdit;
+  const label = labelEdit ?? period.label;
+  const scheduleMonthValue = scheduleMonth === "" ? String(period.startMonth) : scheduleMonth;
+
+  const schedulesInRange = bonusIncomeSchedules.filter(
+    (s) => s.month >= period.startMonth && s.month <= period.endMonth
+  );
+  const plans = bonusCategoryPlans.filter((p) => p.bonusPeriodID === period.id && p.year === year);
+  const { start, end } = bonusPeriodRange(period, year);
+
+  async function deletePlanPeriod() {
+    if (!confirm(`「${period!.label}」を削除しますか?この計画の使用計画も全て削除されます。`)) return;
+    const relatedPlans = bonusCategoryPlans!.filter((p) => p.bonusPeriodID === period!.id);
+    await db.transaction("rw", db.bonusPeriods, db.bonusCategoryPlans, async () => {
+      await Promise.all(relatedPlans.map((p) => db.bonusCategoryPlans.delete(p.id)));
+      await db.bonusPeriods.delete(period!.id);
+    });
+    navigate("/bonus");
+  }
+
+  async function updatePeriod() {
+    const startMonthNum = Number(startMonth);
+    const endMonthNum = Number(endMonth);
+    if (label.trim() === "") return;
+    if (!Number.isInteger(startMonthNum) || !Number.isInteger(endMonthNum)) return;
+    if (startMonthNum < 1 || startMonthNum > 12 || endMonthNum < 1 || endMonthNum > 12) return;
+    if (startMonthNum > endMonthNum) return;
+
+    await db.bonusPeriods.update(period!.id, {
+      label: label.trim(),
+      startMonth: startMonthNum,
+      endMonth: endMonthNum,
+    });
+    setLabelEdit(null);
+    setStartMonthEdit("");
+    setEndMonthEdit("");
+    setPeriodMessage("更新しました");
+    setTimeout(() => setPeriodMessage(null), 2000);
   }
 
   async function addSchedule() {
-    const month = Number(scheduleMonth);
+    const month = Number(scheduleMonthValue);
     const day = Number(scheduleDay);
     if (!scheduleFundingSourceID) return;
     if (!Number.isInteger(month) || month < 1 || month > 12) return;
@@ -86,19 +136,18 @@ export default function BonusSettingsView() {
     await Promise.all(matching.map((t) => db.transactions.update(t.id, { isBonusIncome: true })));
 
     setScheduleFundingSourceID("");
+    setScheduleMonth("");
     setScheduleAppliedCount(matching.length);
     setTimeout(() => setScheduleAppliedCount(null), 3000);
   }
 
   async function deleteSchedule(id: string) {
-    if (!confirm("このボーナス振込設定を削除しますか?")) return;
+    if (!confirm("この振込先口座の設定を削除しますか?")) return;
     await db.bonusIncomeSchedules.delete(id);
   }
 
   function startEditPlan(plan: BonusCategoryPlan) {
     setEditingPlanId(plan.id);
-    setPlanPeriodID(plan.bonusPeriodID);
-    setPlanYear(String(plan.year));
     setPlanMajorCategoryID(plan.majorCategoryID);
     setPlanSubcategoryID(plan.subcategoryID ?? "");
     setPlanAmount(String(plan.plannedAmount));
@@ -106,21 +155,19 @@ export default function BonusSettingsView() {
 
   function resetPlanForm() {
     setEditingPlanId(null);
+    setPlanMajorCategoryID("");
+    setPlanSubcategoryID("");
     setPlanAmount("");
   }
 
   async function addOrUpdatePlan() {
-    const year = Number(planYear);
     const amount = Number(planAmount);
-    if (!planPeriodID || !planMajorCategoryID) return;
-    if (!Number.isInteger(year)) return;
+    if (!planMajorCategoryID) return;
     if (!planAmount || !Number.isFinite(amount)) return;
     const subcategoryID = planSubcategoryID || null;
 
     if (editingPlanId) {
       await db.bonusCategoryPlans.update(editingPlanId, {
-        bonusPeriodID: planPeriodID,
-        year,
         majorCategoryID: planMajorCategoryID,
         subcategoryID,
         plannedAmount: amount,
@@ -128,7 +175,7 @@ export default function BonusSettingsView() {
     } else {
       const existing = bonusCategoryPlans!.find(
         (p) =>
-          p.bonusPeriodID === planPeriodID &&
+          p.bonusPeriodID === period!.id &&
           p.year === year &&
           p.majorCategoryID === planMajorCategoryID &&
           (p.subcategoryID ?? null) === subcategoryID
@@ -138,7 +185,7 @@ export default function BonusSettingsView() {
       } else {
         await db.bonusCategoryPlans.add({
           id: crypto.randomUUID(),
-          bonusPeriodID: planPeriodID,
+          bonusPeriodID: period!.id,
           year,
           majorCategoryID: planMajorCategoryID,
           subcategoryID,
@@ -159,21 +206,36 @@ export default function BonusSettingsView() {
 
   return (
     <div>
-      <Link to="/settings" className="back-link">
-        ‹ 設定へ戻る
+      <Link to="/bonus" className="back-link">
+        ‹ ボーナス計画へ戻る
       </Link>
-      <h1 className="screen-title">ボーナス設定</h1>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 className="screen-title">{period.label}</h1>
+        <button type="button" className="btn-secondary" onClick={deletePlanPeriod}>
+          計画を削除
+        </button>
+      </div>
+
+      <div className="month-picker">
+        <button type="button" aria-label="前年" onClick={() => setYear((y) => y - 1)}>
+          ‹
+        </button>
+        <strong>{year}年</strong>
+        <button type="button" aria-label="翌年" onClick={() => setYear((y) => y + 1)}>
+          ›
+        </button>
+      </div>
 
       <div className="section">
-        <div className="section-title">ボーナス振込設定</div>
+        <div className="section-title">振込先口座の設定</div>
         <p className="muted">
-          振込先口座と振込予定日(毎年同じ月日)を設定すると、取り込み時にボーナス収入を自動判定します。
-          銀行の非営業日(土日等)で振込が前倒しになる場合を考慮し、設定日からさかのぼって数日以内の入金も対象にします(祝日までは判定していません)。
+          振込先口座と振込予定日を設定すると、取り込み時にボーナス収入を自動判定します。
         </p>
 
-        {bonusIncomeSchedules.length > 0 && (
+        {schedulesInRange.length > 0 && (
           <div className="list" style={{ marginBottom: 12 }}>
-            {bonusIncomeSchedules.map((schedule) => {
+            {schedulesInRange.map((schedule) => {
               const source = fundingSources.find((s) => s.id === schedule.fundingSourceID);
               return (
                 <div key={schedule.id} className="list-row">
@@ -215,7 +277,7 @@ export default function BonusSettingsView() {
             type="number"
             min={1}
             max={12}
-            value={scheduleMonth}
+            value={scheduleMonthValue}
             onChange={(e) => setScheduleMonth(e.target.value)}
             placeholder="月"
           />
@@ -237,86 +299,44 @@ export default function BonusSettingsView() {
       </div>
 
       <div className="section">
-        <div className="section-title">集計対象月</div>
-        <div className="list">
-          {bonusPeriods.map((period) => {
-            const edit = periodEdits[period.id] ?? {
-              startMonth: String(period.startMonth),
-              endMonth: String(period.endMonth),
-            };
-            return (
-              <div key={period.id} className="card">
-                <strong>{period.label}</strong>
-                <div className="form-row">
-                  <label>集計対象月(開始月〜終了月)</label>
-                  <div className="button-row">
-                    <input
-                      type="number"
-                      min={1}
-                      max={12}
-                      value={edit.startMonth}
-                      onChange={(e) =>
-                        setPeriodEdits((prev) => ({
-                          ...prev,
-                          [period.id]: { ...edit, startMonth: e.target.value },
-                        }))
-                      }
-                    />
-                    <span>〜</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={12}
-                      value={edit.endMonth}
-                      onChange={(e) =>
-                        setPeriodEdits((prev) => ({
-                          ...prev,
-                          [period.id]: { ...edit, endMonth: e.target.value },
-                        }))
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => updatePeriodRange(period)}
-                    >
-                      更新
-                    </button>
-                  </div>
-                </div>
-                {periodAppliedId === period.id && <p className="muted">更新しました</p>}
-              </div>
-            );
-          })}
+        <div className="section-title">集計対象月の設定</div>
+        <div className="form-row">
+          <label>名称</label>
+          <input value={label} onChange={(e) => setLabelEdit(e.target.value)} />
         </div>
+        <div className="form-row">
+          <label>集計対象月(開始月〜終了月)</label>
+          <div className="button-row">
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={startMonth}
+              onChange={(e) => setStartMonthEdit(e.target.value)}
+            />
+            <span>〜</span>
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={endMonth}
+              onChange={(e) => setEndMonthEdit(e.target.value)}
+            />
+            <button type="button" className="btn-secondary" onClick={updatePeriod}>
+              更新
+            </button>
+          </div>
+        </div>
+        {periodMessage && <p className="muted">{periodMessage}</p>}
       </div>
 
       <div className="section">
-        <div className="section-title">カテゴリ別使用計画</div>
+        <div className="section-title">使用用途の登録</div>
         <p className="muted">
           ボーナスの使用用途を計画します。小カテゴリを指定しなければ大カテゴリ全体への計画になります。
+          計画額に対する実績(累計金額)・残額もあわせて表示します。
         </p>
 
-        <div className="form-row">
-          <label>期間</label>
-          <select value={planPeriodID} onChange={(e) => setPlanPeriodID(e.target.value)}>
-            <option value="">選択してください</option>
-            {bonusPeriods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="form-row">
-          <label>年</label>
-          <input
-            type="number"
-            value={planYear}
-            onChange={(e) => setPlanYear(e.target.value)}
-            placeholder="年"
-          />
-        </div>
         <div className="form-row">
           <label>大カテゴリ</label>
           <select
@@ -367,29 +387,37 @@ export default function BonusSettingsView() {
         </div>
         {planMessage && <p className="muted">{planMessage}</p>}
 
-        {bonusCategoryPlans.length > 0 && (
+        {plans.length > 0 && (
           <div className="list" style={{ marginTop: 12 }}>
-            {[...bonusCategoryPlans]
-              .sort((a, b) => b.year - a.year)
-              .map((plan) => {
-                const period = bonusPeriods.find((p) => p.id === plan.bonusPeriodID);
-                const major = majorCategories.find((m) => m.id === plan.majorCategoryID);
-                const sub = plan.subcategoryID
-                  ? subcategories.find((s) => s.id === plan.subcategoryID)
-                  : undefined;
-                const label = sub ? `${major?.name ?? "不明"} / ${sub.name}` : major?.name ?? "不明";
-                return (
-                  <div
-                    key={plan.id}
-                    className="list-row"
-                    style={editingPlanId === plan.id ? { borderColor: "var(--accent)" } : undefined}
-                  >
-                    <div>
-                      <div>
-                        {label}({period?.label ?? "不明な期間"} {plan.year}年)
-                      </div>
-                      <div className="muted">{formatYen(plan.plannedAmount)}</div>
-                    </div>
+            {plans.map((plan) => {
+              const major = majorCategories.find((m) => m.id === plan.majorCategoryID);
+              const sub = plan.subcategoryID
+                ? subcategories.find((s) => s.id === plan.subcategoryID)
+                : undefined;
+              const planLabel = sub ? `${major?.name ?? "不明"} / ${sub.name}` : major?.name ?? "不明";
+              const actual = plan.subcategoryID
+                ? bonusSubcategoryActualAmount(plan.subcategoryID, start, end, transactions)
+                : bonusCategoryActualAmount(plan.majorCategoryID, start, end, transactions, subcategories);
+              const over = actual > plan.plannedAmount;
+              const rate = plan.plannedAmount ? Math.min(actual / plan.plannedAmount, 1) : 0;
+
+              return (
+                <div
+                  key={plan.id}
+                  className="card"
+                  style={editingPlanId === plan.id ? { borderColor: "var(--accent)" } : undefined}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>{planLabel}</span>
+                    <span className={over ? "amount over-budget" : "amount"}>{formatYen(actual)}</span>
+                  </div>
+                  <div className={`progress ${over ? "over" : ""}`}>
+                    <div style={{ width: `${rate * 100}%` }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span className="muted">
+                      計画 {formatYen(plan.plannedAmount)} / 残り {formatYen(plan.plannedAmount - actual)}
+                    </span>
                     <div className="button-row">
                       <button type="button" className="btn-secondary" onClick={() => startEditPlan(plan)}>
                         編集
@@ -399,10 +427,12 @@ export default function BonusSettingsView() {
                       </button>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
           </div>
         )}
+        {plans.length === 0 && <p className="muted">この年の使用計画はまだありません</p>}
       </div>
     </div>
   );
