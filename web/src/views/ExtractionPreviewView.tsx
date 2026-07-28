@@ -13,6 +13,7 @@ import { tryParseMarkdownTransactionTable } from "../lib/markdownTableParser";
 import { tryParsePayPayCardPdf } from "../lib/paypayCardPdfParser";
 import { tryParseRakutenCardPdf } from "../lib/rakutenCardPdfParser";
 import { tryParseRakutenCardCsv } from "../lib/rakutenCardCsvParser";
+import { tryParsePayPayTransactionCsv } from "../lib/paypayTransactionCsvParser";
 import { isLikelySameMerchant, merchantMatchKey, resolveCategory } from "../lib/categoryResolver";
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
@@ -93,7 +94,8 @@ export default function ExtractionPreviewView() {
             : null;
         const parsedCreditCardCsv =
           !parsedCsv && state.file.mimeType === "text/csv" && fundingSource.kind === "creditCard"
-            ? tryParseRakutenCardCsv(state.file.data)
+            ? (tryParseRakutenCardCsv(state.file.data) ??
+              tryParsePayPayTransactionCsv(state.file.data))
             : null;
         const parsedMarkdown =
           !parsedCsv && !parsedCreditCardCsv && state.file.mimeType === "text/csv"
