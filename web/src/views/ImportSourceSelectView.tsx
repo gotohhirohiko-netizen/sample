@@ -10,7 +10,14 @@ export default function ImportSourceSelectView() {
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
 
   function openSource(sourceId: string, url: string) {
-    window.open(url, "_blank", "noopener,noreferrer");
+    // window.open()だとホーム画面追加(スタンドアロン)状態のiOSで、開いたSafari
+    // タブがバックグラウンドのままになりダウンロードが即座に始まらないことが
+    // あるため、実際のリンク要素をクリックする形で遷移させる
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.click();
     navigate("/import/file", { state: { sourceId } });
   }
 
