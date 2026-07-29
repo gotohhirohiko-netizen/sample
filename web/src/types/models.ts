@@ -161,16 +161,3 @@ export interface MonthlySummary {
   incomeUsageRate: number | undefined; // 支出 ÷ 収入合計
   savings: number; // 収入 - 支出
 }
-
-/**
- * Claude API(明細解析)の呼び出し1回分の使用量記録。
- * 実際の請求はAnthropic Consoleが正なので、これはアプリ内での目安表示用。
- */
-export interface ApiUsageLog {
-  id: string;
-  createdAt: string; // ISO日時文字列
-  sourceInstitutionID: string;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-}

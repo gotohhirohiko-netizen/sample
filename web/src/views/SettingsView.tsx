@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { loadApiKey, saveApiKey } from "../lib/keyStorage";
 import {
   isLockEnabled,
   isPlatformAuthenticatorAvailable,
@@ -11,12 +10,8 @@ import {
 import { clearPwaCachesAndReload } from "../lib/pwaMaintenance";
 import { formatDateTime } from "../lib/dateUtils";
 
-/** 設定画面: APIキー入力、各種管理画面への導線(要件定義書 5.1) */
+/** 設定画面: 各種管理画面への導線(要件定義書 5.1) */
 export default function SettingsView() {
-  const [apiKey, setApiKey] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [lockEnabled, setLockEnabled] = useState(false);
   const [platformAuthAvailable, setPlatformAuthAvailable] = useState(false);
   const [lockMessage, setLockMessage] = useState<string | null>(null);
@@ -33,7 +28,6 @@ export default function SettingsView() {
   });
 
   useEffect(() => {
-    loadApiKey().then((key) => setApiKey(key ?? ""));
     isLockEnabled().then(setLockEnabled);
     isPlatformAuthenticatorAvailable().then(setPlatformAuthAvailable);
   }, []);
@@ -55,21 +49,6 @@ export default function SettingsView() {
     setLockEnabled(false);
     setLockMessage("ロックを解除しました");
     setTimeout(() => setLockMessage(null), 3000);
-  }
-
-  async function handleSave() {
-    const trimmed = apiKey.trim();
-    await saveApiKey(trimmed);
-    setApiKey(trimmed);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
-
-  async function handleCopy() {
-    if (!apiKey) return;
-    await navigator.clipboard.writeText(apiKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleCheckForUpdate() {
@@ -94,31 +73,6 @@ export default function SettingsView() {
   return (
     <div>
       <h1 className="screen-title">設定</h1>
-
-      <div className="section">
-        <div className="section-title">Anthropic APIキー</div>
-        <div className="form-row">
-          <input
-            type={visible ? "text" : "password"}
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-ant-..."
-          />
-        </div>
-        <div className="button-row">
-          <button type="button" className="btn-primary" onClick={handleSave}>
-            保存
-          </button>
-          <button type="button" onClick={() => setVisible((v) => !v)}>
-            {visible ? "隠す" : "表示"}
-          </button>
-          <button type="button" onClick={handleCopy}>
-            コピー
-          </button>
-        </div>
-        {saved && <p className="muted">保存しました</p>}
-        {copied && <p className="muted">コピーしました</p>}
-      </div>
 
       <div className="section">
         <div className="section-title">セキュリティ</div>
@@ -184,9 +138,6 @@ export default function SettingsView() {
         </Link>
         <Link to="/settings/import-history" className="list-row">
           取り込み履歴
-        </Link>
-        <Link to="/settings/api-usage" className="list-row">
-          API使用量
         </Link>
       </div>
     </div>

@@ -2,12 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { loadApiKey, loadAutoBackupOnImport } from "../lib/keyStorage";
-import {
-  extractTransactions,
-  type ExtractionResult,
-  type FileForExtraction,
-} from "../lib/claudeExtractionService";
+import { loadAutoBackupOnImport } from "../lib/keyStorage";
+import type { ExtractionResult, FileForExtraction } from "../lib/claudeExtractionService";
 import { tryParseSeparateColumnBankCsv, tryParseSignedAmountBankCsv } from "../lib/bankCsvParser";
 import { tryParseMarkdownTransactionTable } from "../lib/markdownTableParser";
 import { tryParsePayPayCardPdf } from "../lib/paypayCardPdfParser";
@@ -67,6 +63,7 @@ export default function ExtractionPreviewView() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
+  const [hideDuplicates, setHideDuplicates] = useState(true);
   const [isCommitting, setIsCommitting] = useState(false);
   const hasStartedExtractionRef = useRef(false);
 
@@ -121,8 +118,8 @@ export default function ExtractionPreviewView() {
         let result: ExtractionResult;
         if (parsedCsv) {
           // 列構成が既知の形式(取引日・符号付き入出金額・入出金内容、または
-          // 支払い/預かり分離の2列形式)に一致する場合は、金額からコード側で
-          // 確実にtypeを判定し、AIによる読み違えを避ける。
+          // 支払い/預かり分離の2列形式)に一致する場合、金額からコード側で
+          // 確実にtypeを判定する。
           result = {
             transactions: parsedCsv.map((row) => ({
               date: row.date,
@@ -132,12 +129,11 @@ export default function ExtractionPreviewView() {
               majorCategory: null,
               subcategory: null,
             })),
-            usage: null,
           };
         } else if (parsedCreditCardCsv) {
           // 楽天カード(e-NAVI)の当月未確定分CSV(列構成が既知の形式)は、
           // 「当月請求額」列(キャンセル等が反映済みのネット金額)を使って
-          // コード側で解析し、AIによる読み違えを避ける。
+          // コード側で解析する。
           result = {
             transactions: parsedCreditCardCsv.map((row) => ({
               date: row.date,
@@ -147,11 +143,10 @@ export default function ExtractionPreviewView() {
               majorCategory: null,
               subcategory: null,
             })),
-            usage: null,
           };
         } else if (parsedMarkdown) {
           // 「日付・内容・金額・区分」のmarkdownテーブル(statement-fetcherスキル等の
-          // 出力形式)に一致する場合は、Claude APIを呼ばずコード側でそのまま解析する。
+          // 出力形式)に一致する場合は、コード側でそのまま解析する。
           result = {
             transactions: parsedMarkdown.map((row) => ({
               date: row.date,
@@ -161,12 +156,11 @@ export default function ExtractionPreviewView() {
               majorCategory: null,
               subcategory: null,
             })),
-            usage: null,
           };
         } else if (parsedCreditCardPdf) {
           // PayPayカード・楽天カードの請求明細PDF(既知のテンプレート)は
           // コード側で解析し、明細書内の「ご請求金額」との検算にも成功した場合のみ
-          // ここに来る。AIによる読み違えを避けられる。
+          // ここに来る。
           result = {
             transactions: parsedCreditCardPdf.map((row) => ({
               date: row.date,
@@ -176,29 +170,9 @@ export default function ExtractionPreviewView() {
               majorCategory: null,
               subcategory: null,
             })),
-            usage: null,
           };
         } else {
-          const apiKey = await loadApiKey();
-          if (!apiKey) throw new Error("Anthropic APIキーが未設定です。設定画面から登録してください。");
-
-          result = await extractTransactions(
-            apiKey,
-            state.file,
-            fundingSource.kind,
-            majorCategories.map((c) => c.name)
-          );
-
-          if (result.usage) {
-            await db.apiUsageLogs.add({
-              id: crypto.randomUUID(),
-              createdAt: new Date().toISOString(),
-              sourceInstitutionID: state.sourceId,
-              model: result.usage.model,
-              inputTokens: result.usage.inputTokens,
-              outputTokens: result.usage.outputTokens,
-            });
-          }
+          throw new Error("対応していないファイル形式です。CSVまたはPDFの内容をご確認ください。");
         }
 
         const resolved: PreviewItem[] = [];
@@ -379,18 +353,30 @@ export default function ExtractionPreviewView() {
       {items && majorCategories && subcategories && (
         <>
           {items.some((i) => i.isDuplicate) && (
-            <label className="filter-row">
-              <input
-                type="checkbox"
-                checked={excludeDuplicates}
-                onChange={(e) => setExcludeDuplicates(e.target.checked)}
-              />
-              重複と判断した項目を取り込まない
-            </label>
+            <>
+              <label className="filter-row">
+                <input
+                  type="checkbox"
+                  checked={excludeDuplicates}
+                  onChange={(e) => setExcludeDuplicates(e.target.checked)}
+                />
+                重複と判断した項目を取り込まない
+              </label>
+              <label className="filter-row">
+                <input
+                  type="checkbox"
+                  checked={hideDuplicates}
+                  onChange={(e) => setHideDuplicates(e.target.checked)}
+                />
+                重複していないものだけ表示
+              </label>
+            </>
           )}
 
           <div className="list">
-            {items.map((item) => {
+            {items
+              .filter((item) => !hideDuplicates || !item.isDuplicate)
+              .map((item) => {
               const willBeExcluded = excludeDuplicates && item.isDuplicate;
               return (
               <div key={item.key} className="card" style={willBeExcluded ? { opacity: 0.5 } : undefined}>

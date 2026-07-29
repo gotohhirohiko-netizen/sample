@@ -23,7 +23,6 @@ import BonusPlanDetailView from "./views/BonusPlanDetailView";
 import BonusActualView from "./views/BonusActualView";
 import BonusOtherView from "./views/BonusOtherView";
 import BonusCategoryHistoryView from "./views/BonusCategoryHistoryView";
-import ApiUsageView from "./views/ApiUsageView";
 
 function AppContent() {
   const [ready, setReady] = useState(false);
@@ -61,7 +60,6 @@ function AppContent() {
             <Route path="/settings/sources" element={<FundingSourceManageView />} />
             <Route path="/settings/backup" element={<BackupView />} />
             <Route path="/settings/import-history" element={<ImportHistoryView />} />
-            <Route path="/settings/api-usage" element={<ApiUsageView />} />
             <Route path="/bonus" element={<BonusPlanListView />} />
             <Route path="/bonus/:periodId" element={<BonusPlanDetailView />} />
             <Route path="/bonus-actual/:periodId/:year" element={<BonusActualView />} />

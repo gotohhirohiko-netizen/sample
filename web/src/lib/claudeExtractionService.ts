@@ -1,5 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { FundingSourceKind, TransactionType } from "../types/models";
+import type { TransactionType } from "../types/models";
 
 export interface ExtractionResultItem {
   date: string;
@@ -12,134 +11,12 @@ export interface ExtractionResultItem {
 
 export interface ExtractionResult {
   transactions: ExtractionResultItem[];
-  /** Claude APIを呼び出した場合の使用量(決定的パーサーで解析した場合はnull) */
-  usage: { model: string; inputTokens: number; outputTokens: number } | null;
 }
 
 export interface FileForExtraction {
   /** PDFの場合はbase64文字列、CSVの場合はテキストそのもの */
   data: string;
   mimeType: "application/pdf" | "text/csv";
-}
-
-const DEFAULT_MODEL = "claude-haiku-4-5";
-
-function buildExtractionSchema(majorCategoryNames: string[]) {
-  return {
-    type: "object",
-    properties: {
-      transactions: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            date: { type: "string", format: "date" },
-            merchant: { type: "string" },
-            amount: { type: "number" },
-            type: { type: "string", enum: ["income", "expense"] },
-            majorCategory: {
-              anyOf: [{ type: "string", enum: majorCategoryNames }, { type: "null" }],
-            },
-            subcategory: { type: ["string", "null"] },
-          },
-          required: ["date", "merchant", "amount", "type", "majorCategory", "subcategory"],
-          additionalProperties: false,
-        },
-      },
-    },
-    required: ["transactions"],
-    additionalProperties: false,
-  } as const;
-}
-
-function buildInstruction(sourceKind: FundingSourceKind): string {
-  return sourceKind === "bankAccount"
-    ? "この銀行口座の入出金明細を解析してください。列構成は金融機関によって異なるため、まずヘッダー行を確認してください。" +
-      "「支払い金額」「預かり金額」のように出金・入金が別々の列に分かれている場合は、値がある方の列でtype(支払い金額→expense、預かり金額→income)を判定してください(1行につきどちらか一方にのみ値が入っている想定です)。" +
-      "楽天銀行のように単一の金額列に符号(プラス/マイナス)で入出金を表している場合は、プラスの値をtype=income、マイナスの値をtype=expenseとして判定してください。" +
-      "amountはどちらの形式でも常にプラスの値(絶対値)で設定してください。店名(摘要・摘要内容列)からは支出のみ大カテゴリ・小カテゴリを推定してください。"
-    : "このクレジットカードの利用明細を解析してください。原則すべてtype=expenseとし、返金と判断できる行は金額をマイナス値にしてください。店名から大カテゴリ・小カテゴリを推定してください。";
-}
-
-/**
- * Claude APIで明細ファイルを解析し、構造化された取引データを抽出する
- * (docs/design.md 4章)。
- *
- * ブラウザから直接Anthropic APIを呼び出すため`dangerouslyAllowBrowser`を
- * 指定する。公開Webサービスでは非推奨とされる設定だが、本アプリは個人専用の
- * 非公開PWAであるためリスクとして許容する(architecture.md 7章参照)。
- */
-export async function extractTransactions(
-  apiKey: string,
-  file: FileForExtraction,
-  sourceKind: FundingSourceKind,
-  majorCategoryNames: string[],
-  model: string = DEFAULT_MODEL
-): Promise<ExtractionResult> {
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
-
-  const documentBlock =
-    file.mimeType === "application/pdf"
-      ? ({
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: file.data },
-        } as const)
-      : ({ type: "text", text: file.data } as const);
-
-  let response;
-  try {
-    response = await client.messages.create({
-      model,
-      max_tokens: 8000,
-      output_config: {
-        format: {
-          type: "json_schema",
-          schema: buildExtractionSchema(majorCategoryNames),
-        },
-      },
-      messages: [
-        {
-          role: "user",
-          content: [documentBlock, { type: "text", text: buildInstruction(sourceKind) }],
-        },
-      ],
-    });
-  } catch (err) {
-    throw new Error(describeApiError(err));
-  }
-
-  const textBlock = response.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("Claude APIから有効なレスポンスが得られませんでした");
-  }
-  const parsed = JSON.parse(textBlock.text) as { transactions: ExtractionResultItem[] };
-  return {
-    transactions: parsed.transactions,
-    usage: {
-      model,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-    },
-  };
-}
-
-/** Anthropic APIのエラーを、原因が分かるよう日本語の分かりやすいメッセージに変換する */
-function describeApiError(err: unknown): string {
-  if (err instanceof Anthropic.APIError) {
-    if (err.status === 401) {
-      return "Anthropic APIキーが正しくありません。設定画面でキーを確認してください。";
-    }
-    if (err.status === 400 && /credit balance is too low/i.test(err.message)) {
-      return "Anthropicのクレジット残高が不足しています。Anthropic ConsoleのPlans & Billingからクレジットを購入・チャージしてください。";
-    }
-    if (err.status === 429) {
-      return "Anthropic APIのレート制限に達しました。しばらく待ってから再試行してください。";
-    }
-    if (err.status && err.status >= 500) {
-      return "Anthropic APIが一時的に利用できません。しばらく待ってから再試行してください。";
-    }
-  }
-  return err instanceof Error ? err.message : "Claude APIの呼び出しに失敗しました";
 }
 
 /**
@@ -163,9 +40,8 @@ function readFileAsBase64(file: File): Promise<string> {
 /**
  * CSVのテキストをデコードする。三菱UFJ銀行をはじめ日本の銀行・カード会社の
  * CSV明細はShift-JIS(CP932)で出力されることが多く、`File.text()`は常に
- * UTF-8として解釈するため、Shift-JISのファイルを読み込むと文字化けし、
- * Claudeが文字化けした内容から店名等を誤って(でたらめに)抽出してしまう。
- * まずUTF-8として厳密デコードを試し、不正なバイト列で失敗したら
+ * UTF-8として解釈するため、Shift-JISのファイルを読み込むと店名等が文字化け
+ * してしまう。まずUTF-8として厳密デコードを試し、不正なバイト列で失敗したら
  * Shift-JISとして読み直す。
  */
 async function readCsvText(file: File): Promise<string> {
