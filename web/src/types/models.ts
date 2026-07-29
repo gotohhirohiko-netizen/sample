@@ -150,6 +150,7 @@ export interface FundingSource {
   displayName: string; // 例: "三菱UFJ 普通口座(給与用)"
   kind: FundingSourceKind;
   statementDeepLinkURL: string; // 明細ページへの直リンク
+  importShortcutName?: string; // ダウンロード済みファイルをクリップボードにコピーするiOSショートカットの名前(shortcuts://run-shortcutで起動)
 }
 
 /** 月次サマリー(対予算・対収入。docs/design.md 3.3) */

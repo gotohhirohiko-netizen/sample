@@ -1,5 +1,7 @@
 import { useState, type ChangeEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "../lib/db";
 import { readFileForExtraction } from "../lib/claudeExtractionService";
 
 interface LocationState {
@@ -13,6 +15,16 @@ export default function ImportFilePickerView() {
   const [error, setError] = useState<string | null>(null);
   const [pastedText, setPastedText] = useState("");
   const state = location.state as LocationState | null;
+  const fundingSource = useLiveQuery(
+    () => (state ? db.fundingSources.get(state.sourceId) : undefined),
+    [state?.sourceId]
+  );
+
+  function handleRunShortcut() {
+    if (!fundingSource?.importShortcutName) return;
+    window.location.href =
+      "shortcuts://run-shortcut?name=" + encodeURIComponent(fundingSource.importShortcutName);
+  }
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const picked = e.target.files?.[0];
@@ -63,6 +75,19 @@ export default function ImportFilePickerView() {
         ‹ 取り込み元選択へ戻る
       </Link>
       <h1 className="screen-title">ファイル選択</h1>
+
+      {fundingSource?.importShortcutName && (
+        <div className="section">
+          <div className="section-title">ショートカットで読み込み</div>
+          <p className="muted">
+            ダウンロード済みの最新ファイルをクリップボードにコピーするショートカット「
+            {fundingSource.importShortcutName}」を実行します。実行後、下の「クリップボードから取り込む」で登録してください。
+          </p>
+          <button type="button" className="btn-primary" onClick={handleRunShortcut}>
+            ショートカットで読み込む
+          </button>
+        </div>
+      )}
 
       <div className="section">
         <div className="section-title">クリップボードから取り込み</div>
