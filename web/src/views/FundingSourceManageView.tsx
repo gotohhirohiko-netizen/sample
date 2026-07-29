@@ -11,13 +11,11 @@ export default function FundingSourceManageView() {
   const [displayName, setDisplayName] = useState("");
   const [url, setUrl] = useState("");
   const [kind, setKind] = useState<FundingSourceKind>("creditCard");
-  const [shortcutName, setShortcutName] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editKind, setEditKind] = useState<FundingSourceKind>("creditCard");
-  const [editShortcutName, setEditShortcutName] = useState("");
 
   async function addSource() {
     if (displayName.trim() === "" || url.trim() === "") return;
@@ -26,11 +24,9 @@ export default function FundingSourceManageView() {
       displayName: displayName.trim(),
       kind,
       statementDeepLinkURL: url.trim(),
-      importShortcutName: shortcutName.trim() === "" ? undefined : shortcutName.trim(),
     });
     setDisplayName("");
     setUrl("");
-    setShortcutName("");
   }
 
   async function removeSource(id: string) {
@@ -38,18 +34,11 @@ export default function FundingSourceManageView() {
     await db.fundingSources.delete(id);
   }
 
-  function startEdit(source: {
-    id: string;
-    displayName: string;
-    kind: FundingSourceKind;
-    statementDeepLinkURL: string;
-    importShortcutName?: string;
-  }) {
+  function startEdit(source: { id: string; displayName: string; kind: FundingSourceKind; statementDeepLinkURL: string }) {
     setEditingId(source.id);
     setEditDisplayName(source.displayName);
     setEditUrl(source.statementDeepLinkURL);
     setEditKind(source.kind);
-    setEditShortcutName(source.importShortcutName ?? "");
   }
 
   function cancelEdit() {
@@ -62,7 +51,6 @@ export default function FundingSourceManageView() {
       displayName: editDisplayName.trim(),
       kind: editKind,
       statementDeepLinkURL: editUrl.trim(),
-      importShortcutName: editShortcutName.trim() === "" ? undefined : editShortcutName.trim(),
     });
     setEditingId(null);
   }
@@ -93,14 +81,6 @@ export default function FundingSourceManageView() {
                   <option value="creditCard">クレジットカード</option>
                 </select>
               </div>
-              <div className="form-row">
-                <label>取り込みショートカット名(任意)</label>
-                <input
-                  value={editShortcutName}
-                  onChange={(e) => setEditShortcutName(e.target.value)}
-                  placeholder="例: 楽天カード読み込み"
-                />
-              </div>
               <div className="button-row">
                 <button type="button" className="btn-primary" onClick={saveEdit}>
                   保存
@@ -117,9 +97,6 @@ export default function FundingSourceManageView() {
               <div className="muted" style={{ wordBreak: "break-all" }}>
                 {source.statementDeepLinkURL}
               </div>
-              {source.importShortcutName && (
-                <div className="muted">ショートカット: {source.importShortcutName}</div>
-              )}
               <div className="button-row">
                 <button type="button" className="btn-secondary" onClick={() => startEdit(source)}>
                   編集
@@ -149,14 +126,6 @@ export default function FundingSourceManageView() {
             <option value="bankAccount">銀行口座</option>
             <option value="creditCard">クレジットカード</option>
           </select>
-        </div>
-        <div className="form-row">
-          <label>取り込みショートカット名(任意)</label>
-          <input
-            value={shortcutName}
-            onChange={(e) => setShortcutName(e.target.value)}
-            placeholder="例: 楽天カード読み込み"
-          />
         </div>
         <button type="button" className="btn-primary" onClick={addSource}>
           追加
