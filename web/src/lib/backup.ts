@@ -11,8 +11,8 @@ import type {
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusion,
-  PlannedExpense,
   RecurringOverride,
+  SpecificMonthPlan,
   Subcategory,
   Transaction,
 } from "../types/models";
@@ -37,8 +37,8 @@ export interface BackupPayload {
   recurringOverrides: RecurringOverride[];
   bonusCategoryPlans: BonusCategoryPlan[];
   bonusIncomeSchedules: BonusIncomeSchedule[];
-  plannedExpenses: PlannedExpense[];
   budgetAdjustments: BudgetAdjustment[];
+  specificMonthPlans: SpecificMonthPlan[];
 }
 
 export async function exportBackup(): Promise<BackupPayload> {
@@ -55,8 +55,8 @@ export async function exportBackup(): Promise<BackupPayload> {
     recurringOverrides,
     bonusCategoryPlans,
     bonusIncomeSchedules,
-    plannedExpenses,
     budgetAdjustments,
+    specificMonthPlans,
   ] = await Promise.all([
     db.transactions.toArray(),
     db.fundingSources.toArray(),
@@ -70,8 +70,8 @@ export async function exportBackup(): Promise<BackupPayload> {
     db.recurringOverrides.toArray(),
     db.bonusCategoryPlans.toArray(),
     db.bonusIncomeSchedules.toArray(),
-    db.plannedExpenses.toArray(),
     db.budgetAdjustments.toArray(),
+    db.specificMonthPlans.toArray(),
   ]);
 
   const payload: BackupPayload = {
@@ -88,8 +88,8 @@ export async function exportBackup(): Promise<BackupPayload> {
     recurringOverrides,
     bonusCategoryPlans,
     bonusIncomeSchedules,
-    plannedExpenses,
     budgetAdjustments,
+    specificMonthPlans,
   };
 
   await saveLastBackupAt(new Date());
@@ -124,8 +124,8 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
       db.recurringOverrides,
       db.bonusCategoryPlans,
       db.bonusIncomeSchedules,
-      db.plannedExpenses,
       db.budgetAdjustments,
+      db.specificMonthPlans,
     ],
     async () => {
       await Promise.all([
@@ -141,8 +141,8 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.recurringOverrides.clear(),
         db.bonusCategoryPlans.clear(),
         db.bonusIncomeSchedules.clear(),
-        db.plannedExpenses.clear(),
         db.budgetAdjustments.clear(),
+        db.specificMonthPlans.clear(),
       ]);
       await Promise.all([
         db.transactions.bulkAdd(payload.transactions),
@@ -157,8 +157,8 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.recurringOverrides.bulkAdd(payload.recurringOverrides ?? []),
         db.bonusCategoryPlans.bulkAdd(payload.bonusCategoryPlans ?? []),
         db.bonusIncomeSchedules.bulkAdd(payload.bonusIncomeSchedules ?? []),
-        db.plannedExpenses.bulkAdd(payload.plannedExpenses ?? []),
         db.budgetAdjustments.bulkAdd(payload.budgetAdjustments ?? []),
+        db.specificMonthPlans.bulkAdd(payload.specificMonthPlans ?? []),
       ]);
     }
   );

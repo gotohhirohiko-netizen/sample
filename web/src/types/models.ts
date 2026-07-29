@@ -136,29 +136,39 @@ export interface MerchantExclusion {
 }
 
 /**
- * 店名ごとの「定常費用/突発費用」の手動判定オーバーライド。
- * 未設定の店名は履歴から自動判定する(lib/recurringResolver.ts参照)。
- * ユーザーが手動で修正するとmerchantKeyをキーにupsertされる。
+ * 定常費用の区分。
+ * ・monthly: 毎月定常(電気代等。日割りせず先月/今月実績の大きい方を採用)
+ * ・specific: 該当月定常(お米・美容院等、毎月ではないが特定の月に発生する。
+ *   発生する対象月をSpecificMonthPlanで個別に管理する)
+ * ・spontaneous: 突発(定常ではない。日割りで月末まで延伸する対象)
+ */
+export type RecurringType = "monthly" | "specific" | "spontaneous";
+
+/**
+ * 店名ごとの定常費用区分の手動判定オーバーライド(取引詳細画面から設定)。
+ * 未設定の店名は履歴から自動判定する(lib/recurringResolver.ts参照。
+ * 連続する2ヶ月に発生していればmonthly、それ以外はspontaneous扱い。
+ * specificは自動判定されず、必ず手動設定が必要)。
  */
 export interface RecurringOverride {
   id: string;
   merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKey)
-  isRecurring: boolean;
+  type: RecurringType;
   updatedAt: string; // ISO日時文字列
 }
 
 /**
- * 毎月ではないが今月発生予定の高額出費(美容院・お米等)を、月末着地予想に
- * 事前に反映させるための計画。都度その月に対して手動で登録する
- * (要件定義書関連の追加機能)。
- * labelは自由入力ではなく、過去に実績があり定常(毎月)とは判定されていない
- * 店名の中から選択する(lib/recurringResolver#irregularMerchantCandidates)。
+ * 該当月定常(RecurringType="specific")の店名について、発生が見込まれる
+ * 対象月と金額を個別に登録する(要件定義書関連の追加機能)。取引詳細画面から
+ * 店名ごとに追加・編集する。金額は過去実績を初期値として編集できる。
+ * 対象月に実績(Transaction)が既に記録されていれば、二重計上を避けるため
+ * 月末着地予想の計算からはその月の計画額を除外する(lib/projectionCalculator.ts)。
  */
-export interface PlannedExpense {
+export interface SpecificMonthPlan {
   id: string;
-  month: string; // "YYYY-MM"形式。対象の月
-  label: string; // 店名(過去実績のある店名から選択)
-  plannedAmount: number;
+  merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKey)
+  month: string; // "YYYY-MM"形式。発生が見込まれる対象月
+  amount: number;
 }
 
 /**

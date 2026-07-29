@@ -10,8 +10,8 @@ import type {
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusion,
-  PlannedExpense,
   RecurringOverride,
+  SpecificMonthPlan,
   Subcategory,
   Transaction,
 } from "../types/models";
@@ -41,8 +41,8 @@ export class KakeiboDB extends Dexie {
   recurringOverrides!: EntityTable<RecurringOverride, "id">;
   bonusCategoryPlans!: EntityTable<BonusCategoryPlan, "id">;
   bonusIncomeSchedules!: EntityTable<BonusIncomeSchedule, "id">;
-  plannedExpenses!: EntityTable<PlannedExpense, "id">;
   budgetAdjustments!: EntityTable<BudgetAdjustment, "id">;
+  specificMonthPlans!: EntityTable<SpecificMonthPlan, "id">;
   settings!: EntityTable<KeyValueEntry, "key">;
 
   constructor() {
@@ -238,6 +238,36 @@ export class KakeiboDB extends Dexie {
       budgetAdjustments: "id, month",
       settings: "key",
     });
+    this.version(14)
+      .stores({
+        transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+        fundingSources: "id",
+        majorCategories: "id, displayOrder",
+        subcategories: "id, majorCategoryID",
+        categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+        merchantCategoryMappings: "id, merchantKey",
+        merchantExclusions: "id, merchantKey",
+        merchantAmbiguousFlags: "id, merchantKey",
+        bonusPeriods: "id, displayOrder",
+        recurringOverrides: "id, merchantKey",
+        bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+        bonusIncomeSchedules: "id, fundingSourceID",
+        plannedExpenses: null,
+        budgetAdjustments: "id, month",
+        specificMonthPlans: "id, merchantKey, month",
+        settings: "key",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("recurringOverrides")
+          .toCollection()
+          .modify((override) => {
+            if (override.type === undefined) {
+              override.type = override.isRecurring ? "monthly" : "spontaneous";
+            }
+            delete override.isRecurring;
+          });
+      });
   }
 }
 

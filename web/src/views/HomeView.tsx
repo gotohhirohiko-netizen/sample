@@ -36,7 +36,7 @@ export default function HomeView() {
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
   const bonusPeriods = useLiveQuery(() => db.bonusPeriods.orderBy("displayOrder").toArray(), []);
   const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
-  const plannedExpenses = useLiveQuery(() => db.plannedExpenses.toArray(), []);
+  const specificMonthPlans = useLiveQuery(() => db.specificMonthPlans.toArray(), []);
   const budgetAdjustments = useLiveQuery(() => db.budgetAdjustments.toArray(), []);
 
   if (
@@ -46,7 +46,7 @@ export default function HomeView() {
     !recurringOverrides ||
     !bonusPeriods ||
     !bonusCategoryPlans ||
-    !plannedExpenses ||
+    !specificMonthPlans ||
     !budgetAdjustments
   ) {
     return <p className="muted">読み込み中...</p>;
@@ -54,7 +54,7 @@ export default function HomeView() {
 
   const summary = monthlySummary(month, transactions, budgetSettings, majorCategories, budgetAdjustments);
   const monthParam = monthToParam(month);
-  const projection = monthEndExpenseProjection(month, transactions, recurringOverrides, plannedExpenses);
+  const projection = monthEndExpenseProjection(month, transactions, recurringOverrides, specificMonthPlans);
 
   const currentBonusPeriod = findBonusPeriodForMonth(bonusPeriods, month.getMonth() + 1);
   const bonusSummary = currentBonusPeriod
@@ -172,7 +172,7 @@ export default function HomeView() {
             className="list-row"
             onClick={() => navigate(`/adjustments/${monthParam}`)}
           >
-            <span>当月の計画・予算調整</span>
+            <span>当月の予算調整</span>
             <span className="muted">›</span>
           </button>
           <button type="button" className="list-row" onClick={() => navigate(`/daily/${monthParam}`)}>
