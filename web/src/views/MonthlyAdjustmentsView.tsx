@@ -2,28 +2,69 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
+import { merchantMatchKey } from "../lib/categoryResolver";
 import { formatYearMonth, formatYen, parseMonthParam } from "../lib/dateUtils";
+import { specificTypeMerchantCandidates } from "../lib/recurringResolver";
 
 /**
- * 当月の予算調整の登録画面。ホーム画面の「当月の予算調整」の入り口から遷移する。
- * (毎月ではない該当月定常費用の登録は、店名ごとに取引詳細画面から行う)
+ * 当月の計画・予算調整の登録画面。ホーム画面の「当月の計画・予算調整」の
+ * 入り口から遷移し、この画面の中で2つの機能(計画/予算調整)を分けて扱う。
+ * 計画の対象店名は、取引詳細画面で「該当月定常」に設定済みの店名から選ぶ
+ * (一度も実績のない店名や、突発・毎月定常の店名は選択候補にならない)。
  */
 export default function MonthlyAdjustmentsView() {
   const { month: monthParam } = useParams<{ month: string }>();
   const month = parseMonthParam(monthParam);
   const monthValue = monthParam ?? "";
 
+  const [planFormOpen, setPlanFormOpen] = useState(false);
+  const [planMerchant, setPlanMerchant] = useState("");
+  const [planAmount, setPlanAmount] = useState("");
   const [adjustmentFormOpen, setAdjustmentFormOpen] = useState(false);
   const [adjustmentMemo, setAdjustmentMemo] = useState("");
   const [adjustmentAmount, setAdjustmentAmount] = useState("");
 
+  const transactions = useLiveQuery(() => db.transactions.toArray(), []);
+  const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
+  const specificMonthPlans = useLiveQuery(() => db.specificMonthPlans.toArray(), []);
   const budgetAdjustments = useLiveQuery(() => db.budgetAdjustments.toArray(), []);
 
-  if (!budgetAdjustments) {
+  if (!transactions || !recurringOverrides || !specificMonthPlans || !budgetAdjustments) {
     return <p className="muted">読み込み中...</p>;
   }
 
+  const monthPlans = specificMonthPlans.filter((p) => p.month === monthValue);
   const monthBudgetAdjustments = budgetAdjustments.filter((a) => a.month === monthValue);
+  const planCandidates = specificTypeMerchantCandidates(transactions, recurringOverrides);
+
+  const allTransactions = transactions;
+  function displayNameForMerchantKey(key: string): string {
+    const match = allTransactions
+      .filter((t) => merchantMatchKey(t.merchant) === key)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    return match?.merchant ?? key;
+  }
+
+  async function addPlan() {
+    const amount = Number(planAmount);
+    if (planMerchant.trim() === "" || !Number.isFinite(amount) || amount <= 0) return;
+    const merchantKey = merchantMatchKey(planMerchant);
+    if (monthPlans.some((p) => p.merchantKey === merchantKey)) return;
+    await db.specificMonthPlans.add({
+      id: crypto.randomUUID(),
+      merchantKey,
+      month: monthValue,
+      amount,
+    });
+    setPlanMerchant("");
+    setPlanAmount("");
+    setPlanFormOpen(false);
+  }
+
+  async function deletePlan(id: string) {
+    if (!confirm("この計画を削除しますか?")) return;
+    await db.specificMonthPlans.delete(id);
+  }
 
   async function addBudgetAdjustment() {
     const amount = Number(adjustmentAmount);
@@ -49,7 +90,86 @@ export default function MonthlyAdjustmentsView() {
       <Link to="/" className="back-link">
         ‹ ホームへ戻る
       </Link>
-      <h1 className="screen-title">{formatYearMonth(month)}の予算調整</h1>
+      <h1 className="screen-title">{formatYearMonth(month)}の計画・予算調整</h1>
+
+      <div className="section card">
+        <div className="section-title">計画</div>
+        <p className="muted">
+          該当月定常(取引詳細画面で設定)の店名について、今月発生する金額を登録すると月末着地予想に反映されます。
+        </p>
+
+        {monthPlans.length > 0 && (
+          <div className="list" style={{ marginTop: 8 }}>
+            {monthPlans.map((p) => (
+              <div key={p.id} className="list-row">
+                <span>{displayNameForMerchantKey(p.merchantKey)}</span>
+                <div className="button-row">
+                  <span className="muted">{formatYen(p.amount)}</span>
+                  <button type="button" className="btn-secondary" onClick={() => deletePlan(p.id)}>
+                    削除
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {planFormOpen ? (
+          planCandidates.length > 0 ? (
+            <div className="section" style={{ marginTop: 8 }}>
+              <div className="form-row">
+                <label>店名</label>
+                <select value={planMerchant} onChange={(e) => setPlanMerchant(e.target.value)}>
+                  <option value="">選択してください</option>
+                  {planCandidates.map((merchant) => (
+                    <option key={merchant} value={merchant}>
+                      {merchant}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row">
+                <label>金額</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={planAmount}
+                  onChange={(e) => setPlanAmount(e.target.value)}
+                />
+              </div>
+              <div className="button-row">
+                <button type="button" className="btn-primary" onClick={addPlan}>
+                  追加
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setPlanFormOpen(false);
+                    setPlanMerchant("");
+                    setPlanAmount("");
+                  }}
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="muted" style={{ marginTop: 8 }}>
+              計画として登録できる店名がありません(取引詳細画面で「該当月定常」に設定した店名が対象です)
+            </p>
+          )
+        ) : (
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginTop: 8 }}
+            onClick={() => setPlanFormOpen(true)}
+          >
+            当月の計画を追加
+          </button>
+        )}
+      </div>
 
       <div className="section card">
         <div className="section-title">予算調整</div>

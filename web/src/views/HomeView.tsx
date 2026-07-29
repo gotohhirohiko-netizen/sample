@@ -172,7 +172,7 @@ export default function HomeView() {
             className="list-row"
             onClick={() => navigate(`/adjustments/${monthParam}`)}
           >
-            <span>当月の予算調整</span>
+            <span>当月の計画・予算調整</span>
             <span className="muted">›</span>
           </button>
           <button type="button" className="list-row" onClick={() => navigate(`/daily/${monthParam}`)}>

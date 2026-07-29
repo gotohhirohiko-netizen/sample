@@ -44,3 +44,26 @@ export function resolveRecurring(
 ): boolean {
   return resolveRecurringType(merchant, transactions, overrides) !== "spontaneous";
 }
+
+/**
+ * 該当月定常(取引詳細画面でtype="specific"に設定済み)の店名一覧を返す。
+ * ホーム画面の「当月の計画・予算調整」で、該当月の計画を追加する際の選択候補として使う。
+ */
+export function specificTypeMerchantCandidates(
+  transactions: Transaction[],
+  overrides: RecurringOverride[]
+): string[] {
+  const latestByKey = new Map<string, { merchant: string; date: string }>();
+  for (const t of transactions) {
+    if (t.type !== "expense") continue;
+    const key = merchantMatchKey(t.merchant);
+    const existing = latestByKey.get(key);
+    if (!existing || t.date > existing.date) {
+      latestByKey.set(key, { merchant: t.merchant, date: t.date });
+    }
+  }
+  return Array.from(latestByKey.values())
+    .filter((v) => resolveRecurringType(v.merchant, transactions, overrides) === "specific")
+    .map((v) => v.merchant)
+    .sort((a, b) => a.localeCompare(b, "ja"));
+}

@@ -7,7 +7,6 @@ import {
   isMerchantAmbiguous,
   merchantMatchKey,
 } from "../lib/categoryResolver";
-import { formatYen } from "../lib/dateUtils";
 import { resolveRecurringType } from "../lib/recurringResolver";
 import type { RecurringType, Transaction } from "../types/models";
 
@@ -31,7 +30,6 @@ export default function TransactionDetailView() {
   const allTransactions = useLiveQuery(() => db.transactions.toArray(), []);
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
   const ambiguousFlags = useLiveQuery(() => db.merchantAmbiguousFlags.toArray(), []);
-  const specificMonthPlans = useLiveQuery(() => db.specificMonthPlans.toArray(), []);
 
   const [merchant, setMerchant] = useState<string | null>(null);
   const [amount, setAmount] = useState<string | null>(null);
@@ -39,8 +37,6 @@ export default function TransactionDetailView() {
   const [appliedCount, setAppliedCount] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [exclusionAppliedCount, setExclusionAppliedCount] = useState<number | null>(null);
-  const [newPlanMonth, setNewPlanMonth] = useState("");
-  const [newPlanAmount, setNewPlanAmount] = useState("");
 
   if (
     !transaction ||
@@ -48,8 +44,7 @@ export default function TransactionDetailView() {
     !subcategories ||
     !allTransactions ||
     !recurringOverrides ||
-    !ambiguousFlags ||
-    !specificMonthPlans
+    !ambiguousFlags
   ) {
     return <p className="muted">読み込み中...</p>;
   }
@@ -58,9 +53,6 @@ export default function TransactionDetailView() {
   const isIncome = transaction.type === "income";
   const recurringType = resolveRecurringType(transaction.merchant, allTransactions, recurringOverrides);
   const merchantKey = merchantMatchKey(transaction.merchant);
-  const merchantPlans = specificMonthPlans
-    .filter((p) => p.merchantKey === merchantKey)
-    .sort((a, b) => a.month.localeCompare(b.month));
 
   const currentSubcategory = subcategories.find((s) => s.id === transaction.subcategoryID);
   const currentMajorCategory = currentSubcategory
@@ -228,31 +220,6 @@ export default function TransactionDetailView() {
         updatedAt: new Date().toISOString(),
       });
     }
-  }
-
-  async function addSpecificMonthPlan() {
-    const monthAmount = newPlanAmount.trim() === "" ? transaction!.amount : Number(newPlanAmount);
-    if (newPlanMonth.trim() === "" || !Number.isFinite(monthAmount) || monthAmount <= 0) return;
-    if (merchantPlans.some((p) => p.month === newPlanMonth)) return;
-    await db.specificMonthPlans.add({
-      id: crypto.randomUUID(),
-      merchantKey,
-      month: newPlanMonth,
-      amount: monthAmount,
-    });
-    setNewPlanMonth("");
-    setNewPlanAmount("");
-  }
-
-  async function updateSpecificMonthPlanAmount(id: string, nextAmount: string) {
-    const parsed = Number(nextAmount);
-    if (!Number.isFinite(parsed) || parsed <= 0) return;
-    await db.specificMonthPlans.update(id, { amount: parsed });
-  }
-
-  async function deleteSpecificMonthPlan(id: string) {
-    if (!confirm("この対象月を削除しますか?")) return;
-    await db.specificMonthPlans.delete(id);
   }
 
   async function handleDelete() {
@@ -428,58 +395,8 @@ export default function TransactionDetailView() {
           </div>
           <p className="muted">
             未設定の場合は履歴(同じ店名で連続2ヶ月以上発生していれば毎月定常)から自動判定されます。該当月定常は自動判定されません。
+            該当月定常を選んだ店名は、ホーム画面の「当月の計画・予算調整」から発生する月ごとに金額を登録できます。
           </p>
-
-          {recurringType === "specific" && (
-            <div className="section" style={{ marginTop: 8 }}>
-              <div className="section-title">対象月</div>
-              {merchantPlans.length > 0 && (
-                <div className="list">
-                  {merchantPlans.map((p) => (
-                    <div key={p.id} className="list-row">
-                      <span>{p.month}</span>
-                      <div className="button-row">
-                        <input
-                          type="number"
-                          min={0}
-                          defaultValue={p.amount}
-                          onBlur={(e) => updateSpecificMonthPlanAmount(p.id, e.target.value)}
-                          style={{ width: "8em" }}
-                        />
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => deleteSpecificMonthPlan(p.id)}
-                        >
-                          削除
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="form-row" style={{ marginTop: 8 }}>
-                <label>対象月を追加</label>
-                <div className="button-row">
-                  <input
-                    type="month"
-                    value={newPlanMonth}
-                    onChange={(e) => setNewPlanMonth(e.target.value)}
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder={formatYen(transaction.amount)}
-                    value={newPlanAmount}
-                    onChange={(e) => setNewPlanAmount(e.target.value)}
-                  />
-                  <button type="button" className="btn-primary" onClick={addSpecificMonthPlan}>
-                    追加
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
