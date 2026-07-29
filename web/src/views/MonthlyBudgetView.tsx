@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { actualAmount, budgetAmount, expectedPaceRatio } from "../lib/budgetCalculator";
 import { formatYen, monthToParam, parseMonthParam } from "../lib/dateUtils";
+import BudgetProgressBar from "../components/BudgetProgressBar";
 import MonthPicker from "../components/MonthPicker";
 
 /** 月次収支確認機能(カテゴリ別 予算・実績)(要件定義書 4.5) */
@@ -38,7 +39,6 @@ export default function MonthlyBudgetView() {
     0
   );
   const totalOver = totalBudget > 0 && totalActual > totalBudget;
-  const totalRate = totalBudget > 0 ? Math.min(totalActual / totalBudget, 1) : 0;
 
   return (
     <div>
@@ -55,15 +55,11 @@ export default function MonthlyBudgetView() {
         </div>
         {totalBudget > 0 ? (
           <>
-            <div className={`progress ${totalOver ? "over" : ""}`}>
-              <div style={{ width: `${totalRate * 100}%` }} />
-              {paceRatio !== null && (
-                <div
-                  className="progress-pace-marker"
-                  style={{ left: `${Math.min(paceRatio, 1) * 100}%` }}
-                />
-              )}
-            </div>
+            <BudgetProgressBar
+              actual={totalActual}
+              threshold={totalBudget}
+              paceValue={paceRatio !== null ? paceRatio * totalBudget : undefined}
+            />
             <span className="muted">
               予算 {formatYen(totalBudget)} / 残り {formatYen(totalBudget - totalActual)}
             </span>
@@ -78,7 +74,6 @@ export default function MonthlyBudgetView() {
           const budget = budgetAmount(major.id, month, budgetSettings);
           const actual = actualAmount(major.id, month, transactions, subcategories);
           const over = budget !== undefined && actual > budget;
-          const rate = budget ? Math.min(actual / budget, 1) : 0;
 
           return (
             <Link
@@ -93,15 +88,11 @@ export default function MonthlyBudgetView() {
               </div>
               {budget !== undefined ? (
                 <>
-                  <div className={`progress ${over ? "over" : ""}`}>
-                    <div style={{ width: `${rate * 100}%` }} />
-                    {paceRatio !== null && (
-                      <div
-                        className="progress-pace-marker"
-                        style={{ left: `${Math.min(paceRatio, 1) * 100}%` }}
-                      />
-                    )}
-                  </div>
+                  <BudgetProgressBar
+                    actual={actual}
+                    threshold={budget}
+                    paceValue={paceRatio !== null ? paceRatio * budget : undefined}
+                  />
                   <span className="muted">
                     予算 {formatYen(budget)} / 残り {formatYen(budget - actual)}
                   </span>

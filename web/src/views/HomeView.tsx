@@ -13,6 +13,7 @@ import {
 } from "../lib/bonusCalculator";
 import { formatYen, monthToParam } from "../lib/dateUtils";
 import { loadLastBackupAt } from "../lib/keyStorage";
+import BudgetProgressBar from "../components/BudgetProgressBar";
 import MonthPicker from "../components/MonthPicker";
 
 const BACKUP_REMINDER_DAYS = 7;
@@ -102,31 +103,26 @@ export default function HomeView() {
         {summary.budgetUsageRate !== undefined ? (
           <>
             <p>対予算 {Math.round(summary.budgetUsageRate * 100)}%</p>
-            <div className="progress-wrapper">
-              {projection && summary.totalBudget > 0 && (
-                <>
-                  <span
-                    className="progress-marker-recurring"
-                    style={{
-                      left: `${Math.min((projection.recurringProjected / summary.totalBudget) * 100, 100)}%`,
-                    }}
-                  >
-                    ▼
-                  </span>
-                  <span
-                    className="progress-marker-proportional"
-                    style={{
-                      left: `${Math.min((projection.totalProjected / summary.totalBudget) * 100, 100)}%`,
-                    }}
-                  >
-                    ▼
-                  </span>
-                </>
-              )}
-              <div className={`progress ${summary.budgetUsageRate > 1 ? "over" : ""}`}>
-                <div style={{ width: `${Math.min(summary.budgetUsageRate * 100, 100)}%` }} />
-              </div>
-            </div>
+            <BudgetProgressBar
+              actual={summary.totalExpense}
+              threshold={summary.totalBudget}
+              markers={
+                projection
+                  ? [
+                      {
+                        key: "recurring",
+                        value: projection.recurringProjected,
+                        className: "progress-marker-recurring",
+                      },
+                      {
+                        key: "total",
+                        value: projection.totalProjected,
+                        className: "progress-marker-proportional",
+                      },
+                    ]
+                  : []
+              }
+            />
             <span className="muted">
               {formatYen(summary.totalExpense)} / 予算 {formatYen(summary.totalBudget)}
               {summary.budgetAdjustmentTotal !== 0 &&
@@ -139,31 +135,26 @@ export default function HomeView() {
         {summary.incomeUsageRate !== undefined ? (
           <>
             <p>対収入 {Math.round(summary.incomeUsageRate * 100)}%</p>
-            <div className="progress-wrapper">
-              {projection && summary.totalIncome > 0 && (
-                <>
-                  <span
-                    className="progress-marker-recurring"
-                    style={{
-                      left: `${Math.min((projection.recurringProjected / summary.totalIncome) * 100, 100)}%`,
-                    }}
-                  >
-                    ▼
-                  </span>
-                  <span
-                    className="progress-marker-proportional"
-                    style={{
-                      left: `${Math.min((projection.totalProjected / summary.totalIncome) * 100, 100)}%`,
-                    }}
-                  >
-                    ▼
-                  </span>
-                </>
-              )}
-              <div className={`progress ${summary.incomeUsageRate > 1 ? "over" : ""}`}>
-                <div style={{ width: `${Math.min(summary.incomeUsageRate * 100, 100)}%` }} />
-              </div>
-            </div>
+            <BudgetProgressBar
+              actual={summary.totalExpense}
+              threshold={summary.totalIncome}
+              markers={
+                projection
+                  ? [
+                      {
+                        key: "recurring",
+                        value: projection.recurringProjected,
+                        className: "progress-marker-recurring",
+                      },
+                      {
+                        key: "total",
+                        value: projection.totalProjected,
+                        className: "progress-marker-proportional",
+                      },
+                    ]
+                  : []
+              }
+            />
             <span className="muted">
               {formatYen(summary.totalExpense)} / 収入 {formatYen(summary.totalIncome)}
             </span>

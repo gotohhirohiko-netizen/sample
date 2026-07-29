@@ -240,11 +240,6 @@ textarea {
   width: auto;
 }
 
-.progress-wrapper {
-  position: relative;
-  margin-top: 16px;
-}
-
 .progress {
   position: relative;
   height: 8px;
@@ -272,15 +267,39 @@ textarea {
   opacity: 0.7;
 }
 
+/* 予算規模に応じた目盛り線(棒グラフの塗りより背面。塗り部分では隠れて見えなくてよい) */
+.progress-ticks {
+  position: absolute;
+  inset: 0;
+}
+
+.progress-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--bg);
+  opacity: 0.6;
+}
+
+.budget-progress {
+  margin: 16px 0 6px;
+}
+
+.budget-progress-markers-above {
+  position: relative;
+  height: 14px;
+}
+
 /*
  * 定常費用予想・月末着地予想の目安は、実績バーの塗りに隠れず常に見えるよう
  * バーの上に▼マーカーとして表示する(バー内の縦線だと実績で上塗りされて
  * 見えなくなるため)。
  */
-.progress-marker-recurring,
-.progress-marker-proportional {
+.budget-progress-markers-above .progress-marker-recurring,
+.budget-progress-markers-above .progress-marker-proportional {
   position: absolute;
-  top: -13px;
+  top: 0;
   transform: translateX(-50%);
   font-size: 11px;
   line-height: 1;
@@ -293,6 +312,30 @@ textarea {
 
 .progress-marker-proportional {
   color: var(--danger);
+}
+
+.budget-progress-axis {
+  position: relative;
+  height: 30px;
+}
+
+.budget-progress-threshold-marker {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--fg);
+  pointer-events: none;
+}
+
+.budget-progress-tick-label {
+  position: absolute;
+  top: 14px;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .legend-button {
