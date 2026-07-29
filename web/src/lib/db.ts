@@ -3,6 +3,7 @@ import type {
   BonusCategoryPlan,
   BonusIncomeSchedule,
   BonusPeriod,
+  BudgetAdjustment,
   CategoryBudgetSetting,
   FundingSource,
   MajorCategory,
@@ -41,6 +42,7 @@ export class KakeiboDB extends Dexie {
   bonusCategoryPlans!: EntityTable<BonusCategoryPlan, "id">;
   bonusIncomeSchedules!: EntityTable<BonusIncomeSchedule, "id">;
   plannedExpenses!: EntityTable<PlannedExpense, "id">;
+  budgetAdjustments!: EntityTable<BudgetAdjustment, "id">;
   settings!: EntityTable<KeyValueEntry, "key">;
 
   constructor() {
@@ -217,6 +219,23 @@ export class KakeiboDB extends Dexie {
       bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
       bonusIncomeSchedules: "id, fundingSourceID",
       plannedExpenses: "id, month",
+      settings: "key",
+    });
+    this.version(13).stores({
+      transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+      fundingSources: "id",
+      majorCategories: "id, displayOrder",
+      subcategories: "id, majorCategoryID",
+      categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+      merchantCategoryMappings: "id, merchantKey",
+      merchantExclusions: "id, merchantKey",
+      merchantAmbiguousFlags: "id, merchantKey",
+      bonusPeriods: "id, displayOrder",
+      recurringOverrides: "id, merchantKey",
+      bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+      bonusIncomeSchedules: "id, fundingSourceID",
+      plannedExpenses: "id, month",
+      budgetAdjustments: "id, month",
       settings: "key",
     });
   }

@@ -4,6 +4,7 @@ import type {
   BonusCategoryPlan,
   BonusIncomeSchedule,
   BonusPeriod,
+  BudgetAdjustment,
   CategoryBudgetSetting,
   FundingSource,
   MajorCategory,
@@ -37,6 +38,7 @@ export interface BackupPayload {
   bonusCategoryPlans: BonusCategoryPlan[];
   bonusIncomeSchedules: BonusIncomeSchedule[];
   plannedExpenses: PlannedExpense[];
+  budgetAdjustments: BudgetAdjustment[];
 }
 
 export async function exportBackup(): Promise<BackupPayload> {
@@ -54,6 +56,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     bonusCategoryPlans,
     bonusIncomeSchedules,
     plannedExpenses,
+    budgetAdjustments,
   ] = await Promise.all([
     db.transactions.toArray(),
     db.fundingSources.toArray(),
@@ -68,6 +71,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     db.bonusCategoryPlans.toArray(),
     db.bonusIncomeSchedules.toArray(),
     db.plannedExpenses.toArray(),
+    db.budgetAdjustments.toArray(),
   ]);
 
   const payload: BackupPayload = {
@@ -85,6 +89,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     bonusCategoryPlans,
     bonusIncomeSchedules,
     plannedExpenses,
+    budgetAdjustments,
   };
 
   await saveLastBackupAt(new Date());
@@ -120,6 +125,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
       db.bonusCategoryPlans,
       db.bonusIncomeSchedules,
       db.plannedExpenses,
+      db.budgetAdjustments,
     ],
     async () => {
       await Promise.all([
@@ -136,6 +142,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.bonusCategoryPlans.clear(),
         db.bonusIncomeSchedules.clear(),
         db.plannedExpenses.clear(),
+        db.budgetAdjustments.clear(),
       ]);
       await Promise.all([
         db.transactions.bulkAdd(payload.transactions),
@@ -151,6 +158,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.bonusCategoryPlans.bulkAdd(payload.bonusCategoryPlans ?? []),
         db.bonusIncomeSchedules.bulkAdd(payload.bonusIncomeSchedules ?? []),
         db.plannedExpenses.bulkAdd(payload.plannedExpenses ?? []),
+        db.budgetAdjustments.bulkAdd(payload.budgetAdjustments ?? []),
       ]);
     }
   );

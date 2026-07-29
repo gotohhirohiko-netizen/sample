@@ -1,11 +1,12 @@
 import type {
+  BudgetAdjustment,
   CategoryBudgetSetting,
   MajorCategory,
   MonthlySummary,
   Subcategory,
   Transaction,
 } from "../types/models";
-import { daysInMonth, isSameMonth, startOfMonth } from "./dateUtils";
+import { daysInMonth, isSameMonth, monthToParam, startOfMonth } from "./dateUtils";
 
 /**
  * 指定した大カテゴリ・月に適用される予算額を取得する(docs/design.md 3.1)。
@@ -95,7 +96,8 @@ export function monthlySummary(
   month: Date,
   transactions: Transaction[],
   budgetSettings: CategoryBudgetSetting[],
-  majorCategories: MajorCategory[]
+  majorCategories: MajorCategory[],
+  budgetAdjustments: BudgetAdjustment[] = []
 ): MonthlySummary {
   const monthTx = transactions.filter(
     (t) =>
@@ -106,14 +108,20 @@ export function monthlySummary(
   );
   const totalExpense = monthTx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const totalIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const totalBudget = majorCategories
+  const baseBudget = majorCategories
     .map((c) => budgetAmount(c.id, month, budgetSettings) ?? 0)
     .reduce((s, v) => s + v, 0);
+  const monthParam = monthToParam(month);
+  const budgetAdjustmentTotal = budgetAdjustments
+    .filter((a) => a.month === monthParam)
+    .reduce((s, a) => s + a.amount, 0);
+  const totalBudget = baseBudget + budgetAdjustmentTotal;
 
   return {
     totalExpense,
     totalIncome,
     totalBudget,
+    budgetAdjustmentTotal,
     budgetUsageRate: totalBudget > 0 ? totalExpense / totalBudget : undefined,
     incomeUsageRate: totalIncome > 0 ? totalExpense / totalIncome : undefined,
     savings: totalIncome - totalExpense,

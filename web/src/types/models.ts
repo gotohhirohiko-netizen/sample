@@ -151,12 +151,25 @@ export interface RecurringOverride {
  * 毎月ではないが今月発生予定の高額出費(美容院・お米等)を、月末着地予想に
  * 事前に反映させるための計画。都度その月に対して手動で登録する
  * (要件定義書関連の追加機能)。
+ * labelは自由入力ではなく、過去に実績があり定常(毎月)とは判定されていない
+ * 店名の中から選択する(lib/recurringResolver#irregularMerchantCandidates)。
  */
 export interface PlannedExpense {
   id: string;
   month: string; // "YYYY-MM"形式。対象の月
-  label: string; // 店名・用途(自由入力)
+  label: string; // 店名(過去実績のある店名から選択)
   plannedAmount: number;
+}
+
+/**
+ * 当月の予算合計を一時的に増減させる手動調整(該当月のみ有効。
+ * カテゴリ別予算設定(CategoryBudgetSetting)とは異なり、以降の月には影響しない)。
+ */
+export interface BudgetAdjustment {
+  id: string;
+  month: string; // "YYYY-MM"形式。対象の月
+  memo: string; // 増減の理由(任意入力)
+  amount: number; // 正で増額、負で減額
 }
 
 /** 取り込み元(金融機関・カード)の設定 */
@@ -173,7 +186,8 @@ export interface FundingSource {
 export interface MonthlySummary {
   totalExpense: number;
   totalIncome: number;
-  totalBudget: number;
+  totalBudget: number; // カテゴリ別予算の合計 + 当月の手動調整(budgetAdjustmentTotal)
+  budgetAdjustmentTotal: number; // 当月の手動調整額の合計(BudgetAdjustment)
   budgetUsageRate: number | undefined; // 支出 ÷ 予算合計
   incomeUsageRate: number | undefined; // 支出 ÷ 収入合計
   savings: number; // 収入 - 支出
