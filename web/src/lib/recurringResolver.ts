@@ -19,6 +19,25 @@ export function resolveRecurring(merchant: string, overrides: RecurringOverride[
 }
 
 /**
+ * 「毎月定常」に設定可能な店名かどうかを判定する。
+ * 2ヶ月以上の履歴があり、かつそのいずれの月も1回のみの発生であることを条件とする
+ * (同じ月に複数回発生する店名は、日用品や食品店のように毎月何度も利用する店で
+ * あり、金額固定の定常費用ではないため対象外)。
+ */
+export function isEligibleForMonthlyRecurring(merchant: string, transactions: Transaction[]): boolean {
+  const key = merchantMatchKey(merchant);
+  const countsByMonth = new Map<number, number>();
+  for (const t of transactions) {
+    if (t.type !== "expense" || merchantMatchKey(t.merchant) !== key) continue;
+    const d = new Date(t.date);
+    const monthKey = d.getFullYear() * 12 + d.getMonth();
+    countsByMonth.set(monthKey, (countsByMonth.get(monthKey) ?? 0) + 1);
+  }
+  if (countsByMonth.size < 2) return false;
+  return Array.from(countsByMonth.values()).every((count) => count === 1);
+}
+
+/**
  * 該当月定常(取引詳細画面でtype="specific"に設定済み)の店名一覧を返す。
  * ホーム画面の「当月の計画・予算調整」で、該当月の計画を追加する際の選択候補として使う。
  */

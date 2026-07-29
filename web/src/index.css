@@ -267,10 +267,21 @@ textarea {
   opacity: 0.7;
 }
 
-/* 予算規模に応じた目盛り線(棒グラフの塗りより背面。塗り部分では隠れて見えなくてよい) */
+/*
+ * 予算規模に応じた目盛り線(棒グラフの塗りより背面。塗り部分では隠れて見えなくてよい)。
+ * `.progress > div`(塗り部分の背景色指定)は`.progress`直下の全divに掛かって
+ * しまうため、`.progress-ticks`にも明示的に背景なしを指定して打ち消す
+ * (でないとこの要素自体が実績バーのように塗りつぶされ、実績が予算未満でも
+ * バーが100%まで塗られて見えてしまう)。
+ */
 .progress-ticks {
   position: absolute;
   inset: 0;
+}
+
+.progress > .progress-ticks {
+  background: none;
+  height: auto;
 }
 
 .progress-tick {
