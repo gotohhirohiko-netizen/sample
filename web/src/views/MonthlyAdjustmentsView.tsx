@@ -45,6 +45,20 @@ export default function MonthlyAdjustmentsView() {
     return match?.merchant ?? key;
   }
 
+  function latestAmountForMerchant(merchant: string): number | undefined {
+    const key = merchantMatchKey(merchant);
+    const match = allTransactions
+      .filter((t) => t.type === "expense" && merchantMatchKey(t.merchant) === key)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    return match?.amount;
+  }
+
+  function handlePlanMerchantChange(nextMerchant: string) {
+    setPlanMerchant(nextMerchant);
+    const latest = latestAmountForMerchant(nextMerchant);
+    setPlanAmount(latest !== undefined ? String(latest) : "");
+  }
+
   async function addPlan() {
     const amount = Number(planAmount);
     if (planMerchant.trim() === "" || !Number.isFinite(amount) || amount <= 0) return;
@@ -119,7 +133,7 @@ export default function MonthlyAdjustmentsView() {
             <div className="section" style={{ marginTop: 8 }}>
               <div className="form-row">
                 <label>店名</label>
-                <select value={planMerchant} onChange={(e) => setPlanMerchant(e.target.value)}>
+                <select value={planMerchant} onChange={(e) => handlePlanMerchantChange(e.target.value)}>
                   <option value="">選択してください</option>
                   {planCandidates.map((merchant) => (
                     <option key={merchant} value={merchant}>

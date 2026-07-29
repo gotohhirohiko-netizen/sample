@@ -102,24 +102,30 @@ export default function HomeView() {
         {summary.budgetUsageRate !== undefined ? (
           <>
             <p>対予算 {Math.round(summary.budgetUsageRate * 100)}%</p>
-            <div className={`progress ${summary.budgetUsageRate > 1 ? "over" : ""}`}>
-              <div style={{ width: `${Math.min(summary.budgetUsageRate * 100, 100)}%` }} />
+            <div className="progress-wrapper">
               {projection && summary.totalBudget > 0 && (
                 <>
-                  <div
+                  <span
                     className="progress-marker-recurring"
                     style={{
                       left: `${Math.min((projection.recurringProjected / summary.totalBudget) * 100, 100)}%`,
                     }}
-                  />
-                  <div
+                  >
+                    ▼
+                  </span>
+                  <span
                     className="progress-marker-proportional"
                     style={{
                       left: `${Math.min((projection.totalProjected / summary.totalBudget) * 100, 100)}%`,
                     }}
-                  />
+                  >
+                    ▼
+                  </span>
                 </>
               )}
+              <div className={`progress ${summary.budgetUsageRate > 1 ? "over" : ""}`}>
+                <div style={{ width: `${Math.min(summary.budgetUsageRate * 100, 100)}%` }} />
+              </div>
             </div>
             <span className="muted">
               {formatYen(summary.totalExpense)} / 予算 {formatYen(summary.totalBudget)}
@@ -133,24 +139,30 @@ export default function HomeView() {
         {summary.incomeUsageRate !== undefined ? (
           <>
             <p>対収入 {Math.round(summary.incomeUsageRate * 100)}%</p>
-            <div className={`progress ${summary.incomeUsageRate > 1 ? "over" : ""}`}>
-              <div style={{ width: `${Math.min(summary.incomeUsageRate * 100, 100)}%` }} />
+            <div className="progress-wrapper">
               {projection && summary.totalIncome > 0 && (
                 <>
-                  <div
+                  <span
                     className="progress-marker-recurring"
                     style={{
                       left: `${Math.min((projection.recurringProjected / summary.totalIncome) * 100, 100)}%`,
                     }}
-                  />
-                  <div
+                  >
+                    ▼
+                  </span>
+                  <span
                     className="progress-marker-proportional"
                     style={{
                       left: `${Math.min((projection.totalProjected / summary.totalIncome) * 100, 100)}%`,
                     }}
-                  />
+                  >
+                    ▼
+                  </span>
                 </>
               )}
+              <div className={`progress ${summary.incomeUsageRate > 1 ? "over" : ""}`}>
+                <div style={{ width: `${Math.min(summary.incomeUsageRate * 100, 100)}%` }} />
+              </div>
             </div>
             <span className="muted">
               {formatYen(summary.totalExpense)} / 収入 {formatYen(summary.totalIncome)}
@@ -160,10 +172,15 @@ export default function HomeView() {
           <p className="muted">収入データなし</p>
         )}
         {projection && (
-          <p className="muted">
+          <button
+            type="button"
+            className="legend-button"
+            onClick={() => navigate(`/projection/${monthParam}`)}
+          >
             <span className="legend-recurring">■</span> 定常費用の予想({formatYen(projection.recurringProjected)})
             <span className="legend-proportional">■</span> 月末着地予想({formatYen(projection.totalProjected)})
-          </p>
+            <span className="muted"> 内訳 ›</span>
+          </button>
         )}
 
         <div className="list" style={{ marginTop: 8 }}>

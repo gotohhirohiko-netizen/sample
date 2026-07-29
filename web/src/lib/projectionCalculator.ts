@@ -3,12 +3,36 @@ import { merchantMatchKey } from "./categoryResolver";
 import { daysInMonth, isSameMonth, monthToParam } from "./dateUtils";
 import { resolveRecurringType } from "./recurringResolver";
 
+/** 毎月定常費用の店名ごとの内訳。thisMonthActualが0の場合はまだ実績が計上されていない(先月実績を予想として採用) */
+export interface RecurringMerchantProjection {
+  merchant: string;
+  thisMonthActual: number;
+  lastMonthActual: number;
+  /** この店名の予想額(今月・先月の実績の大きい方) */
+  projected: number;
+  /** 今月すでに実績が計上されているか */
+  posted: boolean;
+}
+
+/** 該当月定常費用の店名ごとの内訳。posted=trueは実績額、falseは計画額(SpecificMonthPlan)をそのまま採用 */
+export interface SpecificMerchantProjection {
+  merchant: string;
+  amount: number;
+  posted: boolean;
+}
+
 export interface MonthEndProjection {
-  /** 毎月定常費用(電気代等)の予想額。今月の実績と先月の実績の大きい方を採用する */
+  /** 毎月定常費用(電気代等)の予想額合計。店名ごとに今月/先月実績の大きい方を採用して合算する */
   recurringProjected: number;
-  /** 該当月定常費用(美容院・お米等)の今月分。実績があれば実績額、無ければ計画額(SpecificMonthPlan) */
+  recurringBreakdown: RecurringMerchantProjection[];
+  /** 該当月定常費用(美容院・お米等)の今月分合計。実績があれば実績額、無ければ計画額(SpecificMonthPlan) */
   specificProjected: number;
-  /** 定常予想 + 比例費用(食費等)を今月ここまでのペースで月末まで延伸 + 該当月定常費用の合計予想額 */
+  specificBreakdown: SpecificMerchantProjection[];
+  /** 比例費用(食費等、突発扱い)の今月ここまでの実績 */
+  proportionalActual: number;
+  /** 比例費用を今月ここまでのペースで月末まで延伸した予想額 */
+  proportionalProjected: number;
+  /** 定常予想 + 比例予想 + 該当月定常予想の合計予想額 */
   totalProjected: number;
 }
 
@@ -17,8 +41,9 @@ export interface MonthEndProjection {
  * 定常的な支出と比例的な支出を分けて色違いの目安線で示す)。
  *
  * ・毎月定常の支出(店名の学習based定常判定。lib/recurringResolver.ts)は
- *   日数に比例して増えるものではないため、先月の実績を目安とする
- *   (今月すでに先月を上回っていれば、より確からしい今月の実績を採用する)
+ *   日数に比例して増えるものではないため、店名ごとに先月の実績を目安とする
+ *   (今月すでに先月を上回っていれば、より確からしい今月の実績を採用する。
+ *   今月まだ実績が計上されていない店名は先月実績がそのまま予想額になる=未計上)
  * ・該当月定常の支出(取引詳細画面で店名ごとに設定。SpecificMonthPlanで
  *   対象月・金額を管理)は、今月すでに実績があればその実績額を、無ければ
  *   今月分の計画額をそのまま採用する(実績が発生済みの月は計画額と二重計上
@@ -51,42 +76,88 @@ export function monthEndExpenseProjection(
     return resolveRecurringType(t.merchant, transactions, recurringOverrides);
   }
 
-  const recurringThisMonthActual = transactions
-    .filter((t) => isRelevantExpense(t, month) && typeOf(t) === "monthly")
-    .reduce((sum, t) => sum + t.amount, 0);
+  function displayNameForKey(key: string): string {
+    const match = transactions
+      .filter((t) => merchantMatchKey(t.merchant) === key)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    return match?.merchant ?? key;
+  }
 
-  const recurringLastMonthActual = transactions
-    .filter((t) => isRelevantExpense(t, lastMonth) && typeOf(t) === "monthly")
-    .reduce((sum, t) => sum + t.amount, 0);
+  const monthlyThisMonth = transactions.filter(
+    (t) => isRelevantExpense(t, month) && typeOf(t) === "monthly"
+  );
+  const monthlyLastMonth = transactions.filter(
+    (t) => isRelevantExpense(t, lastMonth) && typeOf(t) === "monthly"
+  );
+  const monthlyKeys = new Set([
+    ...monthlyThisMonth.map((t) => merchantMatchKey(t.merchant)),
+    ...monthlyLastMonth.map((t) => merchantMatchKey(t.merchant)),
+  ]);
 
-  const recurringProjected = Math.max(recurringThisMonthActual, recurringLastMonthActual);
+  const recurringBreakdown: RecurringMerchantProjection[] = Array.from(monthlyKeys)
+    .map((key) => {
+      const thisMonthActual = monthlyThisMonth
+        .filter((t) => merchantMatchKey(t.merchant) === key)
+        .reduce((sum, t) => sum + t.amount, 0);
+      const lastMonthActual = monthlyLastMonth
+        .filter((t) => merchantMatchKey(t.merchant) === key)
+        .reduce((sum, t) => sum + t.amount, 0);
+      return {
+        merchant: displayNameForKey(key),
+        thisMonthActual,
+        lastMonthActual,
+        projected: Math.max(thisMonthActual, lastMonthActual),
+        posted: thisMonthActual > 0,
+      };
+    })
+    .sort((a, b) => b.projected - a.projected);
 
-  const proportionalThisMonthActual = transactions
+  const recurringProjected = recurringBreakdown.reduce((sum, r) => sum + r.projected, 0);
+
+  const proportionalActual = transactions
     .filter((t) => isRelevantExpense(t, month) && typeOf(t) === "spontaneous")
     .reduce((sum, t) => sum + t.amount, 0);
 
   const daysElapsed = today.getDate();
   const totalDays = daysInMonth(month);
-  const proportionalProjected = (proportionalThisMonthActual / daysElapsed) * totalDays;
+  const proportionalProjected = (proportionalActual / daysElapsed) * totalDays;
 
   const specificActualThisMonth = transactions.filter(
     (t) => isRelevantExpense(t, month) && typeOf(t) === "specific"
   );
-  const specificActualMerchantKeys = new Set(
-    specificActualThisMonth.map((t) => merchantMatchKey(t.merchant))
-  );
-  const specificActualTotal = specificActualThisMonth.reduce((sum, t) => sum + t.amount, 0);
+  const specificActualByKey = new Map<string, number>();
+  for (const t of specificActualThisMonth) {
+    const key = merchantMatchKey(t.merchant);
+    specificActualByKey.set(key, (specificActualByKey.get(key) ?? 0) + t.amount);
+  }
 
   const monthParam = monthToParam(month);
-  const specificPlannedTotal = specificMonthPlans
-    .filter((p) => p.month === monthParam && !specificActualMerchantKeys.has(p.merchantKey))
-    .reduce((sum, p) => sum + p.amount, 0);
+  const specificPlansThisMonth = specificMonthPlans.filter(
+    (p) => p.month === monthParam && !specificActualByKey.has(p.merchantKey)
+  );
 
-  const specificProjected = specificActualTotal + specificPlannedTotal;
+  const specificBreakdown: SpecificMerchantProjection[] = [
+    ...Array.from(specificActualByKey.entries()).map(([key, amount]) => ({
+      merchant: displayNameForKey(key),
+      amount,
+      posted: true,
+    })),
+    ...specificPlansThisMonth.map((p) => ({
+      merchant: displayNameForKey(p.merchantKey),
+      amount: p.amount,
+      posted: false,
+    })),
+  ].sort((a, b) => b.amount - a.amount);
+
+  const specificProjected = specificBreakdown.reduce((sum, v) => sum + v.amount, 0);
 
   return {
     recurringProjected,
+    recurringBreakdown,
     specificProjected,
+    specificBreakdown,
+    proportionalActual,
+    proportionalProjected,
     totalProjected: recurringProjected + proportionalProjected + specificProjected,
   };
 }

@@ -240,6 +240,11 @@ textarea {
   width: auto;
 }
 
+.progress-wrapper {
+  position: relative;
+  margin-top: 16px;
+}
+
 .progress {
   position: relative;
   height: 8px;
@@ -267,20 +272,39 @@ textarea {
   opacity: 0.7;
 }
 
-.progress > .progress-marker-recurring {
+/*
+ * 定常費用予想・月末着地予想の目安は、実績バーの塗りに隠れず常に見えるよう
+ * バーの上に▼マーカーとして表示する(バー内の縦線だと実績で上塗りされて
+ * 見えなくなるため)。
+ */
+.progress-marker-recurring,
+.progress-marker-proportional {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--success);
+  top: -13px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
 }
 
-.progress > .progress-marker-proportional {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--danger);
+.progress-marker-recurring {
+  color: var(--success);
+}
+
+.progress-marker-proportional {
+  color: var(--danger);
+}
+
+.legend-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .legend-recurring,

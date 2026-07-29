@@ -6,6 +6,7 @@ import BottomNav from "./components/BottomNav";
 import LockGate from "./components/LockGate";
 import HomeView from "./views/HomeView";
 import MonthlyAdjustmentsView from "./views/MonthlyAdjustmentsView";
+import ProjectionBreakdownView from "./views/ProjectionBreakdownView";
 import DailyListView from "./views/DailyListView";
 import MonthlyBudgetView from "./views/MonthlyBudgetView";
 import CategoryDrilldownView from "./views/CategoryDrilldownView";
@@ -46,6 +47,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<HomeView />} />
             <Route path="/adjustments/:month" element={<MonthlyAdjustmentsView />} />
+            <Route path="/projection/:month" element={<ProjectionBreakdownView />} />
             <Route path="/daily/:month" element={<DailyListView />} />
             <Route path="/budget/:month" element={<MonthlyBudgetView />} />
             <Route path="/budget/:month/:majorCategoryId" element={<CategoryDrilldownView />} />
