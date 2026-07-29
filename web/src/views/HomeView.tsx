@@ -4,7 +4,6 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { monthlySummary } from "../lib/budgetCalculator";
 import { monthEndExpenseProjection } from "../lib/projectionCalculator";
-import { irregularMerchantCandidates } from "../lib/recurringResolver";
 import {
   bonusActualAmount,
   bonusCategoryPlanTotal,
@@ -23,12 +22,6 @@ export default function HomeView() {
   const navigate = useNavigate();
   const [month, setMonth] = useState(() => new Date());
   const [lastBackupAt, setLastBackupAt] = useState<Date | null | undefined>(undefined);
-  const [plannedFormOpen, setPlannedFormOpen] = useState(false);
-  const [plannedLabel, setPlannedLabel] = useState("");
-  const [plannedAmount, setPlannedAmount] = useState("");
-  const [adjustmentFormOpen, setAdjustmentFormOpen] = useState(false);
-  const [adjustmentMemo, setAdjustmentMemo] = useState("");
-  const [adjustmentAmount, setAdjustmentAmount] = useState("");
 
   useEffect(() => {
     loadLastBackupAt().then(setLastBackupAt);
@@ -62,47 +55,6 @@ export default function HomeView() {
   const summary = monthlySummary(month, transactions, budgetSettings, majorCategories, budgetAdjustments);
   const monthParam = monthToParam(month);
   const projection = monthEndExpenseProjection(month, transactions, recurringOverrides, plannedExpenses);
-  const monthPlannedExpenses = plannedExpenses.filter((p) => p.month === monthParam);
-  const monthBudgetAdjustments = budgetAdjustments.filter((a) => a.month === monthParam);
-  const plannedExpenseCandidates = irregularMerchantCandidates(transactions, recurringOverrides);
-
-  async function addPlannedExpense() {
-    const amount = Number(plannedAmount);
-    if (plannedLabel.trim() === "" || !Number.isFinite(amount) || amount <= 0) return;
-    await db.plannedExpenses.add({
-      id: crypto.randomUUID(),
-      month: monthParam,
-      label: plannedLabel.trim(),
-      plannedAmount: amount,
-    });
-    setPlannedLabel("");
-    setPlannedAmount("");
-    setPlannedFormOpen(false);
-  }
-
-  async function deletePlannedExpense(id: string) {
-    if (!confirm("この計画を削除しますか?")) return;
-    await db.plannedExpenses.delete(id);
-  }
-
-  async function addBudgetAdjustment() {
-    const amount = Number(adjustmentAmount);
-    if (!Number.isFinite(amount) || amount === 0) return;
-    await db.budgetAdjustments.add({
-      id: crypto.randomUUID(),
-      month: monthParam,
-      memo: adjustmentMemo.trim(),
-      amount,
-    });
-    setAdjustmentMemo("");
-    setAdjustmentAmount("");
-    setAdjustmentFormOpen(false);
-  }
-
-  async function deleteBudgetAdjustment(id: string) {
-    if (!confirm("この予算調整を削除しますか?")) return;
-    await db.budgetAdjustments.delete(id);
-  }
 
   const currentBonusPeriod = findBonusPeriodForMonth(bonusPeriods, month.getMonth() + 1);
   const bonusSummary = currentBonusPeriod
@@ -214,152 +166,15 @@ export default function HomeView() {
           </p>
         )}
 
-        {monthPlannedExpenses.length > 0 && (
-          <div className="list" style={{ marginTop: 8 }}>
-            {monthPlannedExpenses.map((p) => (
-              <div key={p.id} className="list-row">
-                <span>{p.label}</span>
-                <div className="button-row">
-                  <span className="muted">{formatYen(p.plannedAmount)}</span>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => deletePlannedExpense(p.id)}
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {plannedFormOpen ? (
-          plannedExpenseCandidates.length > 0 ? (
-            <div className="section" style={{ marginTop: 8 }}>
-              <div className="form-row">
-                <label>店名</label>
-                <select value={plannedLabel} onChange={(e) => setPlannedLabel(e.target.value)}>
-                  <option value="">選択してください</option>
-                  {plannedExpenseCandidates.map((merchant) => (
-                    <option key={merchant} value={merchant}>
-                      {merchant}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-row">
-                <label>金額</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={plannedAmount}
-                  onChange={(e) => setPlannedAmount(e.target.value)}
-                />
-              </div>
-              <div className="button-row">
-                <button type="button" className="btn-primary" onClick={addPlannedExpense}>
-                  追加
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setPlannedFormOpen(false);
-                    setPlannedLabel("");
-                    setPlannedAmount("");
-                  }}
-                >
-                  キャンセル
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="muted" style={{ marginTop: 8 }}>
-              計画として登録できる店名の実績がありません(毎月ではない支出の実績が必要です)
-            </p>
-          )
-        ) : (
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ marginTop: 8 }}
-            onClick={() => setPlannedFormOpen(true)}
-          >
-            当月の計画を追加
-          </button>
-        )}
-
-        {monthBudgetAdjustments.length > 0 && (
-          <div className="list" style={{ marginTop: 8 }}>
-            {monthBudgetAdjustments.map((a) => (
-              <div key={a.id} className="list-row">
-                <span>{a.memo || "予算調整"}</span>
-                <div className="button-row">
-                  <span className="muted">
-                    {a.amount > 0 ? "+" : ""}
-                    {formatYen(a.amount)}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => deleteBudgetAdjustment(a.id)}
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {adjustmentFormOpen ? (
-          <div className="section" style={{ marginTop: 8 }}>
-            <div className="form-row">
-              <label>理由(任意)</label>
-              <input
-                value={adjustmentMemo}
-                onChange={(e) => setAdjustmentMemo(e.target.value)}
-                placeholder="例: 冠婚葬祭で今月だけ増額"
-              />
-            </div>
-            <div className="form-row">
-              <label>増減額(増額は+、減額は-)</label>
-              <input
-                type="number"
-                value={adjustmentAmount}
-                onChange={(e) => setAdjustmentAmount(e.target.value)}
-              />
-            </div>
-            <div className="button-row">
-              <button type="button" className="btn-primary" onClick={addBudgetAdjustment}>
-                追加
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setAdjustmentFormOpen(false);
-                  setAdjustmentMemo("");
-                  setAdjustmentAmount("");
-                }}
-              >
-                キャンセル
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ marginTop: 8 }}
-            onClick={() => setAdjustmentFormOpen(true)}
-          >
-            当月の予算を増減する
-          </button>
-        )}
-
         <div className="list" style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            className="list-row"
+            onClick={() => navigate(`/adjustments/${monthParam}`)}
+          >
+            <span>当月の計画・予算調整</span>
+            <span className="muted">›</span>
+          </button>
           <button type="button" className="list-row" onClick={() => navigate(`/daily/${monthParam}`)}>
             <span>日次収支リスト</span>
             <span className="muted">›</span>
