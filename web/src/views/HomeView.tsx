@@ -22,6 +22,9 @@ export default function HomeView() {
   const navigate = useNavigate();
   const [month, setMonth] = useState(() => new Date());
   const [lastBackupAt, setLastBackupAt] = useState<Date | null | undefined>(undefined);
+  const [plannedFormOpen, setPlannedFormOpen] = useState(false);
+  const [plannedLabel, setPlannedLabel] = useState("");
+  const [plannedAmount, setPlannedAmount] = useState("");
 
   useEffect(() => {
     loadLastBackupAt().then(setLastBackupAt);
@@ -36,6 +39,7 @@ export default function HomeView() {
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
   const bonusPeriods = useLiveQuery(() => db.bonusPeriods.orderBy("displayOrder").toArray(), []);
   const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
+  const plannedExpenses = useLiveQuery(() => db.plannedExpenses.toArray(), []);
 
   if (
     !transactions ||
@@ -43,14 +47,35 @@ export default function HomeView() {
     !majorCategories ||
     !recurringOverrides ||
     !bonusPeriods ||
-    !bonusCategoryPlans
+    !bonusCategoryPlans ||
+    !plannedExpenses
   ) {
     return <p className="muted">読み込み中...</p>;
   }
 
   const summary = monthlySummary(month, transactions, budgetSettings, majorCategories);
   const monthParam = monthToParam(month);
-  const projection = monthEndExpenseProjection(month, transactions, recurringOverrides);
+  const projection = monthEndExpenseProjection(month, transactions, recurringOverrides, plannedExpenses);
+  const monthPlannedExpenses = plannedExpenses.filter((p) => p.month === monthParam);
+
+  async function addPlannedExpense() {
+    const amount = Number(plannedAmount);
+    if (plannedLabel.trim() === "" || !Number.isFinite(amount) || amount <= 0) return;
+    await db.plannedExpenses.add({
+      id: crypto.randomUUID(),
+      month: monthParam,
+      label: plannedLabel.trim(),
+      plannedAmount: amount,
+    });
+    setPlannedLabel("");
+    setPlannedAmount("");
+    setPlannedFormOpen(false);
+  }
+
+  async function deletePlannedExpense(id: string) {
+    if (!confirm("この計画を削除しますか?")) return;
+    await db.plannedExpenses.delete(id);
+  }
 
   const currentBonusPeriod = findBonusPeriodForMonth(bonusPeriods, month.getMonth() + 1);
   const bonusSummary = currentBonusPeriod
@@ -159,6 +184,74 @@ export default function HomeView() {
             <span className="legend-proportional">■</span> 月末着地予想({formatYen(projection.totalProjected)})
           </p>
         )}
+
+        {monthPlannedExpenses.length > 0 && (
+          <div className="list" style={{ marginTop: 8 }}>
+            {monthPlannedExpenses.map((p) => (
+              <div key={p.id} className="list-row">
+                <span>{p.label}</span>
+                <div className="button-row">
+                  <span className="muted">{formatYen(p.plannedAmount)}</span>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => deletePlannedExpense(p.id)}
+                  >
+                    削除
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {plannedFormOpen ? (
+          <div className="section" style={{ marginTop: 8 }}>
+            <div className="form-row">
+              <label>内容</label>
+              <input
+                value={plannedLabel}
+                onChange={(e) => setPlannedLabel(e.target.value)}
+                placeholder="例: お米、美容院"
+              />
+            </div>
+            <div className="form-row">
+              <label>金額</label>
+              <input
+                type="number"
+                min={0}
+                value={plannedAmount}
+                onChange={(e) => setPlannedAmount(e.target.value)}
+              />
+            </div>
+            <div className="button-row">
+              <button type="button" className="btn-primary" onClick={addPlannedExpense}>
+                追加
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setPlannedFormOpen(false);
+                  setPlannedLabel("");
+                  setPlannedAmount("");
+                }}
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginTop: 8 }}
+            onClick={() => setPlannedFormOpen(true)}
+          >
+            当月の計画を追加
+          </button>
+        )}
+
         <div className="list" style={{ marginTop: 8 }}>
           <button type="button" className="list-row" onClick={() => navigate(`/daily/${monthParam}`)}>
             <span>日次収支リスト</span>

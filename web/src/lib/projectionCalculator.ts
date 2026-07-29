@@ -1,11 +1,13 @@
-import type { RecurringOverride, Transaction } from "../types/models";
-import { daysInMonth, isSameMonth } from "./dateUtils";
+import type { PlannedExpense, RecurringOverride, Transaction } from "../types/models";
+import { daysInMonth, isSameMonth, monthToParam } from "./dateUtils";
 import { resolveRecurring } from "./recurringResolver";
 
 export interface MonthEndProjection {
   /** 定常費用(電気代等)の予想額。今月の実績と先月の実績の大きい方を採用する */
   recurringProjected: number;
-  /** 定常予想 + 比例費用(食費等)を今月ここまでのペースで月末まで延伸した合計予想額 */
+  /** 今月の計画額(美容院・お米等、都度登録した今月発生予定の高額出費)の合計 */
+  plannedTotal: number;
+  /** 定常予想 + 比例費用(食費等)を今月ここまでのペースで月末まで延伸 + 今月の計画額の合計予想額 */
   totalProjected: number;
 }
 
@@ -17,13 +19,17 @@ export interface MonthEndProjection {
  *   日数に比例して増えるものではないため、先月の実績を目安とする
  *   (今月すでに先月を上回っていれば、より確からしい今月の実績を採用する)
  * ・それ以外(比例的な支出)は今月ここまでの実績を日割りで月末まで延伸する
+ * ・毎月ではないが今月発生予定として登録された計画額(plannedExpenses)を
+ *   そのまま加算する(実績が発生済みかどうかの自動判定は行わず、実績が
+ *   反映されたら計画は手動で削除してもらう運用)
  *
  * 今月以外の月ではnullを返す(月末予想が意味を持たないため)。
  */
 export function monthEndExpenseProjection(
   month: Date,
   transactions: Transaction[],
-  recurringOverrides: RecurringOverride[]
+  recurringOverrides: RecurringOverride[],
+  plannedExpenses: PlannedExpense[] = []
 ): MonthEndProjection | null {
   const today = new Date();
   if (!isSameMonth(month, today)) return null;
@@ -61,8 +67,14 @@ export function monthEndExpenseProjection(
 
   const recurringProjected = Math.max(recurringThisMonthActual, recurringLastMonthActual);
 
+  const monthParam = monthToParam(month);
+  const plannedTotal = plannedExpenses
+    .filter((p) => p.month === monthParam)
+    .reduce((sum, p) => sum + p.plannedAmount, 0);
+
   return {
     recurringProjected,
-    totalProjected: recurringProjected + proportionalProjected,
+    plannedTotal,
+    totalProjected: recurringProjected + proportionalProjected + plannedTotal,
   };
 }

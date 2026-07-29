@@ -147,6 +147,18 @@ export interface RecurringOverride {
   updatedAt: string; // ISO日時文字列
 }
 
+/**
+ * 毎月ではないが今月発生予定の高額出費(美容院・お米等)を、月末着地予想に
+ * 事前に反映させるための計画。都度その月に対して手動で登録する
+ * (要件定義書関連の追加機能)。
+ */
+export interface PlannedExpense {
+  id: string;
+  month: string; // "YYYY-MM"形式。対象の月
+  label: string; // 店名・用途(自由入力)
+  plannedAmount: number;
+}
+
 /** 取り込み元(金融機関・カード)の設定 */
 export interface FundingSource {
   id: string;

@@ -9,6 +9,7 @@ import type {
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusion,
+  PlannedExpense,
   RecurringOverride,
   Subcategory,
   Transaction,
@@ -39,6 +40,7 @@ export class KakeiboDB extends Dexie {
   recurringOverrides!: EntityTable<RecurringOverride, "id">;
   bonusCategoryPlans!: EntityTable<BonusCategoryPlan, "id">;
   bonusIncomeSchedules!: EntityTable<BonusIncomeSchedule, "id">;
+  plannedExpenses!: EntityTable<PlannedExpense, "id">;
   settings!: EntityTable<KeyValueEntry, "key">;
 
   constructor() {
@@ -199,6 +201,22 @@ export class KakeiboDB extends Dexie {
       bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
       bonusIncomeSchedules: "id, fundingSourceID",
       apiUsageLogs: null,
+      settings: "key",
+    });
+    this.version(12).stores({
+      transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+      fundingSources: "id",
+      majorCategories: "id, displayOrder",
+      subcategories: "id, majorCategoryID",
+      categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+      merchantCategoryMappings: "id, merchantKey",
+      merchantExclusions: "id, merchantKey",
+      merchantAmbiguousFlags: "id, merchantKey",
+      bonusPeriods: "id, displayOrder",
+      recurringOverrides: "id, merchantKey",
+      bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+      bonusIncomeSchedules: "id, fundingSourceID",
+      plannedExpenses: "id, month",
       settings: "key",
     });
   }
