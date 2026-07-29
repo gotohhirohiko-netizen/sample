@@ -136,24 +136,29 @@ export interface MerchantExclusion {
 }
 
 /**
- * 定常費用の区分。
+ * 店名に手動設定できる定常費用の区分。
  * ・monthly: 毎月定常(電気代等。日割りせず先月/今月実績の大きい方を採用)
  * ・specific: 該当月定常(お米・美容院等、毎月ではないが特定の月に発生する。
  *   発生する対象月をSpecificMonthPlanで個別に管理する)
- * ・spontaneous: 突発(定常ではない。日割りで月末まで延伸する対象)
  */
-export type RecurringType = "monthly" | "specific" | "spontaneous";
+export type RecurringOverrideType = "monthly" | "specific";
 
 /**
- * 店名ごとの定常費用区分の手動判定オーバーライド(取引詳細画面から設定)。
- * 未設定の店名は履歴から自動判定する(lib/recurringResolver.ts参照。
- * 連続する2ヶ月に発生していればmonthly、それ以外はspontaneous扱い。
- * specificは自動判定されず、必ず手動設定が必要)。
+ * 定常費用区分の解決結果。RecurringOverrideTypeに加えて、オーバーライドが
+ * 無い店名の既定値であるspontaneous(突発。日割りで月末まで延伸する比例費用)を含む。
+ */
+export type RecurringType = RecurringOverrideType | "spontaneous";
+
+/**
+ * 店名ごとの定常費用区分の手動設定(取引詳細画面から設定)。
+ * 出現頻度による自動判定は行わない(日用品や食品店のように毎月何度も利用する
+ * 店を誤って定常と判定してしまうため)。オーバーライドの無い店名は全て
+ * spontaneous(比例費用)として扱う。
  */
 export interface RecurringOverride {
   id: string;
   merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKey)
-  type: RecurringType;
+  type: RecurringOverrideType;
   updatedAt: string; // ISO日時文字列
 }
 

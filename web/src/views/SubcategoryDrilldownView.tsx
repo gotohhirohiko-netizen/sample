@@ -64,7 +64,7 @@ export default function SubcategoryDrilldownView() {
             fundingSources={fundingSources}
             subcategories={subcategories}
             majorCategories={majorCategories}
-            isSpontaneous={!resolveRecurring(tx.merchant, transactions, recurringOverrides)}
+            isSpontaneous={!resolveRecurring(tx.merchant, recurringOverrides)}
           />
         ))}
       </div>

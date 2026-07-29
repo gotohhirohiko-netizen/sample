@@ -70,7 +70,7 @@ export default function DailyListView() {
   }
 
   function isSpontaneous(merchant: string): boolean {
-    return !resolveRecurring(merchant, transactions!, recurringOverrides!);
+    return !resolveRecurring(merchant, recurringOverrides!);
   }
 
   const filteredTx = transactions

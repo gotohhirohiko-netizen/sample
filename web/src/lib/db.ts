@@ -268,6 +268,33 @@ export class KakeiboDB extends Dexie {
             delete override.isRecurring;
           });
       });
+    this.version(15)
+      .stores({
+        transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+        fundingSources: "id",
+        majorCategories: "id, displayOrder",
+        subcategories: "id, majorCategoryID",
+        categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+        merchantCategoryMappings: "id, merchantKey",
+        merchantExclusions: "id, merchantKey",
+        merchantAmbiguousFlags: "id, merchantKey",
+        bonusPeriods: "id, displayOrder",
+        recurringOverrides: "id, merchantKey",
+        bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+        bonusIncomeSchedules: "id, fundingSourceID",
+        budgetAdjustments: "id, month",
+        specificMonthPlans: "id, merchantKey, month",
+        settings: "key",
+      })
+      .upgrade(async (tx) => {
+        // 定常費用の自動判定(履歴based)を廃止したため、旧仕様で自動保存された
+        // type="spontaneous"のオーバーライドは既定値(オーバーライド無し)と等価。
+        // 不要なレコードとして削除する(monthly/specificは手動設定のため残す)。
+        await tx
+          .table("recurringOverrides")
+          .filter((override) => override.type === "spontaneous")
+          .delete();
+      });
   }
 }
 

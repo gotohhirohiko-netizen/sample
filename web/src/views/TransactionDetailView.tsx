@@ -8,10 +8,9 @@ import {
   merchantMatchKey,
 } from "../lib/categoryResolver";
 import { resolveRecurringType } from "../lib/recurringResolver";
-import type { RecurringType, Transaction } from "../types/models";
+import type { RecurringOverrideType, Transaction } from "../types/models";
 
-const RECURRING_TYPE_LABELS: Record<RecurringType, string> = {
-  spontaneous: "突発",
+const RECURRING_OVERRIDE_TYPE_LABELS: Record<RecurringOverrideType, string> = {
   monthly: "毎月定常",
   specific: "該当月定常",
 };
@@ -51,7 +50,7 @@ export default function TransactionDetailView() {
 
   const isExpense = transaction.type === "expense";
   const isIncome = transaction.type === "income";
-  const recurringType = resolveRecurringType(transaction.merchant, allTransactions, recurringOverrides);
+  const recurringType = resolveRecurringType(transaction.merchant, recurringOverrides);
   const merchantKey = merchantMatchKey(transaction.merchant);
 
   const currentSubcategory = subcategories.find((s) => s.id === transaction.subcategoryID);
@@ -204,9 +203,14 @@ export default function TransactionDetailView() {
     await db.transactions.update(transaction.id, { isBonusIncome });
   }
 
-  async function handleRecurringTypeChange(nextType: RecurringType) {
+  async function handleRecurringTypeChange(nextType: RecurringOverrideType) {
     if (!transaction) return;
     const existing = await db.recurringOverrides.where("merchantKey").equals(merchantKey).first();
+    if (recurringType === nextType) {
+      // 選択中のボタンを再度押した場合は設定を解除し、既定(突発/比例費用)に戻す
+      if (existing) await db.recurringOverrides.delete(existing.id);
+      return;
+    }
     if (existing) {
       await db.recurringOverrides.update(existing.id, {
         type: nextType,
@@ -382,19 +386,20 @@ export default function TransactionDetailView() {
         <div className="form-row">
           <label>定常費用の区分</label>
           <div className="button-row">
-            {(["spontaneous", "monthly", "specific"] as RecurringType[]).map((type) => (
+            {(["monthly", "specific"] as RecurringOverrideType[]).map((type) => (
               <button
                 key={type}
                 type="button"
                 className={recurringType === type ? "btn-primary" : "btn-secondary"}
                 onClick={() => handleRecurringTypeChange(type)}
               >
-                {RECURRING_TYPE_LABELS[type]}
+                {RECURRING_OVERRIDE_TYPE_LABELS[type]}
               </button>
             ))}
           </div>
           <p className="muted">
-            未設定の場合は履歴(同じ店名で連続2ヶ月以上発生していれば毎月定常)から自動判定されます。該当月定常は自動判定されません。
+            未設定の店名は比例費用(突発)として扱われます。自動判定は行わないため、電気代等の固定費のみ手動で設定してください
+            (日用品や食品店のように毎月何度も利用する店を誤って定常と判定しないため)。選択中のボタンをもう一度押すと設定を解除できます。
             該当月定常を選んだ店名は、ホーム画面の「当月の計画・予算調整」から発生する月ごとに金額を登録できます。
           </p>
         </div>

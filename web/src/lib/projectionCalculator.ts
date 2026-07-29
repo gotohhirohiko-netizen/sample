@@ -40,7 +40,7 @@ export interface MonthEndProjection {
  * 今月の対予算・対収入の月末着地予想額を計算する(要件: 対予算・対収入のグラフに
  * 定常的な支出と比例的な支出を分けて色違いの目安線で示す)。
  *
- * ・毎月定常の支出(店名の学習based定常判定。lib/recurringResolver.ts)は
+ * ・毎月定常の支出(取引詳細画面で店名ごとに手動設定。lib/recurringResolver.ts)は
  *   日数に比例して増えるものではないため、店名ごとに先月の実績を目安とする
  *   (今月すでに先月を上回っていれば、より確からしい今月の実績を採用する。
  *   今月まだ実績が計上されていない店名は先月実績がそのまま予想額になる=未計上)
@@ -73,7 +73,7 @@ export function monthEndExpenseProjection(
   }
 
   function typeOf(t: Transaction) {
-    return resolveRecurringType(t.merchant, transactions, recurringOverrides);
+    return resolveRecurringType(t.merchant, recurringOverrides);
   }
 
   function displayNameForKey(key: string): string {
