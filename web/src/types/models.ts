@@ -7,6 +7,9 @@ export type TransactionType = "income" | "expense";
 /** 取り込み元の種別(要件定義書 3章・4.8) */
 export type FundingSourceKind = "bankAccount" | "creditCard";
 
+/** 取り込み元をタップした時の起動方法。未指定(既存データ)は"url"として扱う */
+export type FundingSourceLaunchType = "url" | "shortcut";
+
 /**
  * 大カテゴリ(自由入力ではなく、あらかじめ定義された一覧から選択する。要件定義書 4.3/4.6)
  * 予算(CategoryBudgetSetting)はこの大カテゴリ単位で設定する。
@@ -149,7 +152,9 @@ export interface FundingSource {
   id: string;
   displayName: string; // 例: "三菱UFJ 普通口座(給与用)"
   kind: FundingSourceKind;
-  statementDeepLinkURL: string; // 明細ページへの直リンク
+  launchType?: FundingSourceLaunchType; // 未指定は"url"扱い
+  statementDeepLinkURL: string; // launchType="url"の場合、明細ページへの直リンク
+  shortcutName?: string; // launchType="shortcut"の場合、shortcuts://run-shortcutで起動するショートカット名
 }
 
 /** 月次サマリー(対予算・対収入。docs/design.md 3.3) */

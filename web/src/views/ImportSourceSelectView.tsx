@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { formatDateTime } from "../lib/dateUtils";
+import type { FundingSource } from "../types/models";
 
 /** 取り込み元選択画面(要件定義書 4.1/4.8) */
 export default function ImportSourceSelectView() {
@@ -9,14 +10,18 @@ export default function ImportSourceSelectView() {
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
 
-  function openSource(sourceId: string, url: string) {
+  function openSource(source: FundingSource) {
     // target="_blank"で新しいタブを開く形(window.open/リンク要素どちらも)だと、
     // ホーム画面追加(スタンドアロン)状態のiOSでそのタブがバックグラウンドの
     // ままになり、ログイン後もアプリに戻るまでダウンロードが始まらないことが
     // あった。新しいタブを作らず現在のウィンドウ自体を外部サイトへ遷移させる
     // ことで、iOSにSafariへの通常のアプリ切り替え(フォアグラウンド)として
     // 扱わせる。Reactの画面遷移を先に反映させてから遷移する。
-    navigate("/import/file", { state: { sourceId } });
+    navigate("/import/file", { state: { sourceId: source.id } });
+    const url =
+      source.launchType === "shortcut"
+        ? "shortcuts://run-shortcut?name=" + encodeURIComponent(source.shortcutName ?? "")
+        : source.statementDeepLinkURL;
     setTimeout(() => {
       window.location.href = url;
     }, 0);
@@ -43,7 +48,7 @@ export default function ImportSourceSelectView() {
               key={source.id}
               type="button"
               className="list-row"
-              onClick={() => openSource(source.id, source.statementDeepLinkURL)}
+              onClick={() => openSource(source)}
             >
               <div>
                 <div>{source.displayName}</div>
