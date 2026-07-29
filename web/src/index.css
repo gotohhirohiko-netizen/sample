@@ -36,13 +36,13 @@ body {
 }
 
 #root {
-  min-height: 100svh;
+  min-height: 100dvh;
 }
 
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100svh;
+  height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
 }
@@ -302,6 +302,7 @@ textarea {
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--bg);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .bottom-nav a {
