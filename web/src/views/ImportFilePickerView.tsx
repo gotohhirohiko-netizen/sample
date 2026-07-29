@@ -25,6 +25,22 @@ export default function ImportFilePickerView() {
     }
   }
 
+  async function handleClipboardImport() {
+    if (!state) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim() === "") {
+        setError("クリップボードが空です");
+        return;
+      }
+      navigate("/import/preview", {
+        state: { sourceId: state.sourceId, file: { data: text, mimeType: "text/csv" } },
+      });
+    } catch {
+      setError("クリップボードの読み取りに失敗しました");
+    }
+  }
+
   function handlePastedTextSubmit() {
     if (!state || pastedText.trim() === "") return;
     navigate("/import/preview", {
@@ -47,6 +63,17 @@ export default function ImportFilePickerView() {
         ‹ 取り込み元選択へ戻る
       </Link>
       <h1 className="screen-title">ファイル選択</h1>
+
+      <div className="section">
+        <div className="section-title">クリップボードから取り込み</div>
+        <p className="muted">
+          ショートカット等でダウンロード内容をクリップボードにコピーした場合は、こちらから直接取り込めます。
+        </p>
+        <button type="button" className="btn-primary" onClick={handleClipboardImport}>
+          クリップボードから取り込む
+        </button>
+      </div>
+
       <p className="muted">ダウンロードしたCSV/PDFファイルを選択してください。</p>
 
       <input type="file" accept=".csv,text/csv,application/pdf" onChange={handleFileChange} />
