@@ -48,8 +48,9 @@ export default function ImportFilePickerView() {
       navigate("/import/preview", {
         state: { sourceId: state.sourceId, file: { data: text, mimeType: "text/csv" } },
       });
-    } catch {
-      setError("クリップボードの読み取りに失敗しました");
+    } catch (err) {
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      setError(`クリップボードの読み取りに失敗しました (${detail})`);
     }
   }
 
