@@ -9,7 +9,7 @@ import {
   bonusSubcategoryActualAmount,
   bonusUncoveredTransactions,
 } from "../lib/bonusCalculator";
-import { formatYen } from "../lib/dateUtils";
+import { formatRemaining, formatYen } from "../lib/dateUtils";
 
 /** ボーナス予実画面。計画しているカテゴリごとに、計画額に対する実績額を表示する */
 export default function BonusActualView() {
@@ -90,7 +90,7 @@ export default function BonusActualView() {
               <div className="progress-fill" style={{ width: `${totalRate * 100}%` }} />
             </div>
             <span className="muted">
-              計画 {formatYen(totalPlanned)} / 残り {formatYen(totalPlanned - totalActual)}
+              計画 {formatYen(totalPlanned)} / {formatRemaining(totalPlanned - totalActual)}
             </span>
           </>
         ) : (
@@ -127,7 +127,7 @@ export default function BonusActualView() {
                 <div className="progress-fill" style={{ width: `${rate * 100}%` }} />
               </div>
               <span className="muted">
-                計画 {formatYen(plan.plannedAmount)} / 残り {formatYen(plan.plannedAmount - actual)}
+                計画 {formatYen(plan.plannedAmount)} / {formatRemaining(plan.plannedAmount - actual)}
               </span>
             </button>
           );

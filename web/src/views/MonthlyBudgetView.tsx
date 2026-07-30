@@ -2,7 +2,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { actualAmount, budgetAmount, expectedPaceRatio } from "../lib/budgetCalculator";
-import { formatYen, monthToParam, parseMonthParam } from "../lib/dateUtils";
+import { formatRemaining, formatYen, monthToParam, parseMonthParam } from "../lib/dateUtils";
 import BudgetProgressBar from "../components/BudgetProgressBar";
 import MonthPicker from "../components/MonthPicker";
 
@@ -47,6 +47,9 @@ export default function MonthlyBudgetView() {
       </Link>
       <h1 className="screen-title">月次予実</h1>
       <MonthPicker month={month} onChange={handleMonthChange} />
+      <p className="muted">
+        ▲は予算額、バー内の縦線は本日時点で消化しているべき目安(日割りペース)を示します。月末には両者は一致します。
+      </p>
 
       <div className="section card">
         <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -61,7 +64,7 @@ export default function MonthlyBudgetView() {
               paceValue={paceRatio !== null ? paceRatio * totalBudget : undefined}
             />
             <span className="muted">
-              予算 {formatYen(totalBudget)} / 残り {formatYen(totalBudget - totalActual)}
+              予算 {formatYen(totalBudget)} / {formatRemaining(totalBudget - totalActual)}
             </span>
           </>
         ) : (
@@ -94,7 +97,7 @@ export default function MonthlyBudgetView() {
                     paceValue={paceRatio !== null ? paceRatio * budget : undefined}
                   />
                   <span className="muted">
-                    予算 {formatYen(budget)} / 残り {formatYen(budget - actual)}
+                    予算 {formatYen(budget)} / {formatRemaining(budget - actual)}
                   </span>
                 </>
               ) : (

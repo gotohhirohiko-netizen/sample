@@ -38,6 +38,11 @@ export function formatYen(amount: number): string {
   return `¥${Math.round(amount).toLocaleString("ja-JP")}`;
 }
 
+/** 予算・計画の残り金額表示。マイナス(超過)の場合は符号を反転し「超過」として表示する */
+export function formatRemaining(remaining: number): string {
+  return remaining < 0 ? `超過 ${formatYen(-remaining)}` : `残り ${formatYen(remaining)}`;
+}
+
 /** "2026/7/18 13:46"のような表示用文字列(取り込み日時など) */
 export function formatDateTime(date: Date): string {
   const h = String(date.getHours()).padStart(2, "0");
