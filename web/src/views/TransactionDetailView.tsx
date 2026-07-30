@@ -387,26 +387,29 @@ export default function TransactionDetailView() {
         <div className="form-row">
           <label>定常費用の区分</label>
           <div className="button-row">
-            {(["monthly", "specific"] as RecurringOverrideType[]).map((type) => {
-              const disabled = type === "monthly" && recurringType !== "monthly" && !monthlyEligible;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  className={recurringType === type ? "btn-primary" : "btn-secondary"}
-                  disabled={disabled}
-                  onClick={() => handleRecurringTypeChange(type)}
-                >
-                  {RECURRING_OVERRIDE_TYPE_LABELS[type]}
-                </button>
-              );
-            })}
+            {(["monthly", "specific"] as RecurringOverrideType[]).map((type) => (
+              <button
+                key={type}
+                type="button"
+                className={recurringType === type ? "btn-primary" : "btn-secondary"}
+                onClick={() => handleRecurringTypeChange(type)}
+              >
+                {RECURRING_OVERRIDE_TYPE_LABELS[type]}
+              </button>
+            ))}
           </div>
           <p className="muted">
             未設定の店名は比例費用(突発)として扱われます。自動判定は行わないため、電気代等の固定費のみ手動で設定してください。
             選択中のボタンをもう一度押すと設定を解除できます。
-            毎月定常は、2ヶ月以上の履歴がありかつ各月1回のみ発生している店名にのみ設定できます
-            (日用品や食品店のように同じ月に複数回発生する店名は、金額固定の定常費用ではないため対象外です)。
+            毎月定常は、2ヶ月以上の履歴がありかつ各月1回のみ発生している店名を推奨しますが、手動設定が優先されるため
+            条件を満たさない店名でも設定できます(日用品や食品店のように毎月何度も利用する店は、金額が変動するため
+            定常費用には不向きです)。
+            {recurringType !== "monthly" && !monthlyEligible && (
+              <>
+                {" "}
+                この店名は同じ月に複数回、または1ヶ月分しか実績がないため、通常は毎月定常の対象外です。
+              </>
+            )}
             該当月定常を選んだ店名は、ホーム画面の「当月の計画・予算調整」から発生する月ごとに金額を登録できます。
           </p>
         </div>
