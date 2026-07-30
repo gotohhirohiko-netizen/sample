@@ -82,7 +82,7 @@ export default function BudgetProgressBar({
             <span key={t} className="progress-tick" style={{ left: `${(t / axisMax) * 100}%` }} />
           ))}
         </div>
-        <div style={{ width: `${actualWidth}%` }} />
+        <div className="progress-fill" style={{ width: `${actualWidth}%` }} />
         {paceValue !== undefined && (
           <div
             className="progress-pace-marker"

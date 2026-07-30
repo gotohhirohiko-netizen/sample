@@ -87,7 +87,7 @@ export default function BonusActualView() {
         {totalPlanned > 0 ? (
           <>
             <div className={`progress ${totalOver ? "over" : ""}`}>
-              <div style={{ width: `${totalRate * 100}%` }} />
+              <div className="progress-fill" style={{ width: `${totalRate * 100}%` }} />
             </div>
             <span className="muted">
               計画 {formatYen(totalPlanned)} / 残り {formatYen(totalPlanned - totalActual)}
@@ -124,7 +124,7 @@ export default function BonusActualView() {
                 <span className={over ? "amount over-budget" : "amount"}>{formatYen(actual)}</span>
               </div>
               <div className={`progress ${over ? "over" : ""}`}>
-                <div style={{ width: `${rate * 100}%` }} />
+                <div className="progress-fill" style={{ width: `${rate * 100}%` }} />
               </div>
               <span className="muted">
                 計画 {formatYen(plan.plannedAmount)} / 残り {formatYen(plan.plannedAmount - actual)}

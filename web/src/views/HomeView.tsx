@@ -203,7 +203,10 @@ export default function HomeView() {
             <>
               <p>対予算 {Math.round(bonusSummary.budgetUsageRate * 100)}%</p>
               <div className={`progress ${bonusSummary.budgetUsageRate > 1 ? "over" : ""}`}>
-                <div style={{ width: `${Math.min(bonusSummary.budgetUsageRate * 100, 100)}%` }} />
+                <div
+                  className="progress-fill"
+                  style={{ width: `${Math.min(bonusSummary.budgetUsageRate * 100, 100)}%` }}
+                />
               </div>
               <span className="muted">
                 {formatYen(bonusSummary.actual)} / 割り当て {formatYen(bonusSummary.allocated)}
@@ -216,7 +219,10 @@ export default function HomeView() {
             <>
               <p>対収入 {Math.round(bonusSummary.incomeUsageRate * 100)}%</p>
               <div className={`progress ${bonusSummary.incomeUsageRate > 1 ? "over" : ""}`}>
-                <div style={{ width: `${Math.min(bonusSummary.incomeUsageRate * 100, 100)}%` }} />
+                <div
+                  className="progress-fill"
+                  style={{ width: `${Math.min(bonusSummary.incomeUsageRate * 100, 100)}%` }}
+                />
               </div>
               <span className="muted">
                 {formatYen(bonusSummary.actual)} / 収入 {formatYen(bonusSummary.income)}
