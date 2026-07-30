@@ -67,6 +67,18 @@ export interface MerchantAmbiguousFlag {
   updatedAt: string; // ISO日時文字列
 }
 
+/**
+ * 店名ごとに「家計に含めないかどうかが一意に決まらない」ことを示すフラグ
+ * (例: 同じ店名でも購入内容によって家計対象外にしたい場合とそうでない
+ * 場合がある店)。立っている店名は、同じ店名の他の取引への一括反映の
+ * 対象外とし、取引ごとに個別に「家計に含めない」を設定できるようにする。
+ */
+export interface MerchantExclusionAmbiguousFlag {
+  id: string;
+  merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKey)
+  updatedAt: string; // ISO日時文字列
+}
+
 /** 取引データ */
 export interface Transaction {
   id: string;

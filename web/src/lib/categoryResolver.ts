@@ -2,6 +2,7 @@ import type {
   MajorCategory,
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
+  MerchantExclusionAmbiguousFlag,
   Subcategory,
   Transaction,
 } from "../types/models";
@@ -56,6 +57,19 @@ export function isMerchantAmbiguous(
 ): boolean {
   const key = merchantMatchKey(merchant);
   return ambiguousFlags.some((f) => merchantMatchKey(f.merchantKey) === key);
+}
+
+/**
+ * 店名が「家計に含めないかどうかが一意に決まらない店」としてフラグされて
+ * いるかどうか(購入内容によって家計対象外にしたい場合とそうでない場合が
+ * ある店は、店名だけでの一括反映がそもそも成立しないため)。
+ */
+export function isMerchantExclusionAmbiguous(
+  merchant: string,
+  exclusionAmbiguousFlags: MerchantExclusionAmbiguousFlag[]
+): boolean {
+  const key = merchantMatchKey(merchant);
+  return exclusionAmbiguousFlags.some((f) => merchantMatchKey(f.merchantKey) === key);
 }
 
 /**

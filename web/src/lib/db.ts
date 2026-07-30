@@ -10,6 +10,7 @@ import type {
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusion,
+  MerchantExclusionAmbiguousFlag,
   RecurringOverride,
   SpecificMonthPlan,
   Subcategory,
@@ -37,6 +38,7 @@ export class KakeiboDB extends Dexie {
   merchantCategoryMappings!: EntityTable<MerchantCategoryMapping, "id">;
   merchantExclusions!: EntityTable<MerchantExclusion, "id">;
   merchantAmbiguousFlags!: EntityTable<MerchantAmbiguousFlag, "id">;
+  merchantExclusionAmbiguousFlags!: EntityTable<MerchantExclusionAmbiguousFlag, "id">;
   bonusPeriods!: EntityTable<BonusPeriod, "id">;
   recurringOverrides!: EntityTable<RecurringOverride, "id">;
   bonusCategoryPlans!: EntityTable<BonusCategoryPlan, "id">;
@@ -295,6 +297,24 @@ export class KakeiboDB extends Dexie {
           .filter((override) => override.type === "spontaneous")
           .delete();
       });
+    this.version(16).stores({
+      transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+      fundingSources: "id",
+      majorCategories: "id, displayOrder",
+      subcategories: "id, majorCategoryID",
+      categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+      merchantCategoryMappings: "id, merchantKey",
+      merchantExclusions: "id, merchantKey",
+      merchantAmbiguousFlags: "id, merchantKey",
+      merchantExclusionAmbiguousFlags: "id, merchantKey",
+      bonusPeriods: "id, displayOrder",
+      recurringOverrides: "id, merchantKey",
+      bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+      bonusIncomeSchedules: "id, fundingSourceID",
+      budgetAdjustments: "id, month",
+      specificMonthPlans: "id, merchantKey, month",
+      settings: "key",
+    });
   }
 }
 

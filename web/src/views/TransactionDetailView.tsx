@@ -5,6 +5,7 @@ import { db } from "../lib/db";
 import {
   hasDivergentCategoryHistory,
   isMerchantAmbiguous,
+  isMerchantExclusionAmbiguous,
   merchantMatchKey,
 } from "../lib/categoryResolver";
 import { isEligibleForMonthlyRecurring, resolveRecurringType } from "../lib/recurringResolver";
@@ -29,6 +30,10 @@ export default function TransactionDetailView() {
   const allTransactions = useLiveQuery(() => db.transactions.toArray(), []);
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
   const ambiguousFlags = useLiveQuery(() => db.merchantAmbiguousFlags.toArray(), []);
+  const exclusionAmbiguousFlags = useLiveQuery(
+    () => db.merchantExclusionAmbiguousFlags.toArray(),
+    []
+  );
 
   const [merchant, setMerchant] = useState<string | null>(null);
   const [amount, setAmount] = useState<string | null>(null);
@@ -43,7 +48,8 @@ export default function TransactionDetailView() {
     !subcategories ||
     !allTransactions ||
     !recurringOverrides ||
-    !ambiguousFlags
+    !ambiguousFlags ||
+    !exclusionAmbiguousFlags
   ) {
     return <p className="muted">読み込み中...</p>;
   }
@@ -64,6 +70,10 @@ export default function TransactionDetailView() {
       : currentSubcategory.name
     : "未分類";
   const isAmbiguousMerchant = isMerchantAmbiguous(transaction.merchant, ambiguousFlags);
+  const isExclusionAmbiguousMerchant = isMerchantExclusionAmbiguous(
+    transaction.merchant,
+    exclusionAmbiguousFlags
+  );
 
   const currentMerchant = merchant ?? transaction.merchant;
   const currentAmount = amount ?? String(transaction.amount);
@@ -150,9 +160,35 @@ export default function TransactionDetailView() {
     }
   }
 
+  async function handleExclusionAmbiguousChange(ambiguous: boolean) {
+    if (!transaction) return;
+    const key = merchantMatchKey(transaction.merchant);
+    const existing = await db.merchantExclusionAmbiguousFlags
+      .where("merchantKey")
+      .equals(key)
+      .first();
+    if (ambiguous) {
+      if (!existing) {
+        await db.merchantExclusionAmbiguousFlags.add({
+          id: crypto.randomUUID(),
+          merchantKey: key,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    } else if (existing) {
+      await db.merchantExclusionAmbiguousFlags.delete(existing.id);
+    }
+  }
+
   async function handleExcludeChange(excluded: boolean) {
     if (!transaction) return;
     await db.transactions.update(transaction.id, { excludedFromBudget: excluded });
+
+    if (isExclusionAmbiguousMerchant) {
+      // 家計対象外の判定が一意に決まらない店名は、この取引だけに反映し
+      // 学習マッピング・他取引への一括反映は行わない
+      return;
+    }
 
     const key = merchantMatchKey(transaction.merchant);
     const existing = await db.merchantExclusions.where("merchantKey").equals(key).first();
@@ -368,6 +404,18 @@ export default function TransactionDetailView() {
         {exclusionAppliedCount !== null && exclusionAppliedCount > 0 && (
           <p className="muted">同じ店名の他の取引 {exclusionAppliedCount}件にも反映しました</p>
         )}
+        <label className="filter-row">
+          <input
+            type="checkbox"
+            checked={isExclusionAmbiguousMerchant}
+            onChange={(e) => handleExclusionAmbiguousChange(e.target.checked)}
+          />
+          この店名は家計対象外にするかどうかが一意に決まらない
+        </label>
+        <p className="muted">
+          ONにすると、この店名は同じ店名の他の取引への一括反映の対象外になり、取引ごとに個別に「家計に含めない」を
+          設定できます(例: 同じ店でも買う物によって家計対象外にしたい場合とそうでない場合がある店)。
+        </p>
       </div>
 
       {isExpense && (

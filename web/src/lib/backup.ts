@@ -11,6 +11,7 @@ import type {
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusion,
+  MerchantExclusionAmbiguousFlag,
   RecurringOverride,
   SpecificMonthPlan,
   Subcategory,
@@ -33,6 +34,7 @@ export interface BackupPayload {
   merchantCategoryMappings: MerchantCategoryMapping[];
   merchantExclusions: MerchantExclusion[];
   merchantAmbiguousFlags: MerchantAmbiguousFlag[];
+  merchantExclusionAmbiguousFlags: MerchantExclusionAmbiguousFlag[];
   bonusPeriods: BonusPeriod[];
   recurringOverrides: RecurringOverride[];
   bonusCategoryPlans: BonusCategoryPlan[];
@@ -51,6 +53,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     merchantCategoryMappings,
     merchantExclusions,
     merchantAmbiguousFlags,
+    merchantExclusionAmbiguousFlags,
     bonusPeriods,
     recurringOverrides,
     bonusCategoryPlans,
@@ -66,6 +69,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     db.merchantCategoryMappings.toArray(),
     db.merchantExclusions.toArray(),
     db.merchantAmbiguousFlags.toArray(),
+    db.merchantExclusionAmbiguousFlags.toArray(),
     db.bonusPeriods.toArray(),
     db.recurringOverrides.toArray(),
     db.bonusCategoryPlans.toArray(),
@@ -84,6 +88,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     merchantCategoryMappings,
     merchantExclusions,
     merchantAmbiguousFlags,
+    merchantExclusionAmbiguousFlags,
     bonusPeriods,
     recurringOverrides,
     bonusCategoryPlans,
@@ -120,6 +125,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
       db.merchantCategoryMappings,
       db.merchantExclusions,
       db.merchantAmbiguousFlags,
+      db.merchantExclusionAmbiguousFlags,
       db.bonusPeriods,
       db.recurringOverrides,
       db.bonusCategoryPlans,
@@ -137,6 +143,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.merchantCategoryMappings.clear(),
         db.merchantExclusions.clear(),
         db.merchantAmbiguousFlags.clear(),
+        db.merchantExclusionAmbiguousFlags.clear(),
         db.bonusPeriods.clear(),
         db.recurringOverrides.clear(),
         db.bonusCategoryPlans.clear(),
@@ -153,6 +160,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.merchantCategoryMappings.bulkAdd(payload.merchantCategoryMappings),
         db.merchantExclusions.bulkAdd(payload.merchantExclusions ?? []),
         db.merchantAmbiguousFlags.bulkAdd(payload.merchantAmbiguousFlags ?? []),
+        db.merchantExclusionAmbiguousFlags.bulkAdd(payload.merchantExclusionAmbiguousFlags ?? []),
         db.bonusPeriods.bulkAdd(payload.bonusPeriods ?? []),
         db.recurringOverrides.bulkAdd(payload.recurringOverrides ?? []),
         db.bonusCategoryPlans.bulkAdd(payload.bonusCategoryPlans ?? []),

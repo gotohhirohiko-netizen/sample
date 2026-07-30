@@ -13,6 +13,7 @@ import { tryParsePayPayTransactionCsv } from "../lib/paypayTransactionCsvParser"
 import {
   isLikelySameMerchant,
   isMerchantAmbiguous,
+  isMerchantExclusionAmbiguous,
   merchantMatchKey,
   resolveCategory,
 } from "../lib/categoryResolver";
@@ -52,6 +53,10 @@ export default function ExtractionPreviewView() {
   const mappings = useLiveQuery(() => db.merchantCategoryMappings.toArray(), []);
   const exclusions = useLiveQuery(() => db.merchantExclusions.toArray(), []);
   const ambiguousFlags = useLiveQuery(() => db.merchantAmbiguousFlags.toArray(), []);
+  const exclusionAmbiguousFlags = useLiveQuery(
+    () => db.merchantExclusionAmbiguousFlags.toArray(),
+    []
+  );
   const existingTransactions = useLiveQuery(() => db.transactions.toArray(), []);
   const bonusIncomeSchedules = useLiveQuery(() => db.bonusIncomeSchedules.toArray(), []);
   const fundingSource = useLiveQuery<FundingSource | undefined>(
@@ -82,7 +87,8 @@ export default function ExtractionPreviewView() {
       !exclusions ||
       !existingTransactions ||
       !bonusIncomeSchedules ||
-      !ambiguousFlags
+      !ambiguousFlags ||
+      !exclusionAmbiguousFlags
     ) {
       return;
     }
@@ -194,9 +200,9 @@ export default function ExtractionPreviewView() {
               isLikelySameMerchant(t.merchant, item.merchant) &&
               t.amount === item.amount
           );
-          const excludedFromBudget = exclusions.some(
-            (e) => e.merchantKey === merchantMatchKey(item.merchant)
-          );
+          const excludedFromBudget =
+            !isMerchantExclusionAmbiguous(item.merchant, exclusionAmbiguousFlags) &&
+            exclusions.some((e) => e.merchantKey === merchantMatchKey(item.merchant));
           const isBonusIncome =
             item.type === "income" &&
             (matchesBonusIncomeSchedule(item.date, state.sourceId, bonusIncomeSchedules) ||
@@ -240,6 +246,7 @@ export default function ExtractionPreviewView() {
     existingTransactions,
     bonusIncomeSchedules,
     ambiguousFlags,
+    exclusionAmbiguousFlags,
   ]);
 
   if (!state) {
@@ -305,23 +312,25 @@ export default function ExtractionPreviewView() {
         }
       }
 
-      const exclusionKey = merchantMatchKey(item.merchant);
-      const existingExclusion = await db.merchantExclusions
-        .where("merchantKey")
-        .equals(exclusionKey)
-        .first();
-      if (item.excludedFromBudget) {
-        if (existingExclusion) {
-          await db.merchantExclusions.update(existingExclusion.id, { updatedAt: now });
-        } else {
-          await db.merchantExclusions.add({
-            id: crypto.randomUUID(),
-            merchantKey: exclusionKey,
-            updatedAt: now,
-          });
+      if (!isMerchantExclusionAmbiguous(item.merchant, exclusionAmbiguousFlags ?? [])) {
+        const exclusionKey = merchantMatchKey(item.merchant);
+        const existingExclusion = await db.merchantExclusions
+          .where("merchantKey")
+          .equals(exclusionKey)
+          .first();
+        if (item.excludedFromBudget) {
+          if (existingExclusion) {
+            await db.merchantExclusions.update(existingExclusion.id, { updatedAt: now });
+          } else {
+            await db.merchantExclusions.add({
+              id: crypto.randomUUID(),
+              merchantKey: exclusionKey,
+              updatedAt: now,
+            });
+          }
+        } else if (existingExclusion) {
+          await db.merchantExclusions.delete(existingExclusion.id);
         }
-      } else if (existingExclusion) {
-        await db.merchantExclusions.delete(existingExclusion.id);
       }
     }
 
