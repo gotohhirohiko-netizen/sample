@@ -3,7 +3,7 @@ import { db } from "./db";
 const LAST_BACKUP_SETTING = "lastBackupAt";
 const DAILY_LIST_UNCLASSIFIED_ONLY_SETTING = "dailyListUnclassifiedOnly";
 const DAILY_LIST_SORT_MODE_SETTING = "dailyListSortMode";
-const DAILY_LIST_SPONTANEOUS_ONLY_SETTING = "dailyListSpontaneousOnly";
+const DAILY_LIST_EXCLUDED_ONLY_SETTING = "dailyListExcludedOnly";
 const AUTO_BACKUP_ON_IMPORT_SETTING = "autoBackupOnImport";
 
 export type DailyListSortMode = "date" | "amount";
@@ -37,13 +37,13 @@ export async function loadDailyListSortMode(): Promise<DailyListSortMode> {
   return entry?.value === "amount" ? "amount" : "date";
 }
 
-/** 日次収支リストの「突発費用のみ表示」フィルタ設定を保存する(画面遷移をまたいで保持するため) */
-export async function saveSpontaneousOnlyFilter(value: boolean): Promise<void> {
-  await db.settings.put({ key: DAILY_LIST_SPONTANEOUS_ONLY_SETTING, value: String(value) });
+/** 日次収支リストの「家計に含めないもののみ表示」フィルタ設定を保存する(画面遷移をまたいで保持するため) */
+export async function saveExcludedOnlyFilter(value: boolean): Promise<void> {
+  await db.settings.put({ key: DAILY_LIST_EXCLUDED_ONLY_SETTING, value: String(value) });
 }
 
-export async function loadSpontaneousOnlyFilter(): Promise<boolean> {
-  const entry = await db.settings.get(DAILY_LIST_SPONTANEOUS_ONLY_SETTING);
+export async function loadExcludedOnlyFilter(): Promise<boolean> {
+  const entry = await db.settings.get(DAILY_LIST_EXCLUDED_ONLY_SETTING);
   return entry?.value === "true";
 }
 

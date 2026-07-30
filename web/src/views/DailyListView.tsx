@@ -12,13 +12,12 @@ import { useScrollRestoration } from "../lib/scrollRestoration";
 import {
   type DailyListSortMode,
   loadDailyListSortMode,
-  loadSpontaneousOnlyFilter,
+  loadExcludedOnlyFilter,
   loadUnclassifiedOnlyFilter,
   saveDailyListSortMode,
-  saveSpontaneousOnlyFilter,
+  saveExcludedOnlyFilter,
   saveUnclassifiedOnlyFilter,
 } from "../lib/keyStorage";
-import { resolveRecurring } from "../lib/recurringResolver";
 import TransactionRow from "../components/TransactionRow";
 import MonthPicker from "../components/MonthPicker";
 
@@ -28,7 +27,7 @@ export default function DailyListView() {
   const month = parseMonthParam(monthParam);
   const navigate = useNavigate();
   const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
-  const [spontaneousOnly, setSpontaneousOnly] = useState(false);
+  const [excludedOnly, setExcludedOnly] = useState(false);
   const [sortMode, setSortMode] = useState<DailyListSortMode>("date");
 
   function handleMonthChange(newMonth: Date) {
@@ -37,7 +36,7 @@ export default function DailyListView() {
 
   useEffect(() => {
     loadUnclassifiedOnlyFilter().then(setUnclassifiedOnly);
-    loadSpontaneousOnlyFilter().then(setSpontaneousOnly);
+    loadExcludedOnlyFilter().then(setExcludedOnly);
     loadDailyListSortMode().then(setSortMode);
   }, []);
 
@@ -46,9 +45,9 @@ export default function DailyListView() {
     saveUnclassifiedOnlyFilter(checked);
   }
 
-  function handleSpontaneousOnlyChange(checked: boolean) {
-    setSpontaneousOnly(checked);
-    saveSpontaneousOnlyFilter(checked);
+  function handleExcludedOnlyChange(checked: boolean) {
+    setExcludedOnly(checked);
+    saveExcludedOnlyFilter(checked);
   }
 
   function handleSortModeChange(mode: DailyListSortMode) {
@@ -60,23 +59,18 @@ export default function DailyListView() {
   const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
   const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const majorCategories = useLiveQuery(() => db.majorCategories.toArray(), []);
-  const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
 
-  const ready = !!(transactions && fundingSources && subcategories && majorCategories && recurringOverrides);
+  const ready = !!(transactions && fundingSources && subcategories && majorCategories);
   useScrollRestoration(ready);
 
-  if (!transactions || !fundingSources || !subcategories || !majorCategories || !recurringOverrides) {
+  if (!transactions || !fundingSources || !subcategories || !majorCategories) {
     return <p className="muted">読み込み中...</p>;
-  }
-
-  function isSpontaneous(merchant: string): boolean {
-    return !resolveRecurring(merchant, recurringOverrides!);
   }
 
   const filteredTx = transactions
     .filter((t) => isSameMonth(new Date(t.date), month))
     .filter((t) => !unclassifiedOnly || (t.type === "expense" && t.subcategoryID == null))
-    .filter((t) => !spontaneousOnly || (t.type === "expense" && isSpontaneous(t.merchant)));
+    .filter((t) => !excludedOnly || t.excludedFromBudget);
 
   const monthTx = [...filteredTx].sort((a, b) =>
     sortMode === "amount"
@@ -112,10 +106,10 @@ export default function DailyListView() {
       <label className="filter-row">
         <input
           type="checkbox"
-          checked={spontaneousOnly}
-          onChange={(e) => handleSpontaneousOnlyChange(e.target.checked)}
+          checked={excludedOnly}
+          onChange={(e) => handleExcludedOnlyChange(e.target.checked)}
         />
-        突発費用のみ表示
+        家計に含めないもののみ表示
       </label>
 
       <div className="form-row">
@@ -141,7 +135,6 @@ export default function DailyListView() {
                   fundingSources={fundingSources}
                   subcategories={subcategories}
                   majorCategories={majorCategories}
-                  isSpontaneous={isSpontaneous(tx.merchant)}
                 />
               ))}
             </div>
@@ -156,7 +149,6 @@ export default function DailyListView() {
               fundingSources={fundingSources}
               subcategories={subcategories}
               majorCategories={majorCategories}
-              isSpontaneous={isSpontaneous(tx.merchant)}
             />
           ))}
         </div>

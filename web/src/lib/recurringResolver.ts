@@ -13,11 +13,6 @@ export function resolveRecurringType(merchant: string, overrides: RecurringOverr
   return override ? override.type : "spontaneous";
 }
 
-/** 定常(monthly/specificのいずれか)かどうか */
-export function resolveRecurring(merchant: string, overrides: RecurringOverride[]): boolean {
-  return resolveRecurringType(merchant, overrides) !== "spontaneous";
-}
-
 /**
  * 「毎月定常」に設定可能な店名かどうかを判定する。
  * 2ヶ月以上の履歴があり、かつそのいずれの月も1回のみの発生であることを条件とする
