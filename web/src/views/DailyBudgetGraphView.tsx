@@ -68,9 +68,7 @@ export default function DailyBudgetGraphView() {
             className="bar-chart-column"
             onClick={() => setSelectedDay((d) => (d === b.day ? null : b.day))}
           >
-            {b.total > 0 && (
-              <span className="bar-chart-value">{Math.round(b.total / 1000)}千</span>
-            )}
+            {b.total > 0 && <span className="bar-chart-value">{formatYen(b.total)}</span>}
             <div className="bar-chart-track">
               <div
                 className={`bar-chart-bar ${b.day === selectedDay ? "selected" : ""}`}

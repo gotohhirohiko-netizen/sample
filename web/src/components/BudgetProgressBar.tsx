@@ -6,11 +6,18 @@ export interface ProjectionMarker {
   className: string;
 }
 
+export interface SecondaryThreshold {
+  /** 収入等、主基準(予算)とは別に示す基準額 */
+  value: number;
+}
+
 interface BudgetProgressBarProps {
   /** 実績額(バーの塗り幅) */
   actual: number;
-  /** 予算・収入等の基準額(バー下に▲で示す) */
+  /** 予算等の基準額(バー下に▲で示す。0以下の場合は▲を表示しない) */
   threshold: number;
+  /** 収入等、予算とは別の基準額(バー下に色違いの▲で示す) */
+  secondaryThreshold?: SecondaryThreshold;
   /** 今日時点で消化しているべき目安額(バー内に縦線で示す。月次予実の日割りペース等) */
   paceValue?: number;
   /** バーの上に▼で示す追加の目安額(定常費用の予想・月末着地予想等) */
@@ -46,10 +53,17 @@ function formatTickLabel(amount: number): string {
 export default function BudgetProgressBar({
   actual,
   threshold,
+  secondaryThreshold,
   paceValue,
   markers = [],
 }: BudgetProgressBarProps) {
-  const candidateMax = Math.max(actual, threshold, ...markers.map((m) => m.value), 1);
+  const candidateMax = Math.max(
+    actual,
+    threshold,
+    secondaryThreshold?.value ?? 0,
+    ...markers.map((m) => m.value),
+    1
+  );
   const tickStep = pickTickStep(candidateMax);
   const axisMax = Math.ceil(candidateMax / tickStep) * tickStep;
   const ticks: number[] = [];
@@ -91,9 +105,19 @@ export default function BudgetProgressBar({
         )}
       </div>
       <div className="budget-progress-axis">
-        <span className="budget-progress-threshold-marker" style={{ left: `${thresholdLeft}%` }}>
-          ▲
-        </span>
+        {threshold > 0 && (
+          <span className="budget-progress-threshold-marker" style={{ left: `${thresholdLeft}%` }}>
+            ▲
+          </span>
+        )}
+        {secondaryThreshold && secondaryThreshold.value > 0 && (
+          <span
+            className="budget-progress-threshold-marker income"
+            style={{ left: `${Math.min((secondaryThreshold.value / axisMax) * 100, 100)}%` }}
+          >
+            ▲
+          </span>
+        )}
         {ticks.map((t) => (
           <span
             key={t}

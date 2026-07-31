@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { isSameMonth, parseMonthParam } from "../lib/dateUtils";
@@ -7,8 +7,9 @@ import TransactionRow from "../components/TransactionRow";
 
 /** 小カテゴリ別取引一覧(カテゴリ内訳画面からのさらなるドリルダウン) */
 export default function SubcategoryDrilldownView() {
-  const { month: monthParam, majorCategoryId, subcategoryId } = useParams();
+  const { month: monthParam, subcategoryId } = useParams();
   const month = parseMonthParam(monthParam);
+  const navigate = useNavigate();
 
   const subcategory = useLiveQuery(
     () => (subcategoryId ? db.subcategories.get(subcategoryId) : undefined),
@@ -48,9 +49,9 @@ export default function SubcategoryDrilldownView() {
 
   return (
     <div>
-      <Link to={`/budget/${monthParam}/${majorCategoryId}`} className="back-link">
-        ‹ 内訳へ戻る
-      </Link>
+      <button type="button" className="back-link" onClick={() => navigate(-1)}>
+        ‹ 戻る
+      </button>
       <h1 className="screen-title">{subcategory?.name ?? ""}</h1>
 
       <div className="list">

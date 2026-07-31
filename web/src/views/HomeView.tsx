@@ -108,12 +108,20 @@ export default function HomeView() {
             </span>
           )}
         </div>
-        {summary.budgetUsageRate !== undefined ? (
+        {summary.budgetUsageRate !== undefined && (
+          <p>対予算 {Math.round(summary.budgetUsageRate * 100)}%</p>
+        )}
+        {summary.incomeUsageRate !== undefined && (
+          <p>対収入 {Math.round(summary.incomeUsageRate * 100)}%</p>
+        )}
+        {summary.budgetUsageRate !== undefined || summary.incomeUsageRate !== undefined ? (
           <>
-            <p>対予算 {Math.round(summary.budgetUsageRate * 100)}%</p>
             <BudgetProgressBar
               actual={summary.totalExpense}
               threshold={summary.totalBudget}
+              secondaryThreshold={
+                summary.totalIncome > 0 ? { value: summary.totalIncome } : undefined
+              }
               markers={
                 projection
                   ? [
@@ -131,54 +139,45 @@ export default function HomeView() {
                   : []
               }
             />
+            <p className="muted threshold-legend">
+              <span className="threshold-legend-budget">▲</span>予算
+              {summary.totalIncome > 0 && (
+                <span className="threshold-legend-income">▲収入</span>
+              )}
+            </p>
             <span className="muted">
-              {formatYen(summary.totalExpense)} / 予算 {formatYen(summary.totalBudget)}
+              {formatYen(summary.totalExpense)}
+              {summary.totalBudget > 0 && ` / 予算 ${formatYen(summary.totalBudget)}`}
               {summary.budgetAdjustmentTotal !== 0 &&
                 ` (調整 ${summary.budgetAdjustmentTotal > 0 ? "+" : ""}${formatYen(summary.budgetAdjustmentTotal)})`}
+              {summary.totalIncome > 0 && ` / 収入 ${formatYen(summary.totalIncome)}`}
             </span>
           </>
         ) : (
-          <p className="muted">予算未設定</p>
-        )}
-        {summary.incomeUsageRate !== undefined ? (
-          <>
-            <p>対収入 {Math.round(summary.incomeUsageRate * 100)}%</p>
-            <BudgetProgressBar
-              actual={summary.totalExpense}
-              threshold={summary.totalIncome}
-              markers={
-                projection
-                  ? [
-                      {
-                        key: "recurring",
-                        value: projection.recurringProjected,
-                        className: "progress-marker-recurring",
-                      },
-                      {
-                        key: "total",
-                        value: projection.totalProjected,
-                        className: "progress-marker-proportional",
-                      },
-                    ]
-                  : []
-              }
-            />
-            <span className="muted">
-              {formatYen(summary.totalExpense)} / 収入 {formatYen(summary.totalIncome)}
-            </span>
-          </>
-        ) : (
-          <p className="muted">収入データなし</p>
+          <p className="muted">予算・収入データなし</p>
         )}
         {projection && (
           <button
             type="button"
-            className="legend-button"
+            className="list-row"
+            style={{ flexDirection: "column", alignItems: "stretch", marginTop: 8 }}
             onClick={() => navigate(`/projection/${monthParam}`)}
           >
-            <span className="legend-recurring">■</span> 定常費用の予想({formatYen(projection.recurringProjected)})
-            <span className="legend-proportional">■</span> 月末着地予想({formatYen(projection.totalProjected)})
-            <span className="muted"> 内訳 ›</span>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>
+                <span className="legend-recurring">■</span>定常費用の予想
+              </span>
+              <span>{formatYen(projection.recurringProjected)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>
+                <span className="legend-proportional">■</span>月末着地予想
+              </span>
+              <span>{formatYen(projection.totalProjected)}</span>
+            </div>
+            <span className="muted" style={{ textAlign: "right" }}>
+              内訳 ›
+            </span>
           </button>
         )}
 

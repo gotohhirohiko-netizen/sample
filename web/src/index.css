@@ -146,8 +146,8 @@ button.list-row {
 
 .bar-chart {
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 4px;
   overflow-x: auto;
   padding: 16px 4px 8px;
   margin: 8px 0;
@@ -159,7 +159,7 @@ button.list-row {
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
-  width: 60px;
+  width: 52px;
   background: none;
   border: none;
   padding: 0;
@@ -196,6 +196,8 @@ button.list-row {
 
 .bar-chart-label {
   font-size: 0.7rem;
+  line-height: 1.2;
+  min-height: 2.4em;
   color: var(--fg);
   text-align: center;
   overflow-wrap: break-word;
@@ -382,6 +384,29 @@ textarea {
   pointer-events: none;
 }
 
+.budget-progress-threshold-marker.income {
+  color: var(--accent);
+}
+
+.threshold-legend {
+  margin: 4px 0;
+}
+
+.threshold-legend-budget,
+.threshold-legend-income {
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.threshold-legend-budget {
+  color: var(--fg);
+}
+
+.threshold-legend-income {
+  color: var(--accent);
+  margin-left: 8px;
+}
+
 .budget-progress-tick-label {
   position: absolute;
   top: 14px;
@@ -389,18 +414,6 @@ textarea {
   font-size: 0.65rem;
   color: var(--muted);
   white-space: nowrap;
-}
-
-.legend-button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 6px 0;
-  color: var(--muted);
-  font-size: 0.85rem;
 }
 
 .legend-recurring,
