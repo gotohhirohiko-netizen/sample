@@ -9,6 +9,7 @@
   --danger: #d0342c;
   --success: #1a8a3f;
   --bonus: #b8860b;
+  --pending: #b45309;
   --surface: #f7f7f8;
 }
 
@@ -20,6 +21,7 @@
     --border: #2c2c2e;
     --surface: #1c1c1e;
     --bonus: #d9a441;
+    --pending: #e0a029;
   }
 }
 
@@ -357,6 +359,14 @@ textarea {
 
 .legend-proportional {
   color: var(--danger);
+}
+
+.projection-posted {
+  color: var(--fg);
+}
+
+.projection-pending {
+  color: var(--pending);
 }
 
 .bottom-nav {

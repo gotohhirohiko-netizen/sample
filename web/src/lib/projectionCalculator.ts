@@ -28,12 +28,24 @@ export interface MonthEndProjection {
   /** 該当月定常費用(美容院・お米等)の今月分合計。実績があれば実績額、無ければ計画額(SpecificMonthPlan) */
   specificProjected: number;
   specificBreakdown: SpecificMerchantProjection[];
-  /** 比例費用(食費等、突発扱い)の今月ここまでの実績 */
+  /** 比例費用(食費等、突発扱い)の、日割り計算に用いた実績(前回取り込み日の前日分まで) */
   proportionalActual: number;
-  /** 比例費用を今月ここまでのペースで月末まで延伸した予想額 */
+  /** proportionalActualの内訳となる取引一覧(日付降順) */
+  proportionalTransactions: Transaction[];
+  /** 比例費用を月末まで延伸した予想額 */
   proportionalProjected: number;
   /** 定常予想 + 比例予想 + 該当月定常予想の合計予想額 */
   totalProjected: number;
+}
+
+/** 取り込んだ全取引の中から最後にインポートした日時を求める(データがなければnull) */
+function lastImportDate(transactions: Transaction[]): Date | null {
+  let latest: Date | null = null;
+  for (const t of transactions) {
+    const imported = new Date(t.importedAt);
+    if (!latest || imported.getTime() > latest.getTime()) latest = imported;
+  }
+  return latest;
 }
 
 /**
@@ -48,7 +60,11 @@ export interface MonthEndProjection {
  *   対象月・金額を管理)は、今月すでに実績があればその実績額を、無ければ
  *   今月分の計画額をそのまま採用する(実績が発生済みの月は計画額と二重計上
  *   しないよう自動的に除外される)
- * ・それ以外(比例的な支出)は今月ここまでの実績を日割りで月末まで延伸する
+ * ・それ以外(比例的な支出)は、前回取り込み日の前日分までの実績を日割りで
+ *   月末まで延伸する。「今日(または前回取り込み日)」当日はまだ取り込みが
+ *   完了していない可能性があるため、実績の集計・日割り計算のいずれからも
+ *   除外する(月末当日に実行しても、月末着地予想が実績と同額になって
+ *   しまわないようにするため)
  *
  * 今月以外の月ではnullを返す(月末予想が意味を持たないため)。
  */
@@ -114,12 +130,26 @@ export function monthEndExpenseProjection(
 
   const recurringProjected = recurringBreakdown.reduce((sum, r) => sum + r.projected, 0);
 
-  const proportionalActual = transactions
-    .filter((t) => isRelevantExpense(t, month) && typeOf(t) === "spontaneous")
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const daysElapsed = today.getDate();
   const totalDays = daysInMonth(month);
+  const importDate = lastImportDate(transactions);
+  const referenceDate =
+    importDate && isSameMonth(importDate, month) && importDate.getTime() <= today.getTime()
+      ? importDate
+      : today;
+  const referenceDay = Math.min(referenceDate.getDate(), totalDays);
+  // 参照日(前回取り込み日、無ければ今日)の当日分は取り込みが完了していない
+  // 可能性があるため、実績・日割り計算のいずれからも除外し、前日分までを使う
+  const daysElapsed = Math.max(1, referenceDay - 1);
+
+  const proportionalTransactions = transactions
+    .filter(
+      (t) =>
+        isRelevantExpense(t, month) &&
+        typeOf(t) === "spontaneous" &&
+        new Date(t.date).getDate() <= daysElapsed
+    )
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const proportionalActual = proportionalTransactions.reduce((sum, t) => sum + t.amount, 0);
   const proportionalProjected = (proportionalActual / daysElapsed) * totalDays;
 
   const specificActualThisMonth = transactions.filter(
@@ -157,6 +187,7 @@ export function monthEndExpenseProjection(
     specificProjected,
     specificBreakdown,
     proportionalActual,
+    proportionalTransactions,
     proportionalProjected,
     totalProjected: recurringProjected + proportionalProjected + specificProjected,
   };
