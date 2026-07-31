@@ -45,7 +45,16 @@ export default function MonthlyBudgetView() {
       <Link to="/" className="back-link">
         ‹ ホームへ戻る
       </Link>
-      <h1 className="screen-title">月次予実</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 className="screen-title">月次予実</h1>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => navigate(`/budget/${monthParam}/graph`)}
+        >
+          グラフ表示
+        </button>
+      </div>
       <MonthPicker month={month} onChange={handleMonthChange} />
       <p className="muted">
         ▲は予算額、バー内の縦線は本日時点で消化しているべき目安(日割りペース)を示します。月末には両者は一致します。

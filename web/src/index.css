@@ -144,6 +144,59 @@ button.list-row {
   color: var(--danger);
 }
 
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 16px 4px 8px;
+  margin: 8px 0;
+}
+
+.bar-chart-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  width: 60px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+}
+
+.bar-chart-value {
+  font-size: 0.7rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.bar-chart-track {
+  display: flex;
+  align-items: flex-end;
+  height: 200px;
+  width: 32px;
+}
+
+.bar-chart-bar {
+  width: 100%;
+  min-height: 2px;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+}
+
+.bar-chart-bar.over {
+  background: var(--danger);
+}
+
+.bar-chart-label {
+  font-size: 0.7rem;
+  color: var(--fg);
+  text-align: center;
+  overflow-wrap: break-word;
+}
+
 .list-row.bonus-payment {
   border-color: var(--bonus);
 }
