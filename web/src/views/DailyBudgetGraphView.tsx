@@ -34,7 +34,11 @@ export default function DailyBudgetGraphView() {
   }
 
   const monthExpenses = transactions.filter(
-    (t) => t.type === "expense" && !t.excludedFromBudget && isSameMonth(new Date(t.date), month)
+    (t) =>
+      t.type === "expense" &&
+      !t.excludedFromBudget &&
+      !t.isBonusPayment &&
+      isSameMonth(new Date(t.date), month)
   );
 
   const totalDays = daysInMonth(month);
