@@ -8,6 +8,7 @@ import HomeView from "./views/HomeView";
 import MonthlyAdjustmentsView from "./views/MonthlyAdjustmentsView";
 import ProjectionBreakdownView from "./views/ProjectionBreakdownView";
 import DailyListView from "./views/DailyListView";
+import DailyBudgetGraphView from "./views/DailyBudgetGraphView";
 import MonthlyBudgetView from "./views/MonthlyBudgetView";
 import MonthlyBudgetGraphView from "./views/MonthlyBudgetGraphView";
 import CategoryDrilldownView from "./views/CategoryDrilldownView";
@@ -50,6 +51,7 @@ function AppContent() {
             <Route path="/adjustments/:month" element={<MonthlyAdjustmentsView />} />
             <Route path="/projection/:month" element={<ProjectionBreakdownView />} />
             <Route path="/daily/:month" element={<DailyListView />} />
+            <Route path="/daily/:month/graph" element={<DailyBudgetGraphView />} />
             <Route path="/budget/:month" element={<MonthlyBudgetView />} />
             <Route path="/budget/:month/graph" element={<MonthlyBudgetGraphView />} />
             <Route path="/budget/:month/:majorCategoryId" element={<CategoryDrilldownView />} />

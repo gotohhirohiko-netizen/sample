@@ -91,7 +91,16 @@ export default function DailyListView() {
       <Link to="/" className="back-link">
         ‹ ホームへ戻る
       </Link>
-      <h1 className="screen-title">日次収支リスト</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 className="screen-title">日次収支リスト</h1>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => navigate(`/daily/${monthParam}/graph`)}
+        >
+          グラフ表示
+        </button>
+      </div>
       <MonthPicker month={month} onChange={handleMonthChange} />
 
       <label className="filter-row">

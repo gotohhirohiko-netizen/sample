@@ -190,6 +190,10 @@ button.list-row {
   background: var(--danger);
 }
 
+.bar-chart-bar.selected {
+  background: var(--success);
+}
+
 .bar-chart-label {
   font-size: 0.7rem;
   color: var(--fg);
