@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { monthlySummary } from "../lib/budgetCalculator";
-import { monthEndExpenseProjection } from "../lib/projectionCalculator";
+import { lastImportDate, monthEndExpenseProjection } from "../lib/projectionCalculator";
 import {
   bonusActualAmount,
   bonusCategoryPlanTotal,
@@ -56,6 +56,7 @@ export default function HomeView() {
   const summary = monthlySummary(month, transactions, budgetSettings, majorCategories, budgetAdjustments);
   const monthParam = monthToParam(month);
   const projection = monthEndExpenseProjection(month, transactions, recurringOverrides, specificMonthPlans);
+  const importDate = lastImportDate(transactions);
 
   const currentBonusPeriod = findBonusPeriodForMonth(bonusPeriods, month.getMonth() + 1);
   const bonusSummary = currentBonusPeriod
@@ -99,7 +100,14 @@ export default function HomeView() {
       <MonthPicker month={month} onChange={setMonth} />
 
       <div className="section card">
-        <div className="section-title">対予算・対収入</div>
+        <div className="section-title" style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>対予算・対収入</span>
+          {importDate && (
+            <span className="muted">
+              前回取り込み {importDate.getMonth() + 1}/{importDate.getDate()}
+            </span>
+          )}
+        </div>
         {summary.budgetUsageRate !== undefined ? (
           <>
             <p>対予算 {Math.round(summary.budgetUsageRate * 100)}%</p>

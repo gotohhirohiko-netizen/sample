@@ -39,7 +39,7 @@ export interface MonthEndProjection {
 }
 
 /** 取り込んだ全取引の中から最後にインポートした日時を求める(データがなければnull) */
-function lastImportDate(transactions: Transaction[]): Date | null {
+export function lastImportDate(transactions: Transaction[]): Date | null {
   let latest: Date | null = null;
   for (const t of transactions) {
     const imported = new Date(t.importedAt);
