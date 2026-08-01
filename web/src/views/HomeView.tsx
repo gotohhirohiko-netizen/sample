@@ -13,6 +13,7 @@ import {
 } from "../lib/bonusCalculator";
 import { formatYen, monthToParam } from "../lib/dateUtils";
 import { loadLastBackupAt, loadLastImportConfirmedAt } from "../lib/keyStorage";
+import { buildBudgetShareText } from "../lib/shareSummary";
 import BudgetProgressBar from "../components/BudgetProgressBar";
 import MonthPicker from "../components/MonthPicker";
 
@@ -24,6 +25,7 @@ export default function HomeView() {
   const [month, setMonth] = useState(() => new Date());
   const [lastBackupAt, setLastBackupAt] = useState<Date | null | undefined>(undefined);
   const [importConfirmedAt, setImportConfirmedAt] = useState<Date | null>(null);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadLastBackupAt().then(setLastBackupAt);
@@ -36,6 +38,7 @@ export default function HomeView() {
     () => db.majorCategories.orderBy("displayOrder").toArray(),
     []
   );
+  const subcategories = useLiveQuery(() => db.subcategories.toArray(), []);
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
   const bonusPeriods = useLiveQuery(() => db.bonusPeriods.orderBy("displayOrder").toArray(), []);
   const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
@@ -46,6 +49,7 @@ export default function HomeView() {
     !transactions ||
     !budgetSettings ||
     !majorCategories ||
+    !subcategories ||
     !recurringOverrides ||
     !bonusPeriods ||
     !bonusCategoryPlans ||
@@ -90,6 +94,29 @@ export default function HomeView() {
   const needsBackupReminder =
     lastBackupAt !== undefined && (lastBackupAt === null || daysSinceBackup! >= BACKUP_REMINDER_DAYS);
 
+  async function handleShare() {
+    const text = buildBudgetShareText(
+      month,
+      summary,
+      majorCategories!,
+      budgetSettings!,
+      transactions!,
+      subcategories!,
+      projection
+    );
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+      } catch {
+        // ユーザーによるキャンセル等は何もしない
+      }
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    setShareMessage("クリップボードにコピーしました。メッセージアプリ等に貼り付けて送信してください");
+    setTimeout(() => setShareMessage(null), 4000);
+  }
+
   return (
     <div>
       <h1 className="screen-title">ホーム</h1>
@@ -108,14 +135,28 @@ export default function HomeView() {
       <MonthPicker month={month} onChange={setMonth} />
 
       <div className="section card">
-        <div className="section-title" style={{ display: "flex", justifyContent: "space-between" }}>
+        <div
+          className="section-title"
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+        >
           <span>対予算・対収入</span>
-          {importDate && (
-            <span className="muted">
-              前回取り込み {importDate.getMonth() + 1}/{importDate.getDate()}
-            </span>
-          )}
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {importDate && (
+              <span className="muted">
+                前回取り込み {importDate.getMonth() + 1}/{importDate.getDate()}
+              </span>
+            )}
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ padding: "4px 10px" }}
+              onClick={handleShare}
+            >
+              共有
+            </button>
+          </span>
         </div>
+        {shareMessage && <p className="muted">{shareMessage}</p>}
         {summary.budgetUsageRate !== undefined && (
           <p>対予算 {Math.round(summary.budgetUsageRate * 100)}%</p>
         )}
