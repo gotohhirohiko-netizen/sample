@@ -18,6 +18,7 @@ import ImportSourceSelectView from "./views/ImportSourceSelectView";
 import ImportFilePickerView from "./views/ImportFilePickerView";
 import ExtractionPreviewView from "./views/ExtractionPreviewView";
 import SettingsView from "./views/SettingsView";
+import ChangelogView from "./views/ChangelogView";
 import CategoryBudgetManageView from "./views/CategoryBudgetManageView";
 import FundingSourceManageView from "./views/FundingSourceManageView";
 import BackupView from "./views/BackupView";
@@ -64,6 +65,7 @@ function AppContent() {
             <Route path="/import/file" element={<ImportFilePickerView />} />
             <Route path="/import/preview" element={<ExtractionPreviewView />} />
             <Route path="/settings" element={<SettingsView />} />
+            <Route path="/settings/changelog" element={<ChangelogView />} />
             <Route path="/settings/categories" element={<CategoryBudgetManageView />} />
             <Route path="/settings/sources" element={<FundingSourceManageView />} />
             <Route path="/settings/backup" element={<BackupView />} />

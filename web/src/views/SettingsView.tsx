@@ -124,6 +124,9 @@ export default function SettingsView() {
       </div>
 
       <div className="section list">
+        <Link to="/settings/changelog" className="list-row">
+          変更履歴
+        </Link>
         <Link to="/settings/categories" className="list-row">
           カテゴリ・予算管理
         </Link>
