@@ -49,6 +49,22 @@ export function lastImportDate(transactions: Transaction[]): Date | null {
 }
 
 /**
+ * 表示・予想計算に用いる「実質的な前回取り込み日時」。新規取引が0件の
+ * 取り込みは取引データに痕跡が残らないため、取引から求めた日時と、
+ * 確定ボタンが押されるたびに更新される日時(lastImportConfirmedAt設定)の
+ * 遅い方を採用する。
+ */
+export function effectiveLastImportDate(
+  transactions: Transaction[],
+  lastImportConfirmedAt: Date | null
+): Date | null {
+  const derived = lastImportDate(transactions);
+  if (!derived) return lastImportConfirmedAt;
+  if (!lastImportConfirmedAt) return derived;
+  return lastImportConfirmedAt.getTime() > derived.getTime() ? lastImportConfirmedAt : derived;
+}
+
+/**
  * 今月の対予算・対収入の月末着地予想額を計算する(要件: 対予算・対収入のグラフに
  * 定常的な支出と比例的な支出を分けて色違いの目安線で示す)。
  *
@@ -72,7 +88,8 @@ export function monthEndExpenseProjection(
   month: Date,
   transactions: Transaction[],
   recurringOverrides: RecurringOverride[],
-  specificMonthPlans: SpecificMonthPlan[] = []
+  specificMonthPlans: SpecificMonthPlan[] = [],
+  lastImportConfirmedAt: Date | null = null
 ): MonthEndProjection | null {
   const today = new Date();
   if (!isSameMonth(month, today)) return null;
@@ -131,7 +148,7 @@ export function monthEndExpenseProjection(
   const recurringProjected = recurringBreakdown.reduce((sum, r) => sum + r.projected, 0);
 
   const totalDays = daysInMonth(month);
-  const importDate = lastImportDate(transactions);
+  const importDate = effectiveLastImportDate(transactions, lastImportConfirmedAt);
   const referenceDate =
     importDate && isSameMonth(importDate, month) && importDate.getTime() <= today.getTime()
       ? importDate

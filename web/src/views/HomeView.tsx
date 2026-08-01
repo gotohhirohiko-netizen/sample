@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { monthlySummary } from "../lib/budgetCalculator";
-import { lastImportDate, monthEndExpenseProjection } from "../lib/projectionCalculator";
+import { effectiveLastImportDate, monthEndExpenseProjection } from "../lib/projectionCalculator";
 import {
   bonusActualAmount,
   bonusCategoryPlanTotal,
@@ -12,7 +12,7 @@ import {
   findBonusPeriodForMonth,
 } from "../lib/bonusCalculator";
 import { formatYen, monthToParam } from "../lib/dateUtils";
-import { loadLastBackupAt } from "../lib/keyStorage";
+import { loadLastBackupAt, loadLastImportConfirmedAt } from "../lib/keyStorage";
 import BudgetProgressBar from "../components/BudgetProgressBar";
 import MonthPicker from "../components/MonthPicker";
 
@@ -23,9 +23,11 @@ export default function HomeView() {
   const navigate = useNavigate();
   const [month, setMonth] = useState(() => new Date());
   const [lastBackupAt, setLastBackupAt] = useState<Date | null | undefined>(undefined);
+  const [importConfirmedAt, setImportConfirmedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     loadLastBackupAt().then(setLastBackupAt);
+    loadLastImportConfirmedAt().then(setImportConfirmedAt);
   }, []);
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
@@ -55,8 +57,14 @@ export default function HomeView() {
 
   const summary = monthlySummary(month, transactions, budgetSettings, majorCategories, budgetAdjustments);
   const monthParam = monthToParam(month);
-  const projection = monthEndExpenseProjection(month, transactions, recurringOverrides, specificMonthPlans);
-  const importDate = lastImportDate(transactions);
+  const projection = monthEndExpenseProjection(
+    month,
+    transactions,
+    recurringOverrides,
+    specificMonthPlans,
+    importConfirmedAt
+  );
+  const importDate = effectiveLastImportDate(transactions, importConfirmedAt);
 
   const currentBonusPeriod = findBonusPeriodForMonth(bonusPeriods, month.getMonth() + 1);
   const bonusSummary = currentBonusPeriod

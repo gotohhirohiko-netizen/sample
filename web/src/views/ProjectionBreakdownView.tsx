@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { formatMonthDay, formatYearMonth, formatYen, parseMonthParam } from "../lib/dateUtils";
+import { loadLastImportConfirmedAt } from "../lib/keyStorage";
 import { monthEndExpenseProjection } from "../lib/projectionCalculator";
 
 /** 定常費用の予想・月末着地予想の内訳画面。ホーム画面の凡例から遷移する */
@@ -10,6 +11,11 @@ export default function ProjectionBreakdownView() {
   const { month: monthParam } = useParams<{ month: string }>();
   const month = parseMonthParam(monthParam);
   const [showProportionalList, setShowProportionalList] = useState(false);
+  const [importConfirmedAt, setImportConfirmedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    loadLastImportConfirmedAt().then(setImportConfirmedAt);
+  }, []);
 
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
@@ -19,7 +25,13 @@ export default function ProjectionBreakdownView() {
     return <p className="muted">読み込み中...</p>;
   }
 
-  const projection = monthEndExpenseProjection(month, transactions, recurringOverrides, specificMonthPlans);
+  const projection = monthEndExpenseProjection(
+    month,
+    transactions,
+    recurringOverrides,
+    specificMonthPlans,
+    importConfirmedAt
+  );
 
   if (!projection) {
     return (

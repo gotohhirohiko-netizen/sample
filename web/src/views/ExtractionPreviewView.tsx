@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { loadAutoBackupOnImport } from "../lib/keyStorage";
+import { loadAutoBackupOnImport, saveLastImportConfirmedAt } from "../lib/keyStorage";
 import type { ExtractionResult, FileForExtraction } from "../lib/claudeExtractionService";
 import { tryParseSeparateColumnBankCsv, tryParseSignedAmountBankCsv } from "../lib/bankCsvParser";
 import { tryParseMarkdownTransactionTable } from "../lib/markdownTableParser";
@@ -333,6 +333,10 @@ export default function ExtractionPreviewView() {
         }
       }
     }
+
+    // 新規取引が0件(すべて重複と判断された場合等)でも、確定操作が行われた
+    // という事実自体は前回取り込み日時として記録する
+    await saveLastImportConfirmedAt(new Date(now));
 
     if (itemsToCommit.length > 0 && (await loadAutoBackupOnImport())) {
       const payload = await exportBackup();
