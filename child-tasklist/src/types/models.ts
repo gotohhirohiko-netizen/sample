@@ -13,6 +13,7 @@ export interface Family {
   id: string;
   name: string;
   invite_code: string;
+  reminder_interval_minutes: number;
   created_at: string;
 }
 

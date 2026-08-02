@@ -14,7 +14,9 @@
 
 ## 2. スキーマの適用
 
-SQL Editorで `supabase/migrations/0001_init.sql` の内容をそのまま実行する(Supabase CLIでリンクして`supabase db push`する方法でも可)。
+SQL Editorで `supabase/migrations/` 配下のファイルを**番号順に**そのまま実行する(`0001_init.sql` → `0002_reminder_interval.sql` → ...)。Supabase CLIでリンクして`supabase db push`する方法でも可。
+
+新しいマイグレーションファイルが追加された場合は、既存環境でもそのファイルだけを追加で実行すればよい(`0001`から再実行する必要はない)。
 
 ## 3. VAPID鍵の生成
 
