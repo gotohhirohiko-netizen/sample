@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ensureAuthenticated } from "./lib/supabaseClient";
 import { fetchOwnMember } from "./lib/family";
+import { errorMessage } from "./lib/errorMessage";
 import type { Member } from "./types/models";
 import JoinOrCreateView from "./views/JoinOrCreateView";
 import ParentApp from "./views/ParentApp";
@@ -18,7 +19,7 @@ export default function App() {
         const m = await fetchOwnMember(uid);
         setMember(m);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => setError(errorMessage(e)));
   }, []);
 
   if (error) {

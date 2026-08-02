@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFamily, joinFamily } from "../lib/family";
+import { errorMessage } from "../lib/errorMessage";
 import type { Member } from "../types/models";
 
 export default function JoinOrCreateView({
@@ -22,7 +23,7 @@ export default function JoinOrCreateView({
       const member = await createFamily(authUserId, displayName || "親");
       onJoined(member);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -35,7 +36,7 @@ export default function JoinOrCreateView({
       const member = await joinFamily(authUserId, inviteCode, displayName || "子ども");
       onJoined(member);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

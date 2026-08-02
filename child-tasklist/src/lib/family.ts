@@ -23,18 +23,19 @@ export async function fetchOwnMember(authUserId: string): Promise<Member | null>
 
 /** 親として新しい家族を作成し、自分をparentとして登録する。 */
 export async function createFamily(authUserId: string, displayName: string): Promise<Member> {
+  // idを先に採番しておく。families作成直後は自分がまだどの家族のmembersでもないため、
+  // RLS上families行を読み返せない(current_family_id()がnull)。読み返しを不要にすることで回避する。
+  const familyId = crypto.randomUUID();
   const inviteCode = randomInviteCode();
-  const { data: family, error: familyError } = await supabase
+  const { error: familyError } = await supabase
     .from("families")
-    .insert({ invite_code: inviteCode })
-    .select()
-    .single();
+    .insert({ id: familyId, invite_code: inviteCode });
   if (familyError) throw familyError;
 
   const { data: member, error: memberError } = await supabase
     .from("members")
     .insert({
-      family_id: family.id,
+      family_id: familyId,
       auth_user_id: authUserId,
       role: "parent" satisfies MemberRole,
       display_name: displayName,

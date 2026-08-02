@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { isPushSupported, subscribeToPush } from "../lib/push";
+import { errorMessage as toErrorMessage } from "../lib/errorMessage";
 import type { Member } from "../types/models";
 
 const isStandalone =
@@ -37,7 +38,7 @@ export default function NotificationSetup({ member }: { member: Member }) {
             await subscribeToPush(member.id);
             setStatus("done");
           } catch (e) {
-            setErrorMessage(e instanceof Error ? e.message : String(e));
+            setErrorMessage(toErrorMessage(e));
             setStatus("error");
           }
         }}
