@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { todayInTokyo } from "./dateUtils";
+import { errorMessage } from "./errorMessage";
 import type { DailyTaskStatus, TaskTemplate } from "../types/models";
 
 export interface ChecklistEntry {
@@ -48,7 +49,7 @@ export function useTodayChecklist(familyId: string | null) {
       );
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
