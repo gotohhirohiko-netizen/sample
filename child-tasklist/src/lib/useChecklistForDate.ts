@@ -24,7 +24,8 @@ export function useChecklistForDate(familyId: string | null, date: string) {
         .eq("family_id", familyId)
         .eq("active", true)
         .order("time_slot")
-        .order("target_time");
+        .order("target_time")
+        .order("display_order");
       if (templatesError) throw templatesError;
 
       const templateIds = (templates ?? []).map((t) => t.id);
