@@ -47,6 +47,7 @@ begin
 end;
 $$;
 
+drop trigger if exists daily_task_status_notify_check on daily_task_status;
 create trigger daily_task_status_notify_check
 after insert or update on daily_task_status
 for each row
