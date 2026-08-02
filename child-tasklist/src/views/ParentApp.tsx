@@ -6,11 +6,14 @@ import ParentTodayView from "./ParentTodayView";
 import ParentSetupView from "./ParentSetupView";
 import type { Family, Member } from "../types/models";
 
-const REMIND_INTERVAL_OPTIONS = [15, 30, 45, 60, 90, 120];
+const REMIND_INTERVAL_MIN = 5;
+const REMIND_INTERVAL_MAX = 180;
+const REMIND_INTERVAL_STEP = 5;
 
 export default function ParentApp({ member }: { member: Member }) {
   const [tab, setTab] = useState<"today" | "setup">("today");
   const [family, setFamily] = useState<Family | null>(null);
+  const [intervalInput, setIntervalInput] = useState("30");
   const [intervalSaving, setIntervalSaving] = useState(false);
   const [intervalError, setIntervalError] = useState<string | null>(null);
 
@@ -20,11 +23,23 @@ export default function ParentApp({ member }: { member: Member }) {
       .select("*")
       .eq("id", member.family_id)
       .single()
-      .then(({ data }) => setFamily(data));
+      .then(({ data }) => {
+        setFamily(data);
+        if (data) setIntervalInput(String(data.reminder_interval_minutes));
+      });
   }, [member.family_id]);
 
-  async function updateReminderInterval(minutes: number) {
+  async function saveReminderInterval() {
     if (!family) return;
+    const minutes = Number(intervalInput);
+    if (
+      !Number.isInteger(minutes) ||
+      minutes < REMIND_INTERVAL_MIN ||
+      minutes > REMIND_INTERVAL_MAX
+    ) {
+      setIntervalError(`${REMIND_INTERVAL_MIN}〜${REMIND_INTERVAL_MAX}の範囲で入力してください`);
+      return;
+    }
     setIntervalSaving(true);
     setIntervalError(null);
     try {
@@ -59,19 +74,25 @@ export default function ParentApp({ member }: { member: Member }) {
         <details className="card">
           <summary>リマインドの繰り返し間隔</summary>
           <p className="notice">
-            未チェックの項目を、目安時刻を過ぎてから何分おきに再通知するかを設定します。
+            未チェックの項目を、目安時刻を過ぎてから何分おきに再通知するかを設定します(
+            {REMIND_INTERVAL_MIN}〜{REMIND_INTERVAL_MAX}分、{REMIND_INTERVAL_STEP}分刻み)。
           </p>
-          <select
-            value={family.reminder_interval_minutes}
-            disabled={intervalSaving}
-            onChange={(e) => updateReminderInterval(Number(e.target.value))}
-          >
-            {REMIND_INTERVAL_OPTIONS.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {minutes}分おき
-              </option>
-            ))}
-          </select>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="number"
+              min={REMIND_INTERVAL_MIN}
+              max={REMIND_INTERVAL_MAX}
+              step={REMIND_INTERVAL_STEP}
+              value={intervalInput}
+              disabled={intervalSaving}
+              onChange={(e) => setIntervalInput(e.target.value)}
+              style={{ width: 90 }}
+            />
+            <span>分おき</span>
+            <button className="primary" onClick={saveReminderInterval} disabled={intervalSaving}>
+              保存する
+            </button>
+          </div>
           {intervalError && <p className="error">{intervalError}</p>}
         </details>
       )}

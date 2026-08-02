@@ -1,4 +1,4 @@
-// pg_cron から一定間隔(post-setup.sql参照、既定10分毎)で呼び出される。
+// pg_cron から一定間隔(post-setup.sql参照、既定5分毎)で呼び出される。
 // 目安時刻を過ぎても未チェックの項目を検出し、子端末へリマインドPushを送る。
 // 詳細ロジックは docs/design.md 4.1 を参照。
 import { createClient } from "npm:@supabase/supabase-js@2";

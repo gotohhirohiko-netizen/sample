@@ -10,10 +10,18 @@
 create extension if not exists pg_cron with schema extensions;
 create extension if not exists pg_net with schema extensions;
 
--- 1. リマインド送信を10分毎に実行する(send-reminders Edge Functionを呼び出す)
+-- 1. リマインド送信を5分毎に実行する(send-reminders Edge Functionを呼び出す)
+--    (以前のバージョンで作成した10分毎のジョブが残っていれば削除する。無ければ何もしない)
+do $$
+begin
+  perform cron.unschedule('send-reminders-every-10-min');
+exception when others then
+  null;
+end $$;
+
 select cron.schedule(
-  'send-reminders-every-10-min',
-  '*/10 * * * *',
+  'send-reminders',
+  '*/5 * * * *',
   $$
   select net.http_post(
     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/send-reminders',
