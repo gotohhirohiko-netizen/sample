@@ -28,21 +28,28 @@ select cron.schedule(
 
 -- 2. daily_task_status が更新されたら即座に notify-check Edge Function を呼び出す
 --    (子がチェックした瞬間に親へ通知するため)
+-- 通知の送信に失敗しても、チェック自体の保存(daily_task_statusへの書き込み)は
+-- 必ず成功させたいので、net.http_post呼び出しの例外はここで揉み消す(呼び出し元の
+-- トランザクションをロールバックさせない)。
 create or replace function notify_check_webhook() returns trigger
 language plpgsql as $$
 begin
-  perform net.http_post(
-    url := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-check',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer <ANON_KEY>'
-    ),
-    body := jsonb_build_object(
-      'type', tg_op,
-      'record', to_jsonb(new),
-      'old_record', case when tg_op = 'UPDATE' then to_jsonb(old) else null end
-    )
-  );
+  begin
+    perform net.http_post(
+      url := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-check',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer <ANON_KEY>'
+      ),
+      body := jsonb_build_object(
+        'type', tg_op,
+        'record', to_jsonb(new),
+        'old_record', case when tg_op = 'UPDATE' then to_jsonb(old) else null end
+      )
+    );
+  exception when others then
+    raise warning 'notify_check_webhook failed: %', sqlerrm;
+  end;
   return new;
 end;
 $$;
