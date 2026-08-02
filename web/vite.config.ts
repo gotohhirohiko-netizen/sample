@@ -23,6 +23,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
+      workbox: {
+        // GitHub Pagesの同一サイト配下に child-tasklist/ アプリを同居させているため、
+        // 家計簿アプリのSWのナビゲーションフォールバックがそちらのパスを横取りしないようにする
+        navigateFallbackDenylist: [/\/child-tasklist\//],
+      },
       manifest: {
         name: "家計簿",
         short_name: "家計簿",
