@@ -22,7 +22,7 @@ graph TB
         DB[("Postgres<br/>families/members/<br/>task_templates/daily_task_status")]
         Realtime["Realtime"]
         Auth["Anonymous Auth"]
-        Cron["pg_cron<br/>(10分毎)"]
+        Cron["pg_cron<br/>(5分毎)"]
         Webhook["Database Webhook<br/>(daily_task_status更新時)"]
         FnReminder["Edge Function<br/>send-reminders"]
         FnNotify["Edge Function<br/>notify-check"]
@@ -59,7 +59,7 @@ graph TB
 | Postgres | families/members/task_templates/daily_task_status を保存 | Supabase Postgres |
 | Realtime | 親の「今日の進捗」画面をリアルタイム更新 | Supabase Realtime(Postgres Changes) |
 | Anonymous Auth | 端末ごとの匿名認証。招待コードで家族に紐付け | Supabase Auth |
-| send-reminders | 未チェック項目を検出し、子端末へリマインドPushを送信。pg_cronから10分毎に起動 | Supabase Edge Function(Deno) + web-push |
+| send-reminders | 未チェック項目を検出し、子端末へリマインドPushを送信。pg_cronから5分毎に起動 | Supabase Edge Function(Deno) + web-push |
 | notify-check | 子がチェックした瞬間、親端末へ完了Pushを送信。Database Webhookから起動 | Supabase Edge Function(Deno) + web-push |
 | Service Worker | Web Pushの受信・通知表示、PWAのオフラインキャッシュ | 自前のsw.ts(vite-plugin-pwa `injectManifest`戦略) |
 | ホスティング | ビルド済み静的ファイルの配信 | GitHub Pages(`web/`と同一リポジトリ、別サブパス) |

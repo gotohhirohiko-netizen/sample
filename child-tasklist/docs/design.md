@@ -146,7 +146,7 @@ Edge Function(`send-reminders`/`notify-check`)はservice role keyで実行する
 
 ### 4.1 リマインド(子への繰り返し通知)
 
-`send-reminders`はpg_cronから10分毎に起動される(post-setup.sql参照)。
+`send-reminders`はpg_cronから5分毎に起動される(post-setup.sql参照)。
 
 1. 現在時刻(JST)から今日の日付`today`を求める
 2. `active = true`な`task_templates`のうち、`target_time <= 現在時刻` のものを全家族分取得

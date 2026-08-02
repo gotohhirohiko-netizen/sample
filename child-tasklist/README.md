@@ -48,7 +48,7 @@ npx supabase secrets set VAPID_SUBJECT=mailto:<あなたのメールアドレス
 
 `supabase/post-setup.sql` を開き、`<PROJECT_REF>` / `<ANON_KEY>` を実際の値に置き換えたうえで、SQL Editorで実行する。
 
-- リマインド送信(`send-reminders`)を10分毎に自動実行する pg_cron ジョブ
+- リマインド送信(`send-reminders`)を5分毎に自動実行する pg_cron ジョブ
 - チェック時(`daily_task_status`更新時)に `notify-check` を即座に呼び出すトリガー
 
 が設定される。

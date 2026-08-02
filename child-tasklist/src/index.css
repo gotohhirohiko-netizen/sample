@@ -72,13 +72,18 @@ button:disabled {
   cursor: default;
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="number"],
+input[type="time"] {
   font: inherit;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--fg);
+}
+
+input[type="text"] {
   width: 100%;
 }
 
