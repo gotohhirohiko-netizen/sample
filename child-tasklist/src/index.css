@@ -1,0 +1,157 @@
+:root {
+  color-scheme: light dark;
+  font: 16px/1.5 system-ui, "Hiragino Sans", "Yu Gothic", sans-serif;
+  --bg: #ffffff;
+  --fg: #111111;
+  --muted: #6b6b6b;
+  --border: #e5e5e5;
+  --accent: #2f9e6f;
+  --danger: #d0342c;
+  --surface: #f7f7f8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e0e10;
+    --fg: #f2f2f2;
+    --muted: #9a9a9a;
+    --border: #2c2c2e;
+    --surface: #1c1c1e;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+.screen {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+}
+
+h1 {
+  font-size: 1.3rem;
+}
+
+h2 {
+  font-size: 1.05rem;
+  color: var(--muted);
+  margin: 24px 0 8px;
+}
+
+button {
+  font: inherit;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input[type="text"] {
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  width: 100%;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--surface);
+  margin-bottom: 12px;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: var(--bg);
+}
+
+.task-item .checkbox {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.task-item.checked .checkbox {
+  background: var(--accent);
+}
+
+.task-item .title {
+  flex: 1;
+}
+
+.task-item.checked .title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.task-item .time {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.notice {
+  font-size: 0.9rem;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  margin-bottom: 16px;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.invite-code {
+  font-size: 1.6rem;
+  letter-spacing: 0.15em;
+  font-weight: 700;
+  text-align: center;
+  padding: 12px;
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  margin: 12px 0;
+}
