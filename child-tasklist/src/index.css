@@ -99,6 +99,17 @@ input[type="text"] {
   border-radius: 12px;
   margin-bottom: 8px;
   background: var(--bg);
+  width: 100%;
+  text-align: left;
+}
+
+button.task-item {
+  cursor: pointer;
+}
+
+button.task-item:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 .task-item .checkbox {
@@ -143,6 +154,20 @@ input[type="text"] {
 .error {
   color: var(--danger);
   font-size: 0.9rem;
+}
+
+.date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.date-nav button {
+  padding: 6px 10px;
+  font-size: 0.85rem;
 }
 
 .invite-code {
