@@ -1,4 +1,4 @@
-name: Deploy web app to GitHub Pages
+name: Deploy web apps to GitHub Pages
 
 on:
   push:
@@ -8,7 +8,8 @@ on:
     branches: [claude/household-budget-app-6ad06r]
     paths:
       - "web/**"
-      - ".github/workflows/deploy-web.yml"
+      - "child-tasklist/**"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch: {}
 
 permissions:
@@ -23,9 +24,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
     steps:
       - uses: actions/checkout@v4
 
@@ -33,16 +31,38 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: |
+            web/package-lock.json
+            child-tasklist/package-lock.json
 
-      - run: npm ci
-      - run: npm run build
+      - name: Build 家計簿アプリ (web/)
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build 遠征タスクリストアプリ (child-tasklist/)
+        working-directory: child-tasklist
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.CHILD_TASKLIST_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.CHILD_TASKLIST_SUPABASE_ANON_KEY }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.CHILD_TASKLIST_VAPID_PUBLIC_KEY }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Combine build outputs
+        run: |
+          mkdir -p pages
+          cp -r web/dist/. pages/
+          mkdir -p pages/child-tasklist
+          cp -r child-tasklist/dist/. pages/child-tasklist/
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web/dist
+          path: pages
 
   deploy:
     needs: build

@@ -15,7 +15,7 @@ npm run lint      # oxlintによる静的解析
 
 ## デプロイ(GitHub Pages)
 
-`.github/workflows/deploy-web.yml` により、`claude/household-budget-app-6ad06r`ブランチ(このリポジトリのデフォルトブランチ)の`web/`配下への変更をpushすると自動的にGitHub Pagesへデプロイされる。初回のみ、リポジトリの Settings → Pages → Source を **GitHub Actions** に設定する必要がある(設定済み)。
+`.github/workflows/deploy.yml` により、`claude/household-budget-app-6ad06r`ブランチ(このリポジトリのデフォルトブランチ)の`web/`配下への変更をpushすると自動的にGitHub Pagesへデプロイされる。初回のみ、リポジトリの Settings → Pages → Source を **GitHub Actions** に設定する必要がある(設定済み)。同じワークフローで`child-tasklist/`アプリも`/child-tasklist/`サブパスに同時デプロイされる(詳細は`../child-tasklist/README.md`参照)。
 
 デプロイ後のURLは `https://<GitHubユーザー名>.github.io/<リポジトリ名>/` となる。
 

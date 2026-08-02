@@ -1,0 +1,7 @@
+project_id = "child-tasklist"
+
+[functions.send-reminders]
+verify_jwt = true
+
+[functions.notify-check]
+verify_jwt = true
