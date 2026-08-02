@@ -152,7 +152,7 @@ Edge Function(`send-reminders`/`notify-check`)はservice role keyで実行する
 2. `active = true`な`task_templates`のうち、`target_time <= 現在時刻` のものを全家族分取得
 3. 各テンプレートについて`daily_task_status`の`(template_id, today)`行を確認
    - `checked_at`が設定済み → スキップ(完了済み)
-   - `last_reminded_at`が`null`、または現在時刻との差が30分以上 → リマインド対象
+   - `last_reminded_at`が`null`、または現在時刻との差が`families.reminder_interval_minutes`(親が設定。既定30分)以上 → リマインド対象
    - 時間帯ごとに固定の締め時刻(朝=12:00、昼=18:00、晩=23:00)を過ぎていたら対象外(深夜の通知を防止)
 4. リマインド対象のテンプレートについて、そのfamilyの`role = 'child'`な`members`の`push_subscription`にWeb Pushを送信
 5. `daily_task_status`を`upsert`し、`last_reminded_at = now()`、`reminder_count = reminder_count + 1`を記録

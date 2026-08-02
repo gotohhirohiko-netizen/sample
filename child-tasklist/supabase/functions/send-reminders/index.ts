@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendPush, type PushSubscriptionJSON } from "../_shared/push.ts";
 
-const REMIND_INTERVAL_MS = 30 * 60 * 1000; // 30分
+const DEFAULT_REMIND_INTERVAL_MINUTES = 30;
 const SLOT_CUTOFF: Record<string, string> = {
   morning: "12:00:00",
   noon: "18:00:00",
@@ -62,12 +62,26 @@ Deno.serve(async () => {
     .in("template_id", templateIds);
   const statusByTemplate = new Map((statuses ?? []).map((s) => [s.template_id, s]));
 
+  const candidateFamilyIds = [...new Set(candidates.map((t) => t.family_id))];
+  const { data: families } = await supabase
+    .from("families")
+    .select("id, reminder_interval_minutes")
+    .in("id", candidateFamilyIds);
+  const remindIntervalMsByFamily = new Map(
+    (families ?? []).map((f) => [
+      f.id,
+      (f.reminder_interval_minutes ?? DEFAULT_REMIND_INTERVAL_MINUTES) * 60 * 1000,
+    ]),
+  );
+
   const toRemind = candidates.filter((t) => {
     const status = statusByTemplate.get(t.id);
     if (status?.checked_at) return false;
     if (status?.last_reminded_at) {
+      const intervalMs =
+        remindIntervalMsByFamily.get(t.family_id) ?? DEFAULT_REMIND_INTERVAL_MINUTES * 60 * 1000;
       const elapsed = Date.now() - new Date(status.last_reminded_at).getTime();
-      if (elapsed < REMIND_INTERVAL_MS) return false;
+      if (elapsed < intervalMs) return false;
     }
     return true;
   });
