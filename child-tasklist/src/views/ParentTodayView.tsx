@@ -1,16 +1,29 @@
-import { useTodayChecklist } from "../lib/useTodayChecklist";
+import { useState } from "react";
+import { useChecklistForDate } from "../lib/useChecklistForDate";
 import { TIME_SLOT_LABEL, TIME_SLOT_ORDER, type TimeSlot } from "../types/models";
-import { formatTime } from "../lib/dateUtils";
+import { addDaysJST, formatDateJa, formatTime, todayInTokyo } from "../lib/dateUtils";
 
 export default function ParentTodayView({ familyId }: { familyId: string }) {
-  const { entries, loading, error } = useTodayChecklist(familyId);
+  const today = todayInTokyo();
+  const [date, setDate] = useState(today);
+  const isToday = date === today;
+  const { entries, loading, error } = useChecklistForDate(familyId, date);
 
   const bySlot = (slot: TimeSlot) => entries.filter((e) => e.template.time_slot === slot);
   const doneCount = entries.filter((e) => e.status?.checked_at).length;
 
   return (
     <div>
-      <h1>今日の進捗</h1>
+      <h1>進捗</h1>
+
+      <div className="date-nav">
+        <button onClick={() => setDate((d) => addDaysJST(d, -1))}>← 前の日</button>
+        <span>{formatDateJa(date)}</span>
+        <button onClick={() => setDate((d) => addDaysJST(d, 1))} disabled={isToday}>
+          次の日 →
+        </button>
+      </div>
+
       {error && <p className="error">{error}</p>}
       {loading && <p>読み込み中...</p>}
       {!loading && entries.length === 0 && (
@@ -31,9 +44,9 @@ export default function ParentTodayView({ familyId }: { familyId: string }) {
               const checked = !!status?.checked_at;
               return (
                 <div key={template.id} className={`task-item${checked ? " checked" : ""}`}>
-                  <div className="checkbox">{checked ? "✓" : ""}</div>
-                  <div className="title">{template.title}</div>
-                  <div className="time">{formatTime(template.target_time)}</div>
+                  <span className="checkbox">{checked ? "✓" : ""}</span>
+                  <span className="title">{template.title}</span>
+                  <span className="time">{formatTime(template.target_time)}</span>
                 </div>
               );
             })}
