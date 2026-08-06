@@ -7,7 +7,7 @@ export default function ParentTodayView({ familyId }: { familyId: string }) {
   const today = todayInTokyo();
   const [date, setDate] = useState(today);
   const isToday = date === today;
-  const { entries, loading, error } = useChecklistForDate(familyId, date);
+  const { entries, activeList, loading, error } = useChecklistForDate(familyId, date);
 
   const bySlot = (slot: TimeSlot) => entries.filter((e) => e.template.time_slot === slot);
   const doneCount = entries.filter((e) => e.status?.checked_at).length;
@@ -23,6 +23,12 @@ export default function ParentTodayView({ familyId }: { familyId: string }) {
           次の日 →
         </button>
       </div>
+
+      {activeList && !activeList.is_default && (
+        <p className="notice">
+          特別リスト「{activeList.name}」({activeList.start_date?.slice(5)}〜{activeList.end_date?.slice(5)})が適用中です
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
       {loading && <p>読み込み中...</p>}

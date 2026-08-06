@@ -27,9 +27,20 @@ export interface Member {
   created_at: string;
 }
 
+export interface TaskList {
+  id: string;
+  family_id: string;
+  name: string;
+  is_default: boolean;
+  start_date: string | null; // "YYYY-MM-DD"(通常リストはnull)
+  end_date: string | null; // "YYYY-MM-DD"(通常リストはnull)
+  created_at: string;
+}
+
 export interface TaskTemplate {
   id: string;
   family_id: string;
+  list_id: string;
   title: string;
   time_slot: TimeSlot;
   target_time: string; // "HH:mm:ss"

@@ -18,11 +18,33 @@ flowchart LR
 |---|---|---|
 | 家族を作る/参加する | 初回起動時。「親として家族を作る」か「招待コードで子として参加する」を選ぶ | `JoinOrCreateView.tsx` |
 | 親: 今日の進捗 | 当日のチェックリストと各項目の完了状況をリアルタイム表示。招待コード再表示も可能 | `ParentTodayView.tsx` |
-| 親: 項目設定 | チェックリスト項目(タイトル・時間帯・目安時刻)の追加・編集・削除・並び替え | `ParentSetupView.tsx` |
+| 親: タスクリスト・項目設定 | 通常/特別のタスクリスト管理(作成・期間編集・削除)と、選択中リストの項目(タイトル・時間帯・目安時刻)の追加・編集・削除・並び替え | `ParentSetupView.tsx` |
 | 子: 今日のチェックリスト | 朝・昼・晩ごとにグルーピングした当日の項目。タップでチェックのON/OFF | `ChildChecklistView.tsx` |
 | 通知許可・ホーム画面追加案内 | 初回に「ホーム画面に追加」の手順と、通知許可ボタンを表示 | `NotificationSetupView.tsx` |
 
 ## 2. データモデル(Postgres / TypeScript)
+
+### 2.1 タスクリスト(通常リスト・期間限定の特別リスト)
+
+各家族は`task_lists`を複数持てる。常に1つ`is_default = true`の「通常のタスクリスト」があり(期間指定なし)、
+それとは別に期間(`start_date`〜`end_date`)を指定した「特別リスト」を複数作成できる(例: 遠征・合宿期間用)。
+
+`task_templates`はいずれか1つの`task_lists`に属する(`list_id`)。ある日付のチェックリストを表示する際は、
+その日付が期間に該当する特別リストがあればそれを、無ければ通常リストを採用する(`resolveActiveList`、
+`src/lib/taskLists.ts`とEdge Function `send-reminders`の両方に同等のロジックを持つ)。特別リスト同士の
+期間は重複させない(作成・編集時にアプリ側で検証する)。
+
+```sql
+-- タスクリスト(通常1つ + 期間限定の特別リストを複数)
+create table task_lists (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  name text not null,
+  is_default boolean not null default false,
+  start_date date, -- 特別リストのみ設定(通常リストはnull)
+  end_date date
+);
+```
 
 ```sql
 -- 家族(招待コードで親子を紐付ける単位)

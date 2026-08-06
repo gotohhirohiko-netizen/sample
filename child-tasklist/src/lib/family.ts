@@ -43,6 +43,12 @@ export async function createFamily(authUserId: string, displayName: string): Pro
     .select()
     .single();
   if (memberError) throw memberError;
+
+  const { error: listError } = await supabase
+    .from("task_lists")
+    .insert({ family_id: familyId, name: "通常のタスクリスト", is_default: true });
+  if (listError) throw listError;
+
   return member;
 }
 

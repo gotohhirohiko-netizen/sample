@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { errorMessage } from "./errorMessage";
-import type { DailyTaskStatus, TaskTemplate } from "../types/models";
+import { resolveActiveList } from "./taskLists";
+import type { DailyTaskStatus, TaskList, TaskTemplate } from "../types/models";
 
 export interface ChecklistEntry {
   template: TaskTemplate;
@@ -11,6 +12,7 @@ export interface ChecklistEntry {
 /** 家族の指定日のチェックリスト(テンプレート+チェック状態)をRealtime購読付きで取得する */
 export function useChecklistForDate(familyId: string | null, date: string) {
   const [entries, setEntries] = useState<ChecklistEntry[]>([]);
+  const [activeList, setActiveList] = useState<TaskList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,10 +20,24 @@ export function useChecklistForDate(familyId: string | null, date: string) {
     if (!familyId) return;
     setLoading(true);
     try {
+      const { data: lists, error: listsError } = await supabase
+        .from("task_lists")
+        .select("*")
+        .eq("family_id", familyId);
+      if (listsError) throw listsError;
+
+      const active = resolveActiveList(lists ?? [], date);
+      setActiveList(active);
+      if (!active) {
+        setEntries([]);
+        setError(null);
+        return;
+      }
+
       const { data: templates, error: templatesError } = await supabase
         .from("task_templates")
         .select("*")
-        .eq("family_id", familyId)
+        .eq("list_id", active.id)
         .eq("active", true)
         .order("time_slot")
         .order("target_time")
@@ -64,6 +80,11 @@ export function useChecklistForDate(familyId: string | null, date: string) {
       .channel(`checklist-${familyId}`)
       .on(
         "postgres_changes",
+        { event: "*", schema: "public", table: "task_lists", filter: `family_id=eq.${familyId}` },
+        () => load(),
+      )
+      .on(
+        "postgres_changes",
         { event: "*", schema: "public", table: "task_templates", filter: `family_id=eq.${familyId}` },
         () => load(),
       )
@@ -91,5 +112,5 @@ export function useChecklistForDate(familyId: string | null, date: string) {
     [date, load],
   );
 
-  return { entries, loading, error, reload: load, toggleCheck };
+  return { entries, activeList, loading, error, reload: load, toggleCheck };
 }

@@ -10,7 +10,7 @@ export default function ChildChecklistView({ member }: { member: Member }) {
   const today = todayInTokyo();
   const [date, setDate] = useState(today);
   const isToday = date === today;
-  const { entries, loading, error, toggleCheck } = useChecklistForDate(member.family_id, date);
+  const { entries, activeList, loading, error, toggleCheck } = useChecklistForDate(member.family_id, date);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
 
@@ -43,6 +43,11 @@ export default function ChildChecklistView({ member }: { member: Member }) {
       </div>
       {!isToday && (
         <p className="notice">過去の記録を表示しています(チェックの変更は今日の分のみ可能です)</p>
+      )}
+      {activeList && !activeList.is_default && (
+        <p className="notice">
+          特別リスト「{activeList.name}」({activeList.start_date?.slice(5)}〜{activeList.end_date?.slice(5)})です
+        </p>
       )}
 
       {error && <p className="error">{error}</p>}

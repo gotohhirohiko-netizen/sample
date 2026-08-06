@@ -34,13 +34,53 @@ function nowInTokyo(): { date: string; time: string; iso: string } {
   return { date, time, iso: now.toISOString() };
 }
 
+interface TaskListRow {
+  id: string;
+  family_id: string;
+  is_default: boolean;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+/** 家族ごとに「今日」有効なタスクリストを決める(特別リストの期間内ならそれ、無ければ通常リスト)。 */
+function resolveActiveListIdsByFamily(lists: TaskListRow[], today: string): Map<string, string> {
+  const listsByFamily = new Map<string, TaskListRow[]>();
+  for (const l of lists) {
+    const arr = listsByFamily.get(l.family_id) ?? [];
+    arr.push(l);
+    listsByFamily.set(l.family_id, arr);
+  }
+  const activeListIdByFamily = new Map<string, string>();
+  for (const [familyId, familyLists] of listsByFamily) {
+    const special = familyLists.find(
+      (l) => !l.is_default && l.start_date && l.end_date && l.start_date <= today && today <= l.end_date,
+    );
+    const active = special ?? familyLists.find((l) => l.is_default);
+    if (active) activeListIdByFamily.set(familyId, active.id);
+  }
+  return activeListIdByFamily;
+}
+
 Deno.serve(async () => {
   const { date: today, time: nowTime, iso: nowIso } = nowInTokyo();
+
+  const { data: lists, error: listsError } = await supabase
+    .from("task_lists")
+    .select("id, family_id, is_default, start_date, end_date");
+  if (listsError) {
+    console.error(listsError);
+    return new Response(JSON.stringify({ error: listsError.message }), { status: 500 });
+  }
+  const activeListIds = [...resolveActiveListIdsByFamily(lists ?? [], today).values()];
+  if (activeListIds.length === 0) {
+    return new Response(JSON.stringify({ reminded: 0 }), { status: 200 });
+  }
 
   const { data: templates, error: templatesError } = await supabase
     .from("task_templates")
     .select("id, family_id, title, time_slot, target_time")
-    .eq("active", true);
+    .eq("active", true)
+    .in("list_id", activeListIds);
   if (templatesError) {
     console.error(templatesError);
     return new Response(JSON.stringify({ error: templatesError.message }), { status: 500 });
