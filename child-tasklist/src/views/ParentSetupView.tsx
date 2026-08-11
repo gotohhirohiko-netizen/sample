@@ -26,6 +26,8 @@ export default function ParentSetupView({ familyId }: { familyId: string }) {
   const [newListName, setNewListName] = useState("");
   const [newListStart, setNewListStart] = useState(todayInTokyo());
   const [newListEnd, setNewListEnd] = useState(todayInTokyo());
+  const [newListMode, setNewListMode] = useState<"scratch" | "copy">("scratch");
+  const [newListBaseId, setNewListBaseId] = useState<string>("");
 
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editListName, setEditListName] = useState("");
@@ -90,6 +92,10 @@ export default function ParentSetupView({ familyId }: { familyId: string }) {
       setError("終了日は開始日以降にしてください");
       return;
     }
+    if (newListMode === "copy" && !newListBaseId) {
+      setError("ベースにするリストを選んでください");
+      return;
+    }
     const overlapping = findOverlappingList(lists, newListStart, newListEnd);
     if (overlapping) {
       setError(`「${overlapping.name}」と期間が重なっています`);
@@ -110,9 +116,40 @@ export default function ParentSetupView({ familyId }: { familyId: string }) {
       setError(errorMessage(insertError));
       return;
     }
+
+    if (newListMode === "copy" && data) {
+      const { data: baseTemplates, error: baseError } = await supabase
+        .from("task_templates")
+        .select("title, time_slot, target_time, display_order")
+        .eq("list_id", newListBaseId)
+        .eq("active", true);
+      if (baseError) {
+        setError(errorMessage(baseError));
+        return;
+      }
+      if (baseTemplates && baseTemplates.length > 0) {
+        const { error: copyError } = await supabase.from("task_templates").insert(
+          baseTemplates.map((t) => ({
+            family_id: familyId,
+            list_id: data.id,
+            title: t.title,
+            time_slot: t.time_slot,
+            target_time: t.target_time,
+            display_order: t.display_order,
+          })),
+        );
+        if (copyError) {
+          setError(errorMessage(copyError));
+          return;
+        }
+      }
+    }
+
     setNewListName("");
     setNewListStart(todayInTokyo());
     setNewListEnd(todayInTokyo());
+    setNewListMode("scratch");
+    setNewListBaseId("");
     await loadLists();
     if (data) setSelectedListId(data.id);
   }
@@ -318,10 +355,38 @@ export default function ParentSetupView({ familyId }: { familyId: string }) {
               <input type="date" value={newListEnd} onChange={(e) => setNewListEnd(e.target.value)} />
             </label>
           </div>
+          <label className="field-label" style={{ marginBottom: 10 }}>
+            作成方法
+            <select
+              value={newListMode}
+              onChange={(e) => setNewListMode(e.target.value as "scratch" | "copy")}
+            >
+              <option value="scratch">一から作成</option>
+              <option value="copy">既存のリストをベースに作成(項目をコピー)</option>
+            </select>
+          </label>
+          {newListMode === "copy" && (
+            <label className="field-label" style={{ marginBottom: 10 }}>
+              ベースにするリスト
+              <select value={newListBaseId} onChange={(e) => setNewListBaseId(e.target.value)}>
+                <option value="">選択してください</option>
+                {lists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.is_default ? l.name : `${l.name}(${formatPeriod(l)})`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             className="primary"
             onClick={addList}
-            disabled={!newListName.trim() || !newListStart || !newListEnd}
+            disabled={
+              !newListName.trim() ||
+              !newListStart ||
+              !newListEnd ||
+              (newListMode === "copy" && !newListBaseId)
+            }
           >
             追加する
           </button>
