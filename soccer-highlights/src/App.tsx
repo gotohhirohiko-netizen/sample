@@ -6,7 +6,7 @@ import { PlaylistPanel } from "./components/PlaylistPanel.tsx";
 import { ProjectPanel, type SaveStatus } from "./components/ProjectPanel.tsx";
 import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
-import { saveProject, type ProjectData } from "./lib/api.ts";
+import { saveProject, type PlaylistVideo, type ProjectData } from "./lib/api.ts";
 import { describeYoutubePlayerError } from "./lib/youtubeErrorMessages.ts";
 import type { Clip, ClipSource } from "./types.ts";
 
@@ -18,6 +18,7 @@ export default function App() {
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [playerErrorCode, setPlayerErrorCode] = useState<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
   const [projectName, setProjectName] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -127,6 +128,21 @@ export default function App() {
       }),
     );
 
+  const playlistIndex = playlistVideos.findIndex((v) => v.videoId === activeVideoId);
+  const hasPrevInPlaylist = playlistIndex > 0;
+  const hasNextInPlaylist = playlistIndex !== -1 && playlistIndex < playlistVideos.length - 1;
+
+  const handlePlaylistStep = (offset: 1 | -1) => {
+    const targetIndex = playlistIndex + offset;
+    const target = playlistVideos[targetIndex];
+    if (!target) return;
+    handleLoadSource({
+      videoId: target.videoId,
+      title: target.title,
+      youtubeUrl: `https://www.youtube.com/watch?v=${target.videoId}`,
+    });
+  };
+
   const handleSeek = (clip: Clip) => {
     if (clip.sourceVideoId !== activeVideoId) {
       const source = sources.find((s) => s.videoId === clip.sourceVideoId);
@@ -154,26 +170,52 @@ export default function App() {
             {sidebarCollapsed ? "▶" : "◀ たたむ"}
           </button>
 
-          {!sidebarCollapsed && (
-            <>
-              <ProjectPanel
-                projectName={projectName}
-                saveStatus={saveStatus}
-                hasUnsavedChanges={hasUnsavedChanges}
-                lastSavedAt={lastSavedAt}
-                onRename={handleRenameProject}
-                onSaveNow={handleSaveNow}
-                onLoadProject={handleLoadProject}
-                onNewProject={handleNewProject}
-              />
-              <PlaylistPanel activeVideoId={activeVideoId} onSelectVideo={handleLoadSource} />
-            </>
-          )}
+          {/* たたんでいる間も再生リストの読み込み内容などが消えないよう、
+              アンマウントせずCSSで非表示にするだけにしている */}
+          <div className="sidebar-content">
+            <ProjectPanel
+              projectName={projectName}
+              saveStatus={saveStatus}
+              hasUnsavedChanges={hasUnsavedChanges}
+              lastSavedAt={lastSavedAt}
+              onRename={handleRenameProject}
+              onSaveNow={handleSaveNow}
+              onLoadProject={handleLoadProject}
+              onNewProject={handleNewProject}
+            />
+            <PlaylistPanel
+              activeVideoId={activeVideoId}
+              onSelectVideo={handleLoadSource}
+              onVideosLoaded={setPlaylistVideos}
+            />
+          </div>
         </div>
 
         <div className="main-content">
           <section className="player-section">
-            <SourceUrlInput onLoad={handleLoadSource} />
+            <div className="player-top-row">
+              <SourceUrlInput onLoad={handleLoadSource} />
+              {playlistVideos.length > 0 && (
+                <div className="playlist-nav-buttons">
+                  <button
+                    type="button"
+                    onClick={() => handlePlaylistStep(-1)}
+                    disabled={!hasPrevInPlaylist}
+                    title="再生リストの前の動画へ"
+                  >
+                    ◀ 前へ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePlaylistStep(1)}
+                    disabled={!hasNextInPlaylist}
+                    title="再生リストの次の動画へ"
+                  >
+                    次へ ▶
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="player-wrapper">
               <YouTubePlayerView ref={playerRef} onError={setPlayerErrorCode} />
             </div>

@@ -4,9 +4,10 @@ import { resolvePlaylist, type PlaylistVideo } from "../lib/api.ts";
 interface Props {
   activeVideoId: string | null;
   onSelectVideo: (meta: { videoId: string; title: string; youtubeUrl: string }) => void;
+  onVideosLoaded: (videos: PlaylistVideo[]) => void;
 }
 
-export function PlaylistPanel({ activeVideoId, onSelectVideo }: Props) {
+export function PlaylistPanel({ activeVideoId, onSelectVideo, onVideosLoaded }: Props) {
   const urlInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +25,7 @@ export function PlaylistPanel({ activeVideoId, onSelectVideo }: Props) {
       const result = await resolvePlaylist(url);
       setPlaylistTitle(result.title);
       setVideos(result.videos);
+      onVideosLoaded(result.videos);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -31,28 +33,10 @@ export function PlaylistPanel({ activeVideoId, onSelectVideo }: Props) {
     }
   };
 
-  const currentIndex = videos.findIndex((v) => v.videoId === activeVideoId);
-  const hasNext = currentIndex !== -1 && currentIndex < videos.length - 1;
-
-  const handleNext = () => {
-    if (!hasNext) return;
-    const next = videos[currentIndex + 1];
-    onSelectVideo({
-      videoId: next.videoId,
-      title: next.title,
-      youtubeUrl: `https://www.youtube.com/watch?v=${next.videoId}`,
-    });
-  };
-
   return (
     <aside className="playlist-panel">
       <div className="panel-header">
         <h2>再生リスト</h2>
-        {videos.length > 0 && (
-          <button type="button" onClick={handleNext} disabled={!hasNext} title="再生リストの次の動画へ">
-            次へ▶
-          </button>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="playlist-url-form">

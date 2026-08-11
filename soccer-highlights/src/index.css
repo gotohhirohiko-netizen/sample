@@ -51,6 +51,16 @@ header h1 {
   max-width: none;
 }
 
+.sidebar-column.collapsed .sidebar-content {
+  display: none;
+}
+
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .sidebar-toggle {
   align-self: flex-start;
   white-space: nowrap;
@@ -153,6 +163,25 @@ section,
   background: #e8f0fe;
   border-color: #a6c8ff;
   font-weight: 600;
+}
+
+.player-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.player-top-row .source-url-input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.playlist-nav-buttons {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .source-url-input {
