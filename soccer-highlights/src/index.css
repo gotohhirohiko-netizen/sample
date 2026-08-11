@@ -101,6 +101,18 @@ section,
   font-size: 1.05rem;
 }
 
+.autosave-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  width: fit-content;
+}
+
+.autosave-toggle input {
+  width: auto;
+}
+
 .project-name-row {
   display: flex;
   gap: 8px;

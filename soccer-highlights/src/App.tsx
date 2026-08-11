@@ -24,11 +24,13 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  const [savedClipCount, setSavedClipCount] = useState<number | null>(null);
   const skipNextAutosaveRef = useRef(false);
   const playerRef = useRef<YouTubePlayerHandle>(null);
 
   useEffect(() => {
-    if (!projectName) return;
+    if (!projectName || !autosaveEnabled) return;
     if (skipNextAutosaveRef.current) {
       skipNextAutosaveRef.current = false;
       return;
@@ -41,6 +43,7 @@ export default function App() {
         .then((data) => {
           setSaveStatus("saved");
           setLastSavedAt(data.updatedAt);
+          setSavedClipCount(data.clips.length);
           setHasUnsavedChanges(false);
         })
         .catch(() => setSaveStatus("error"));
@@ -49,7 +52,7 @@ export default function App() {
     return () => clearTimeout(timer);
     // clips/sourcesの中身が変わるたびに保存タイマーをリセットしたいので依存配列はこれで正しい
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clips, sources, projectName]);
+  }, [clips, sources, projectName, autosaveEnabled]);
 
   const handleRenameProject = (name: string) => {
     setProjectName(name);
@@ -62,6 +65,7 @@ export default function App() {
       .then((data) => {
         setSaveStatus("saved");
         setLastSavedAt(data.updatedAt);
+        setSavedClipCount(data.clips.length);
         setHasUnsavedChanges(false);
       })
       .catch(() => setSaveStatus("error"));
@@ -76,6 +80,7 @@ export default function App() {
     setPlayerErrorCode(null);
     setLastSavedAt(data.updatedAt);
     setSaveStatus("saved");
+    setSavedClipCount(data.clips.length);
     setHasUnsavedChanges(false);
   };
 
@@ -88,6 +93,7 @@ export default function App() {
     setPlayerErrorCode(null);
     setLastSavedAt(null);
     setSaveStatus("idle");
+    setSavedClipCount(null);
     setHasUnsavedChanges(false);
   };
 
@@ -176,13 +182,17 @@ export default function App() {
           <div className="sidebar-content">
             <ProjectPanel
               projectName={projectName}
+              clipCount={clips.length}
               saveStatus={saveStatus}
               hasUnsavedChanges={hasUnsavedChanges}
               lastSavedAt={lastSavedAt}
+              autosaveEnabled={autosaveEnabled}
+              savedClipCount={savedClipCount}
               onRename={handleRenameProject}
               onSaveNow={handleSaveNow}
               onLoadProject={handleLoadProject}
               onNewProject={handleNewProject}
+              onToggleAutosave={setAutosaveEnabled}
             />
             <PlaylistPanel
               activeVideoId={activeVideoId}

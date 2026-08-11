@@ -5,24 +5,32 @@ export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 interface Props {
   projectName: string;
+  clipCount: number;
   saveStatus: SaveStatus;
   hasUnsavedChanges: boolean;
   lastSavedAt: number | null;
+  autosaveEnabled: boolean;
+  savedClipCount: number | null;
   onRename: (name: string) => void;
   onSaveNow: () => void;
   onLoadProject: (data: ProjectData) => void;
   onNewProject: () => void;
+  onToggleAutosave: (enabled: boolean) => void;
 }
 
 export function ProjectPanel({
   projectName,
+  clipCount,
   saveStatus,
   hasUnsavedChanges,
   lastSavedAt,
+  autosaveEnabled,
+  savedClipCount,
   onRename,
   onSaveNow,
   onLoadProject,
   onNewProject,
+  onToggleAutosave,
 }: Props) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -53,19 +61,42 @@ export function ProjectPanel({
   };
 
   const statusText = (): string => {
-    if (!projectName) return "プロジェクト名を入力すると自動保存が始まります";
+    if (!projectName) return "プロジェクト名を入力すると保存できるようになります";
     if (saveStatus === "saving") return "保存中...";
     if (saveStatus === "error") return "保存に失敗しました(サーバーが起動しているか確認してください)";
-    if (hasUnsavedChanges) return "未保存の変更があります";
-    if (lastSavedAt) return `自動保存済み: ${new Date(lastSavedAt).toLocaleTimeString()}`;
-    return "";
+
+    if (autosaveEnabled) {
+      if (hasUnsavedChanges) return "未保存の変更があります";
+      if (lastSavedAt) return `自動保存済み: ${new Date(lastSavedAt).toLocaleTimeString()}`;
+      return "";
+    }
+
+    // 自動保存オフ: 保存済みのクリップ数と現在のクリップ数を比較して表示する
+    if (savedClipCount === null) {
+      return clipCount > 0
+        ? `未保存です(現在${clipCount}件)。「今すぐ保存」を押してください`
+        : "自動保存はオフです";
+    }
+    if (savedClipCount !== clipCount) {
+      return `保存が必要です(保存済み${savedClipCount}件 → 現在${clipCount}件)`;
+    }
+    return `保存済み: ${savedClipCount}件で最新です${lastSavedAt ? `(${new Date(lastSavedAt).toLocaleTimeString()})` : ""}`;
   };
 
   return (
     <section className="project-panel">
-      <h2>プロジェクト</h2>
+      <h2>プロジェクト(クリップ {clipCount}件)</h2>
 
       <p className="hint">{statusText()}</p>
+
+      <label className="autosave-toggle">
+        <input
+          type="checkbox"
+          checked={autosaveEnabled}
+          onChange={(e) => onToggleAutosave(e.target.checked)}
+        />
+        自動保存を有効にする
+      </label>
 
       <div className="project-name-row">
         <input
