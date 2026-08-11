@@ -260,12 +260,22 @@ export default function ParentSetupView({ familyId }: { familyId: string }) {
                   style={{ marginBottom: 10 }}
                 />
                 <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                  <input
-                    type="date"
-                    value={editListStart}
-                    onChange={(e) => setEditListStart(e.target.value)}
-                  />
-                  <input type="date" value={editListEnd} onChange={(e) => setEditListEnd(e.target.value)} />
+                  <label className="field-label">
+                    開始日
+                    <input
+                      type="date"
+                      value={editListStart}
+                      onChange={(e) => setEditListStart(e.target.value)}
+                    />
+                  </label>
+                  <label className="field-label">
+                    終了日
+                    <input
+                      type="date"
+                      value={editListEnd}
+                      onChange={(e) => setEditListEnd(e.target.value)}
+                    />
+                  </label>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => setEditingListId(null)}>キャンセル</button>
@@ -299,8 +309,14 @@ export default function ParentSetupView({ familyId }: { familyId: string }) {
             style={{ marginBottom: 10 }}
           />
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <input type="date" value={newListStart} onChange={(e) => setNewListStart(e.target.value)} />
-            <input type="date" value={newListEnd} onChange={(e) => setNewListEnd(e.target.value)} />
+            <label className="field-label">
+              開始日
+              <input type="date" value={newListStart} onChange={(e) => setNewListStart(e.target.value)} />
+            </label>
+            <label className="field-label">
+              終了日
+              <input type="date" value={newListEnd} onChange={(e) => setNewListEnd(e.target.value)} />
+            </label>
           </div>
           <button
             className="primary"
