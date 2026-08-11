@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { preventFocusSteal } from "../lib/focus.ts";
 import { formatTime } from "../lib/format.ts";
 
 interface Props {
@@ -47,10 +48,15 @@ export function ClipTagger({ disabled, getCurrentTime, onAddClip }: Props) {
         disabled={disabled}
       />
       <div className="clip-tagger-actions">
-        <button type="button" onClick={markStart} disabled={disabled}>
+        <button type="button" onMouseDown={preventFocusSteal} onClick={markStart} disabled={disabled}>
           区間開始{pendingStart !== null ? ` (${formatTime(pendingStart)}〜)` : ""}
         </button>
-        <button type="button" onClick={markEnd} disabled={disabled || pendingStart === null}>
+        <button
+          type="button"
+          onMouseDown={preventFocusSteal}
+          onClick={markEnd}
+          disabled={disabled || pendingStart === null}
+        >
           区間終了してクリップ追加
         </button>
       </div>

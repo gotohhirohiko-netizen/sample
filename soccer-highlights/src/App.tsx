@@ -7,6 +7,7 @@ import { ProjectPanel, type SaveStatus } from "./components/ProjectPanel.tsx";
 import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
 import { saveProject, type PlaylistVideo, type ProjectData } from "./lib/api.ts";
+import { preventFocusSteal } from "./lib/focus.ts";
 import { describeYoutubePlayerError } from "./lib/youtubeErrorMessages.ts";
 import type { Clip, ClipSource } from "./types.ts";
 
@@ -199,6 +200,7 @@ export default function App() {
                 <div className="playlist-nav-buttons">
                   <button
                     type="button"
+                    onMouseDown={preventFocusSteal}
                     onClick={() => handlePlaylistStep(-1)}
                     disabled={!hasPrevInPlaylist}
                     title="再生リストの前の動画へ"
@@ -207,6 +209,7 @@ export default function App() {
                   </button>
                   <button
                     type="button"
+                    onMouseDown={preventFocusSteal}
                     onClick={() => handlePlaylistStep(1)}
                     disabled={!hasNextInPlaylist}
                     title="再生リストの次の動画へ"
