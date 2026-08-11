@@ -32,18 +32,38 @@ export function PlaylistPanel({ activeVideoId, onSelectVideo }: Props) {
     }
   };
 
+  const currentIndex = videos.findIndex((v) => v.videoId === activeVideoId);
+  const hasNext = currentIndex !== -1 && currentIndex < videos.length - 1;
+
+  const handleNext = () => {
+    if (!hasNext) return;
+    const next = videos[currentIndex + 1];
+    onSelectVideo({
+      videoId: next.videoId,
+      title: next.title,
+      youtubeUrl: `https://www.youtube.com/watch?v=${next.videoId}`,
+    });
+  };
+
   return (
     <aside className={collapsed ? "playlist-panel collapsed" : "playlist-panel"}>
       <div className="panel-header">
         {!collapsed && <h2>再生リスト</h2>}
-        <button
-          type="button"
-          className="panel-toggle"
-          onClick={() => setCollapsed((c) => !c)}
-          title={collapsed ? "再生リストを開く" : "再生リストをたたんで動画を広げる"}
-        >
-          {collapsed ? "▶" : "◀ たたむ"}
-        </button>
+        <div className="panel-header-actions">
+          {videos.length > 0 && (
+            <button type="button" onClick={handleNext} disabled={!hasNext} title="再生リストの次の動画へ">
+              次へ▶
+            </button>
+          )}
+          <button
+            type="button"
+            className="panel-toggle"
+            onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? "再生リストを開く" : "再生リストをたたんで動画を広げる"}
+          >
+            {collapsed ? "▶" : "◀ たたむ"}
+          </button>
+        </div>
       </div>
 
       {!collapsed && (

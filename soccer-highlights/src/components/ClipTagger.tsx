@@ -42,15 +42,18 @@ export function ClipTagger({ disabled, getCurrentTime, onAddClip }: Props) {
       <input
         type="text"
         ref={labelInputRef}
+        className="clip-tagger-label-input"
         placeholder="クリップ名(任意、例: 前半ゴール)"
         disabled={disabled}
       />
-      <button type="button" onClick={markStart} disabled={disabled}>
-        区間開始{pendingStart !== null ? ` (${formatTime(pendingStart)}〜)` : ""}
-      </button>
-      <button type="button" onClick={markEnd} disabled={disabled || pendingStart === null}>
-        区間終了してクリップ追加
-      </button>
+      <div className="clip-tagger-actions">
+        <button type="button" onClick={markStart} disabled={disabled}>
+          区間開始{pendingStart !== null ? ` (${formatTime(pendingStart)}〜)` : ""}
+        </button>
+        <button type="button" onClick={markEnd} disabled={disabled || pendingStart === null}>
+          区間終了してクリップ追加
+        </button>
+      </div>
     </div>
   );
 }

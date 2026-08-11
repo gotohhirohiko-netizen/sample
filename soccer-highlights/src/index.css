@@ -73,6 +73,12 @@ section,
   gap: 8px;
 }
 
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .panel-toggle {
   flex: 0 0 auto;
   white-space: nowrap;
@@ -184,9 +190,16 @@ section,
   align-items: center;
 }
 
-.clip-tagger input {
-  flex: 1;
-  min-width: 160px;
+.clip-tagger-label-input {
+  flex: 0 1 50%;
+  min-width: 140px;
+}
+
+.clip-tagger-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .current-time-display {
