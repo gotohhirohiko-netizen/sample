@@ -3,16 +3,24 @@ import { resolvePlaylist, type PlaylistVideo } from "../lib/api.ts";
 
 interface Props {
   activeVideoId: string | null;
+  playlistUrl: string;
+  playlistTitle: string | null;
+  videos: PlaylistVideo[];
   onSelectVideo: (meta: { videoId: string; title: string; youtubeUrl: string }) => void;
-  onVideosLoaded: (videos: PlaylistVideo[]) => void;
+  onPlaylistLoaded: (playlist: { url: string; title: string; videos: PlaylistVideo[] }) => void;
 }
 
-export function PlaylistPanel({ activeVideoId, onSelectVideo, onVideosLoaded }: Props) {
+export function PlaylistPanel({
+  activeVideoId,
+  playlistUrl,
+  playlistTitle,
+  videos,
+  onSelectVideo,
+  onPlaylistLoaded,
+}: Props) {
   const urlInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [playlistTitle, setPlaylistTitle] = useState<string | null>(null);
-  const [videos, setVideos] = useState<PlaylistVideo[]>([]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -23,9 +31,7 @@ export function PlaylistPanel({ activeVideoId, onSelectVideo, onVideosLoaded }: 
     setError(null);
     try {
       const result = await resolvePlaylist(url);
-      setPlaylistTitle(result.title);
-      setVideos(result.videos);
-      onVideosLoaded(result.videos);
+      onPlaylistLoaded({ url, title: result.title, videos: result.videos });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -40,7 +46,14 @@ export function PlaylistPanel({ activeVideoId, onSelectVideo, onVideosLoaded }: 
       </div>
 
       <form onSubmit={handleSubmit} className="playlist-url-form">
-        <input type="url" ref={urlInputRef} placeholder="再生リストのURL" disabled={loading} />
+        <input
+          type="url"
+          key={playlistUrl}
+          ref={urlInputRef}
+          defaultValue={playlistUrl}
+          placeholder="再生リストのURL"
+          disabled={loading}
+        />
         <button type="submit" disabled={loading}>
           {loading ? "読み込み中..." : "読み込む"}
         </button>

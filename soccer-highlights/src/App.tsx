@@ -6,12 +6,25 @@ import { PlaylistPanel } from "./components/PlaylistPanel.tsx";
 import { ProjectPanel, type SaveStatus } from "./components/ProjectPanel.tsx";
 import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
-import { saveProject, type PlaylistVideo, type ProjectData } from "./lib/api.ts";
+import {
+  saveProject,
+  type PlaylistVideo,
+  type ProjectData,
+  type ProjectPlaylist,
+} from "./lib/api.ts";
 import { preventFocusSteal } from "./lib/focus.ts";
 import { describeYoutubePlayerError } from "./lib/youtubeErrorMessages.ts";
 import type { Clip, ClipSource } from "./types.ts";
 
 const AUTOSAVE_DELAY_MS = 1200;
+
+function buildPlaylistSnapshot(
+  url: string,
+  title: string | null,
+  videos: PlaylistVideo[],
+): ProjectPlaylist | null {
+  return videos.length > 0 ? { url, title: title ?? "", videos } : null;
+}
 
 export default function App() {
   const [sources, setSources] = useState<ClipSource[]>([]);
@@ -19,6 +32,8 @@ export default function App() {
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [playerErrorCode, setPlayerErrorCode] = useState<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [playlistUrl, setPlaylistUrl] = useState("");
+  const [playlistTitle, setPlaylistTitle] = useState<string | null>(null);
   const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
   const [projectName, setProjectName] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -39,7 +54,8 @@ export default function App() {
     setHasUnsavedChanges(true);
     const timer = setTimeout(() => {
       setSaveStatus("saving");
-      saveProject(projectName, sources, clips)
+      const playlist = buildPlaylistSnapshot(playlistUrl, playlistTitle, playlistVideos);
+      saveProject(projectName, sources, clips, playlist)
         .then((data) => {
           setSaveStatus("saved");
           setLastSavedAt(data.updatedAt);
@@ -50,9 +66,9 @@ export default function App() {
     }, AUTOSAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
-    // clips/sourcesの中身が変わるたびに保存タイマーをリセットしたいので依存配列はこれで正しい
+    // clips/sources/再生リストの中身が変わるたびに保存タイマーをリセットしたいので依存配列はこれで正しい
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clips, sources, projectName, autosaveEnabled]);
+  }, [clips, sources, playlistUrl, playlistTitle, playlistVideos, projectName, autosaveEnabled]);
 
   const handleRenameProject = (name: string) => {
     setProjectName(name);
@@ -61,7 +77,8 @@ export default function App() {
   const handleSaveNow = () => {
     if (!projectName) return;
     setSaveStatus("saving");
-    saveProject(projectName, sources, clips)
+    const playlist = buildPlaylistSnapshot(playlistUrl, playlistTitle, playlistVideos);
+    saveProject(projectName, sources, clips, playlist)
       .then((data) => {
         setSaveStatus("saved");
         setLastSavedAt(data.updatedAt);
@@ -76,6 +93,9 @@ export default function App() {
     setProjectName(data.name);
     setSources(data.sources);
     setClips(data.clips);
+    setPlaylistUrl(data.playlist?.url ?? "");
+    setPlaylistTitle(data.playlist?.title ?? null);
+    setPlaylistVideos(data.playlist?.videos ?? []);
     setActiveVideoId(null);
     setPlayerErrorCode(null);
     setLastSavedAt(data.updatedAt);
@@ -89,12 +109,21 @@ export default function App() {
     setProjectName("");
     setSources([]);
     setClips([]);
+    setPlaylistUrl("");
+    setPlaylistTitle(null);
+    setPlaylistVideos([]);
     setActiveVideoId(null);
     setPlayerErrorCode(null);
     setLastSavedAt(null);
     setSaveStatus("idle");
     setSavedClipCount(null);
     setHasUnsavedChanges(false);
+  };
+
+  const handlePlaylistLoaded = (playlist: { url: string; title: string; videos: PlaylistVideo[] }) => {
+    setPlaylistUrl(playlist.url);
+    setPlaylistTitle(playlist.title);
+    setPlaylistVideos(playlist.videos);
   };
 
   const handleLoadSource = (meta: { videoId: string; title: string; youtubeUrl: string }) => {
@@ -196,8 +225,11 @@ export default function App() {
             />
             <PlaylistPanel
               activeVideoId={activeVideoId}
+              playlistUrl={playlistUrl}
+              playlistTitle={playlistTitle}
+              videos={playlistVideos}
               onSelectVideo={handleLoadSource}
-              onVideosLoaded={setPlaylistVideos}
+              onPlaylistLoaded={handlePlaylistLoaded}
             />
           </div>
         </div>

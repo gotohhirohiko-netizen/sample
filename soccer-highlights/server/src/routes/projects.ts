@@ -7,10 +7,22 @@ import type { Clip, ClipSource } from "../types.ts";
 
 export const projectsRouter = express.Router();
 
+interface PlaylistVideo {
+  videoId: string;
+  title: string;
+}
+
+interface ProjectPlaylist {
+  url: string;
+  title: string;
+  videos: PlaylistVideo[];
+}
+
 interface ProjectFile {
   name: string;
   sources: ClipSource[];
   clips: Clip[];
+  playlist: ProjectPlaylist | null;
   updatedAt: number;
 }
 
@@ -55,11 +67,16 @@ projectsRouter.put("/:name", async (req: Request<{ name: string }>, res: Respons
     return;
   }
 
-  const { sources, clips } = req.body as { sources?: ClipSource[]; clips?: Clip[] };
+  const { sources, clips, playlist } = req.body as {
+    sources?: ClipSource[];
+    clips?: Clip[];
+    playlist?: ProjectPlaylist | null;
+  };
   const project: ProjectFile = {
     name: req.params.name,
     sources: sources ?? [],
     clips: clips ?? [],
+    playlist: playlist ?? null,
     updatedAt: Date.now(),
   };
 

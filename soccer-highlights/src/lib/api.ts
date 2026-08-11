@@ -41,10 +41,17 @@ export interface ProjectSummary {
   clipCount: number;
 }
 
+export interface ProjectPlaylist {
+  url: string;
+  title: string;
+  videos: PlaylistVideo[];
+}
+
 export interface ProjectData {
   name: string;
   sources: ClipSource[];
   clips: Clip[];
+  playlist: ProjectPlaylist | null;
   updatedAt: number;
 }
 
@@ -56,11 +63,16 @@ export function loadProject(name: string): Promise<ProjectData> {
   return fetch(`/api/projects/${encodeURIComponent(name)}`).then((res) => asJson<ProjectData>(res));
 }
 
-export function saveProject(name: string, sources: ClipSource[], clips: Clip[]): Promise<ProjectData> {
+export function saveProject(
+  name: string,
+  sources: ClipSource[],
+  clips: Clip[],
+  playlist: ProjectPlaylist | null,
+): Promise<ProjectData> {
   return fetch(`/api/projects/${encodeURIComponent(name)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sources, clips }),
+    body: JSON.stringify({ sources, clips, playlist }),
   }).then((res) => asJson<ProjectData>(res));
 }
 
