@@ -43,6 +43,18 @@ header h1 {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  transition: flex-basis 0.15s ease;
+}
+
+.sidebar-column.collapsed {
+  flex: 0 0 auto;
+  max-width: none;
+}
+
+.sidebar-toggle {
+  align-self: flex-start;
+  white-space: nowrap;
+  font-size: 0.8rem;
 }
 
 @media (max-width: 800px) {
@@ -66,10 +78,6 @@ section,
   gap: 12px;
 }
 
-.playlist-panel.collapsed {
-  padding: 12px 8px;
-}
-
 .panel-header {
   display: flex;
   align-items: center;
@@ -77,27 +85,10 @@ section,
   gap: 8px;
 }
 
-.panel-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.panel-toggle {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  font-size: 0.8rem;
-}
-
 .playlist-panel h2,
 .project-panel h2 {
   margin: 0;
   font-size: 1.05rem;
-}
-
-.project-panel.collapsed {
-  padding: 12px 16px;
-  gap: 4px;
 }
 
 .project-name-row {

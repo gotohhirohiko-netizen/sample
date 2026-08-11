@@ -17,6 +17,7 @@ export default function App() {
   const [clips, setClips] = useState<Clip[]>([]);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [playerErrorCode, setPlayerErrorCode] = useState<number | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -143,18 +144,31 @@ export default function App() {
       </header>
 
       <div className="app-layout">
-        <div className="sidebar-column">
-          <ProjectPanel
-            projectName={projectName}
-            saveStatus={saveStatus}
-            hasUnsavedChanges={hasUnsavedChanges}
-            lastSavedAt={lastSavedAt}
-            onRename={handleRenameProject}
-            onSaveNow={handleSaveNow}
-            onLoadProject={handleLoadProject}
-            onNewProject={handleNewProject}
-          />
-          <PlaylistPanel activeVideoId={activeVideoId} onSelectVideo={handleLoadSource} />
+        <div className={sidebarCollapsed ? "sidebar-column collapsed" : "sidebar-column"}>
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed((c) => !c)}
+            title={sidebarCollapsed ? "メニューを開く" : "メニューをたたんで動画を広げる"}
+          >
+            {sidebarCollapsed ? "▶" : "◀ たたむ"}
+          </button>
+
+          {!sidebarCollapsed && (
+            <>
+              <ProjectPanel
+                projectName={projectName}
+                saveStatus={saveStatus}
+                hasUnsavedChanges={hasUnsavedChanges}
+                lastSavedAt={lastSavedAt}
+                onRename={handleRenameProject}
+                onSaveNow={handleSaveNow}
+                onLoadProject={handleLoadProject}
+                onNewProject={handleNewProject}
+              />
+              <PlaylistPanel activeVideoId={activeVideoId} onSelectVideo={handleLoadSource} />
+            </>
+          )}
         </div>
 
         <div className="main-content">
