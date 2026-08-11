@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatTime } from "../lib/format.ts";
 
 interface Props {
@@ -9,9 +9,17 @@ interface Props {
 
 export function ClipTagger({ disabled, getCurrentTime, onAddClip }: Props) {
   const [pendingStart, setPendingStart] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
   // ラベル入力はuncontrolledにしている。value+onChangeで毎キー入力ごとに
   // 再描画すると、日本語入力(IME)中に文字化けする不具合が起きるため。
   const labelInputRef = useRef<HTMLInputElement>(null);
+  const getCurrentTimeRef = useRef(getCurrentTime);
+  getCurrentTimeRef.current = getCurrentTime;
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(getCurrentTimeRef.current()), 400);
+    return () => clearInterval(timer);
+  }, []);
 
   const markStart = () => setPendingStart(getCurrentTime());
 
@@ -30,6 +38,7 @@ export function ClipTagger({ disabled, getCurrentTime, onAddClip }: Props) {
 
   return (
     <div className="clip-tagger">
+      <p className="current-time-display">現在の再生位置: {formatTime(currentTime)}</p>
       <input
         type="text"
         ref={labelInputRef}

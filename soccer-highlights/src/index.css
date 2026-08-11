@@ -10,7 +10,7 @@ body {
 }
 
 .app {
-  max-width: 1180px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 16px 20px 64px;
   display: flex;
@@ -57,16 +57,37 @@ section,
 .playlist-panel {
   flex: 0 0 260px;
   max-width: 260px;
+  transition: flex-basis 0.15s ease;
 }
 
-.playlist-panel h2 {
-  margin: 0;
-  font-size: 1.05rem;
+.playlist-panel.collapsed {
+  flex: 0 0 auto;
+  max-width: none;
+  padding: 12px 8px;
 }
 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panel-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.playlist-panel h2,
 .project-panel h2 {
   margin: 0;
   font-size: 1.05rem;
+}
+
+.project-panel.collapsed {
+  padding: 12px 16px;
+  gap: 4px;
 }
 
 .project-name-row {
@@ -168,6 +189,14 @@ section,
   min-width: 160px;
 }
 
+.current-time-display {
+  flex-basis: 100%;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #333;
+}
+
 .clip-list {
   list-style: none;
   margin: 0;
@@ -205,10 +234,24 @@ section,
   text-overflow: ellipsis;
 }
 
-.clip-time {
+.clip-time-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-variant-numeric: tabular-nums;
   color: #333;
   flex: 0 0 auto;
+}
+
+.clip-time-input {
+  width: 4.5em;
+  text-align: center;
+  padding: 4px 6px;
+}
+
+.clip-duration {
+  color: #888;
+  font-size: 0.85rem;
 }
 
 .clip-actions {

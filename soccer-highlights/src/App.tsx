@@ -118,6 +118,14 @@ export default function App() {
   const handleRelabel = (id: string, label: string) =>
     setClips((prev) => prev.map((c) => (c.id === id ? { ...c, label } : c)));
 
+  const handleUpdateTime = (id: string, field: "start" | "end", seconds: number) =>
+    setClips((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        return field === "start" ? { ...c, startSec: seconds } : { ...c, endSec: seconds };
+      }),
+    );
+
   const handleSeek = (clip: Clip) => {
     if (clip.sourceVideoId !== activeVideoId) {
       const source = sources.find((s) => s.videoId === clip.sourceVideoId);
@@ -175,6 +183,7 @@ export default function App() {
               onRemove={handleRemove}
               onSeek={handleSeek}
               onRelabel={handleRelabel}
+              onUpdateTime={handleUpdateTime}
             />
           </section>
 

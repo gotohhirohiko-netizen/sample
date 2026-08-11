@@ -1,4 +1,5 @@
-import { formatTime } from "../lib/format.ts";
+import type { FocusEvent, KeyboardEvent } from "react";
+import { formatTime, parseTime } from "../lib/format.ts";
 import type { Clip, ClipSource } from "../types.ts";
 
 interface Props {
@@ -8,14 +9,32 @@ interface Props {
   onRemove: (id: string) => void;
   onSeek: (clip: Clip) => void;
   onRelabel: (id: string, label: string) => void;
+  onUpdateTime: (id: string, field: "start" | "end", seconds: number) => void;
 }
 
-export function ClipList({ clips, sources, onReorder, onRemove, onSeek, onRelabel }: Props) {
+function commitOnEnter(e: KeyboardEvent<HTMLInputElement>) {
+  if (e.key === "Enter") e.currentTarget.blur();
+}
+
+export function ClipList({ clips, sources, onReorder, onRemove, onSeek, onRelabel, onUpdateTime }: Props) {
   if (clips.length === 0) {
     return <p className="empty-hint">まだクリップがありません。動画を再生しながら区間を追加してください。</p>;
   }
 
   const titleFor = (videoId: string) => sources.find((s) => s.videoId === videoId)?.title ?? videoId;
+
+  const handleTimeBlur = (e: FocusEvent<HTMLInputElement>, clip: Clip, field: "start" | "end") => {
+    const parsed = parseTime(e.target.value);
+    const fallback = field === "start" ? clip.startSec : clip.endSec;
+    const other = field === "start" ? clip.endSec : clip.startSec;
+    const valid = parsed !== null && (field === "start" ? parsed < other : parsed > other);
+
+    if (!valid) {
+      e.target.value = formatTime(fallback);
+      return;
+    }
+    onUpdateTime(clip.id, field, parsed);
+  };
 
   return (
     <ol className="clip-list">
@@ -29,13 +48,28 @@ export function ClipList({ clips, sources, onReorder, onRemove, onSeek, onRelabe
             className="clip-label-input"
             defaultValue={clip.label}
             onBlur={(e) => onRelabel(clip.id, e.target.value.trim() || clip.label)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
+            onKeyDown={commitOnEnter}
           />
           <span className="clip-source-title">{titleFor(clip.sourceVideoId)}</span>
-          <span className="clip-time">
-            {formatTime(clip.startSec)} 〜 {formatTime(clip.endSec)} ({formatTime(clip.endSec - clip.startSec)})
+          <span className="clip-time-edit">
+            <input
+              type="text"
+              className="clip-time-input"
+              defaultValue={formatTime(clip.startSec)}
+              onBlur={(e) => handleTimeBlur(e, clip, "start")}
+              onKeyDown={commitOnEnter}
+              title="開始時間(mm:ss)"
+            />
+            <span>〜</span>
+            <input
+              type="text"
+              className="clip-time-input"
+              defaultValue={formatTime(clip.endSec)}
+              onBlur={(e) => handleTimeBlur(e, clip, "end")}
+              onKeyDown={commitOnEnter}
+              title="終了時間(mm:ss)"
+            />
+            <span className="clip-duration">({formatTime(clip.endSec - clip.startSec)})</span>
           </span>
           <div className="clip-actions">
             <button type="button" onClick={() => onReorder(index, index - 1)} disabled={index === 0}>

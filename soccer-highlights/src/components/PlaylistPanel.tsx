@@ -12,6 +12,7 @@ export function PlaylistPanel({ activeVideoId, onSelectVideo }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [playlistTitle, setPlaylistTitle] = useState<string | null>(null);
   const [videos, setVideos] = useState<PlaylistVideo[]>([]);
+  const [collapsed, setCollapsed] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -32,38 +33,55 @@ export function PlaylistPanel({ activeVideoId, onSelectVideo }: Props) {
   };
 
   return (
-    <aside className="playlist-panel">
-      <h2>再生リスト</h2>
-      <form onSubmit={handleSubmit} className="playlist-url-form">
-        <input type="url" ref={urlInputRef} placeholder="再生リストのURL" disabled={loading} />
-        <button type="submit" disabled={loading}>
-          {loading ? "読み込み中..." : "読み込む"}
+    <aside className={collapsed ? "playlist-panel collapsed" : "playlist-panel"}>
+      <div className="panel-header">
+        {!collapsed && <h2>再生リスト</h2>}
+        <button
+          type="button"
+          className="panel-toggle"
+          onClick={() => setCollapsed((c) => !c)}
+          title={collapsed ? "再生リストを開く" : "再生リストをたたんで動画を広げる"}
+        >
+          {collapsed ? "▶" : "◀ たたむ"}
         </button>
-      </form>
+      </div>
 
-      {error && <p className="error-text">{error}</p>}
-      {playlistTitle && <p className="playlist-title">{playlistTitle}</p>}
+      {!collapsed && (
+        <>
+          <form onSubmit={handleSubmit} className="playlist-url-form">
+            <input type="url" ref={urlInputRef} placeholder="再生リストのURL" disabled={loading} />
+            <button type="submit" disabled={loading}>
+              {loading ? "読み込み中..." : "読み込む"}
+            </button>
+          </form>
 
-      {videos.length > 0 && (
-        <ul className="playlist-video-list">
-          {videos.map((video) => (
-            <li key={video.videoId}>
-              <button
-                type="button"
-                className={video.videoId === activeVideoId ? "playlist-video active" : "playlist-video"}
-                onClick={() =>
-                  onSelectVideo({
-                    videoId: video.videoId,
-                    title: video.title,
-                    youtubeUrl: `https://www.youtube.com/watch?v=${video.videoId}`,
-                  })
-                }
-              >
-                {video.title}
-              </button>
-            </li>
-          ))}
-        </ul>
+          {error && <p className="error-text">{error}</p>}
+          {playlistTitle && <p className="playlist-title">{playlistTitle}</p>}
+
+          {videos.length > 0 && (
+            <ul className="playlist-video-list">
+              {videos.map((video) => (
+                <li key={video.videoId}>
+                  <button
+                    type="button"
+                    className={
+                      video.videoId === activeVideoId ? "playlist-video active" : "playlist-video"
+                    }
+                    onClick={() =>
+                      onSelectVideo({
+                        videoId: video.videoId,
+                        title: video.title,
+                        youtubeUrl: `https://www.youtube.com/watch?v=${video.videoId}`,
+                      })
+                    }
+                  >
+                    {video.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </aside>
   );

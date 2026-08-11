@@ -26,6 +26,7 @@ export function ProjectPanel({
 }: Props) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     listProjects()
@@ -62,52 +63,68 @@ export function ProjectPanel({
   };
 
   return (
-    <section className="project-panel">
-      <h2>プロジェクト</h2>
-      <div className="project-name-row">
-        <input
-          type="text"
-          key={projectName}
-          ref={nameInputRef}
-          defaultValue={projectName}
-          placeholder="プロジェクト名(例: 8/10 練習試合)"
-          onBlur={commitName}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-          }}
-        />
-        <button type="button" onClick={onSaveNow} disabled={!projectName}>
-          今すぐ保存
-        </button>
-        <button type="button" onClick={onNewProject}>
-          新規プロジェクト
+    <section className={collapsed ? "project-panel collapsed" : "project-panel"}>
+      <div className="panel-header">
+        <h2>プロジェクト{collapsed && projectName ? `: ${projectName}` : ""}</h2>
+        <button
+          type="button"
+          className="panel-toggle"
+          onClick={() => setCollapsed((c) => !c)}
+          title={collapsed ? "プロジェクト欄を開く" : "プロジェクト欄をたたんで動画を広げる"}
+        >
+          {collapsed ? "▼ 開く" : "▲ たたむ"}
         </button>
       </div>
 
       <p className="hint">{statusText()}</p>
-      {error && <p className="error-text">{error}</p>}
 
-      {projects.length > 0 && (
-        <label className="project-open-row">
-          保存済みプロジェクトを開く
-          <select
-            value=""
-            onChange={(e) => {
-              const value = e.target.value;
-              e.target.value = "";
-              void handleOpen(value);
-            }}
-          >
-            <option value="" disabled>
-              選択してください
-            </option>
-            {projects.map((p) => (
-              <option key={p.name} value={p.name}>
-                {p.name}({p.clipCount}クリップ)
-              </option>
-            ))}
-          </select>
-        </label>
+      {!collapsed && (
+        <>
+          <div className="project-name-row">
+            <input
+              type="text"
+              key={projectName}
+              ref={nameInputRef}
+              defaultValue={projectName}
+              placeholder="プロジェクト名(例: 8/10 練習試合)"
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+            />
+            <button type="button" onClick={onSaveNow} disabled={!projectName}>
+              今すぐ保存
+            </button>
+            <button type="button" onClick={onNewProject}>
+              新規プロジェクト
+            </button>
+          </div>
+
+          {error && <p className="error-text">{error}</p>}
+
+          {projects.length > 0 && (
+            <label className="project-open-row">
+              保存済みプロジェクトを開く
+              <select
+                value=""
+                onChange={(e) => {
+                  const value = e.target.value;
+                  e.target.value = "";
+                  void handleOpen(value);
+                }}
+              >
+                <option value="" disabled>
+                  選択してください
+                </option>
+                {projects.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name}({p.clipCount}クリップ)
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </>
       )}
     </section>
   );
