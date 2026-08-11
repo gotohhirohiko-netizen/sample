@@ -7,9 +7,18 @@ export interface YouTubePlayerHandle {
   loadVideo(videoId: string): void;
 }
 
-export const YouTubePlayerView = forwardRef<YouTubePlayerHandle>(function YouTubePlayerView(_props, ref) {
+interface Props {
+  onError?: (code: number) => void;
+}
+
+export const YouTubePlayerView = forwardRef<YouTubePlayerHandle, Props>(function YouTubePlayerView(
+  { onError },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YouTubePlayer | null>(null);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   useEffect(() => {
     let destroyed = false;
@@ -18,7 +27,10 @@ export const YouTubePlayerView = forwardRef<YouTubePlayerHandle>(function YouTub
       playerRef.current = new YT.Player(containerRef.current, {
         width: "100%",
         height: "100%",
-        playerVars: { playsinline: 1 },
+        playerVars: { playsinline: 1, origin: window.location.origin },
+        events: {
+          onError: (event) => onErrorRef.current?.(event.data),
+        },
       });
     });
     return () => {

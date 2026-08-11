@@ -4,17 +4,20 @@ import { ClipTagger } from "./components/ClipTagger.tsx";
 import { ExportPanel } from "./components/ExportPanel.tsx";
 import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
+import { describeYoutubePlayerError } from "./lib/youtubeErrorMessages.ts";
 import type { Clip, ClipSource } from "./types.ts";
 
 export default function App() {
   const [sources, setSources] = useState<ClipSource[]>([]);
   const [clips, setClips] = useState<Clip[]>([]);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [playerErrorCode, setPlayerErrorCode] = useState<number | null>(null);
   const playerRef = useRef<YouTubePlayerHandle>(null);
 
   const handleLoadSource = (meta: { videoId: string; title: string; youtubeUrl: string }) => {
     setSources((prev) => (prev.some((s) => s.videoId === meta.videoId) ? prev : [...prev, meta]));
     setActiveVideoId(meta.videoId);
+    setPlayerErrorCode(null);
     playerRef.current?.loadVideo(meta.videoId);
   };
 
@@ -60,8 +63,13 @@ export default function App() {
       <section className="player-section">
         <SourceUrlInput onLoad={handleLoadSource} />
         <div className="player-wrapper">
-          <YouTubePlayerView ref={playerRef} />
+          <YouTubePlayerView ref={playerRef} onError={setPlayerErrorCode} />
         </div>
+        {playerErrorCode !== null && (
+          <p className="error-text">
+            {describeYoutubePlayerError(playerErrorCode)}(エラーコード: {playerErrorCode})
+          </p>
+        )}
         <ClipTagger
           disabled={!activeVideoId}
           getCurrentTime={() => playerRef.current?.getCurrentTime() ?? 0}
