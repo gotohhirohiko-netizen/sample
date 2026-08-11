@@ -64,6 +64,29 @@ section,
   font-size: 1.05rem;
 }
 
+.project-panel h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.project-name-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.project-name-row input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.project-open-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
 .playlist-url-form {
   display: flex;
   flex-direction: column;

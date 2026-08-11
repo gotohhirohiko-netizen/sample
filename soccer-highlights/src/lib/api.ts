@@ -35,6 +35,35 @@ export function resolvePlaylist(youtubeUrl: string): Promise<{ title: string; vi
   }).then((res) => asJson<{ title: string; videos: PlaylistVideo[] }>(res));
 }
 
+export interface ProjectSummary {
+  name: string;
+  updatedAt: number;
+  clipCount: number;
+}
+
+export interface ProjectData {
+  name: string;
+  sources: ClipSource[];
+  clips: Clip[];
+  updatedAt: number;
+}
+
+export function listProjects(): Promise<ProjectSummary[]> {
+  return fetch("/api/projects").then((res) => asJson<ProjectSummary[]>(res));
+}
+
+export function loadProject(name: string): Promise<ProjectData> {
+  return fetch(`/api/projects/${encodeURIComponent(name)}`).then((res) => asJson<ProjectData>(res));
+}
+
+export function saveProject(name: string, sources: ClipSource[], clips: Clip[]): Promise<ProjectData> {
+  return fetch(`/api/projects/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sources, clips }),
+  }).then((res) => asJson<ProjectData>(res));
+}
+
 export function startExport(
   clips: Clip[],
   sources: ClipSource[],

@@ -6,6 +6,7 @@ import multer from "multer";
 import { outputDir, tmpDir } from "../config.ts";
 import { concatClips, replaceAudioWithMusic, trimClip } from "../lib/ffmpegPipeline.ts";
 import { createJob, getJob, setJobStage } from "../lib/jobs.ts";
+import { sanitizeFileName } from "../lib/sanitize.ts";
 import { ensureVideoDownloaded } from "../lib/ytdlp.ts";
 import type { ExportRequestPayload } from "../types.ts";
 
@@ -128,12 +129,6 @@ async function runExportPipeline(
   setJobStage(jobId, "done", 100, "完了しました");
   const job = getJob(jobId);
   if (job) job.outputFile = outputFile;
-}
-
-function sanitizeFileName(name: string | undefined): string | undefined {
-  if (!name) return undefined;
-  const cleaned = name.replace(/[/\\?%*:|"<>]/g, "").trim();
-  return cleaned || undefined;
 }
 
 export const outputRouter = express.Router();

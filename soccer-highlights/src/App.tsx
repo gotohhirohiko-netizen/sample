@@ -1,19 +1,92 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipList } from "./components/ClipList.tsx";
 import { ClipTagger } from "./components/ClipTagger.tsx";
 import { ExportPanel } from "./components/ExportPanel.tsx";
 import { PlaylistPanel } from "./components/PlaylistPanel.tsx";
+import { ProjectPanel, type SaveStatus } from "./components/ProjectPanel.tsx";
 import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
+import { saveProject, type ProjectData } from "./lib/api.ts";
 import { describeYoutubePlayerError } from "./lib/youtubeErrorMessages.ts";
 import type { Clip, ClipSource } from "./types.ts";
+
+const AUTOSAVE_DELAY_MS = 1200;
 
 export default function App() {
   const [sources, setSources] = useState<ClipSource[]>([]);
   const [clips, setClips] = useState<Clip[]>([]);
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [playerErrorCode, setPlayerErrorCode] = useState<number | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const skipNextAutosaveRef = useRef(false);
   const playerRef = useRef<YouTubePlayerHandle>(null);
+
+  useEffect(() => {
+    if (!projectName) return;
+    if (skipNextAutosaveRef.current) {
+      skipNextAutosaveRef.current = false;
+      return;
+    }
+
+    setHasUnsavedChanges(true);
+    const timer = setTimeout(() => {
+      setSaveStatus("saving");
+      saveProject(projectName, sources, clips)
+        .then((data) => {
+          setSaveStatus("saved");
+          setLastSavedAt(data.updatedAt);
+          setHasUnsavedChanges(false);
+        })
+        .catch(() => setSaveStatus("error"));
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => clearTimeout(timer);
+    // clips/sourcesの中身が変わるたびに保存タイマーをリセットしたいので依存配列はこれで正しい
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clips, sources, projectName]);
+
+  const handleRenameProject = (name: string) => {
+    setProjectName(name);
+  };
+
+  const handleSaveNow = () => {
+    if (!projectName) return;
+    setSaveStatus("saving");
+    saveProject(projectName, sources, clips)
+      .then((data) => {
+        setSaveStatus("saved");
+        setLastSavedAt(data.updatedAt);
+        setHasUnsavedChanges(false);
+      })
+      .catch(() => setSaveStatus("error"));
+  };
+
+  const handleLoadProject = (data: ProjectData) => {
+    skipNextAutosaveRef.current = true;
+    setProjectName(data.name);
+    setSources(data.sources);
+    setClips(data.clips);
+    setActiveVideoId(null);
+    setPlayerErrorCode(null);
+    setLastSavedAt(data.updatedAt);
+    setSaveStatus("saved");
+    setHasUnsavedChanges(false);
+  };
+
+  const handleNewProject = () => {
+    skipNextAutosaveRef.current = true;
+    setProjectName("");
+    setSources([]);
+    setClips([]);
+    setActiveVideoId(null);
+    setPlayerErrorCode(null);
+    setLastSavedAt(null);
+    setSaveStatus("idle");
+    setHasUnsavedChanges(false);
+  };
 
   const handleLoadSource = (meta: { videoId: string; title: string; youtubeUrl: string }) => {
     setSources((prev) => (prev.some((s) => s.videoId === meta.videoId) ? prev : [...prev, meta]));
@@ -65,6 +138,17 @@ export default function App() {
         <PlaylistPanel activeVideoId={activeVideoId} onSelectVideo={handleLoadSource} />
 
         <div className="main-content">
+          <ProjectPanel
+            projectName={projectName}
+            saveStatus={saveStatus}
+            hasUnsavedChanges={hasUnsavedChanges}
+            lastSavedAt={lastSavedAt}
+            onRename={handleRenameProject}
+            onSaveNow={handleSaveNow}
+            onLoadProject={handleLoadProject}
+            onNewProject={handleNewProject}
+          />
+
           <section className="player-section">
             <SourceUrlInput onLoad={handleLoadSource} />
             <div className="player-wrapper">
