@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { errorMessage } from "../lib/errorMessage";
 import { findOverlappingList } from "../lib/taskLists";
+import { todayInTokyo } from "../lib/dateUtils";
 import { TIME_SLOT_LABEL, TIME_SLOT_ORDER, type TaskList, type TaskTemplate, type TimeSlot } from "../types/models";
 
 const DEFAULT_TARGET_TIME: Record<TimeSlot, string> = {
@@ -23,8 +24,8 @@ export default function ParentSetupView({ familyId }: { familyId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const [newListName, setNewListName] = useState("");
-  const [newListStart, setNewListStart] = useState("");
-  const [newListEnd, setNewListEnd] = useState("");
+  const [newListStart, setNewListStart] = useState(todayInTokyo());
+  const [newListEnd, setNewListEnd] = useState(todayInTokyo());
 
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editListName, setEditListName] = useState("");
@@ -110,8 +111,8 @@ export default function ParentSetupView({ familyId }: { familyId: string }) {
       return;
     }
     setNewListName("");
-    setNewListStart("");
-    setNewListEnd("");
+    setNewListStart(todayInTokyo());
+    setNewListEnd(todayInTokyo());
     await loadLists();
     if (data) setSelectedListId(data.id);
   }
