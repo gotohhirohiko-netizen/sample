@@ -133,12 +133,11 @@ export default function App() {
     playerRef.current?.loadVideo(meta.videoId);
   };
 
-  const handleAddClip = (startSec: number, endSec: number, label: string) => {
-    if (!activeVideoId) return;
-    setClips((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), sourceVideoId: activeVideoId, label, startSec, endSec },
-    ]);
+  const handleAddClip = (startSec: number, endSec: number, label: string): string | null => {
+    if (!activeVideoId) return null;
+    const id = crypto.randomUUID();
+    setClips((prev) => [...prev, { id, sourceVideoId: activeVideoId, label, startSec, endSec }]);
+    return id;
   };
 
   const handleReorder = (fromIndex: number, toIndex: number) => {
@@ -271,8 +270,10 @@ export default function App() {
             )}
             <ClipTagger
               disabled={!activeVideoId}
+              activeVideoId={activeVideoId}
               getCurrentTime={() => playerRef.current?.getCurrentTime() ?? 0}
               onAddClip={handleAddClip}
+              onUpdateTime={handleUpdateTime}
             />
           </section>
 
