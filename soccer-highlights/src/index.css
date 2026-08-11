@@ -37,9 +37,21 @@ header h1 {
   gap: 24px;
 }
 
+.sidebar-column {
+  flex: 0 0 260px;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 @media (max-width: 800px) {
   .app-layout {
     flex-direction: column;
+  }
+
+  .sidebar-column {
+    max-width: none;
   }
 }
 
@@ -54,15 +66,7 @@ section,
   gap: 12px;
 }
 
-.playlist-panel {
-  flex: 0 0 260px;
-  max-width: 260px;
-  transition: flex-basis 0.15s ease;
-}
-
 .playlist-panel.collapsed {
-  flex: 0 0 auto;
-  max-width: none;
   padding: 12px 8px;
 }
 

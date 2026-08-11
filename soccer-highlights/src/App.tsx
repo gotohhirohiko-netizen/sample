@@ -143,9 +143,7 @@ export default function App() {
       </header>
 
       <div className="app-layout">
-        <PlaylistPanel activeVideoId={activeVideoId} onSelectVideo={handleLoadSource} />
-
-        <div className="main-content">
+        <div className="sidebar-column">
           <ProjectPanel
             projectName={projectName}
             saveStatus={saveStatus}
@@ -156,7 +154,10 @@ export default function App() {
             onLoadProject={handleLoadProject}
             onNewProject={handleNewProject}
           />
+          <PlaylistPanel activeVideoId={activeVideoId} onSelectVideo={handleLoadSource} />
+        </div>
 
+        <div className="main-content">
           <section className="player-section">
             <SourceUrlInput onLoad={handleLoadSource} />
             <div className="player-wrapper">
