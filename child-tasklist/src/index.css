@@ -175,6 +175,14 @@ button.task-item:disabled {
   font-size: 0.85rem;
 }
 
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .invite-code {
   font-size: 1.6rem;
   letter-spacing: 0.15em;
