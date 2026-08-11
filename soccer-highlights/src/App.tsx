@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { ClipList } from "./components/ClipList.tsx";
 import { ClipTagger } from "./components/ClipTagger.tsx";
 import { ExportPanel } from "./components/ExportPanel.tsx";
+import { PlaylistPanel } from "./components/PlaylistPanel.tsx";
 import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
 import { describeYoutubePlayerError } from "./lib/youtubeErrorMessages.ts";
@@ -60,36 +61,42 @@ export default function App() {
         <h1>サッカーハイライト作成ツール</h1>
       </header>
 
-      <section className="player-section">
-        <SourceUrlInput onLoad={handleLoadSource} />
-        <div className="player-wrapper">
-          <YouTubePlayerView ref={playerRef} onError={setPlayerErrorCode} />
+      <div className="app-layout">
+        <PlaylistPanel activeVideoId={activeVideoId} onSelectVideo={handleLoadSource} />
+
+        <div className="main-content">
+          <section className="player-section">
+            <SourceUrlInput onLoad={handleLoadSource} />
+            <div className="player-wrapper">
+              <YouTubePlayerView ref={playerRef} onError={setPlayerErrorCode} />
+            </div>
+            {playerErrorCode !== null && (
+              <p className="error-text">
+                {describeYoutubePlayerError(playerErrorCode)}(エラーコード: {playerErrorCode})
+              </p>
+            )}
+            <ClipTagger
+              disabled={!activeVideoId}
+              getCurrentTime={() => playerRef.current?.getCurrentTime() ?? 0}
+              onAddClip={handleAddClip}
+            />
+          </section>
+
+          <section className="clips-section">
+            <h2>クリップ一覧 ({clips.length})</h2>
+            <ClipList
+              clips={clips}
+              sources={sources}
+              onReorder={handleReorder}
+              onRemove={handleRemove}
+              onSeek={handleSeek}
+              onRelabel={handleRelabel}
+            />
+          </section>
+
+          <ExportPanel clips={clips} sources={sources} />
         </div>
-        {playerErrorCode !== null && (
-          <p className="error-text">
-            {describeYoutubePlayerError(playerErrorCode)}(エラーコード: {playerErrorCode})
-          </p>
-        )}
-        <ClipTagger
-          disabled={!activeVideoId}
-          getCurrentTime={() => playerRef.current?.getCurrentTime() ?? 0}
-          onAddClip={handleAddClip}
-        />
-      </section>
-
-      <section className="clips-section">
-        <h2>クリップ一覧 ({clips.length})</h2>
-        <ClipList
-          clips={clips}
-          sources={sources}
-          onReorder={handleReorder}
-          onRemove={handleRemove}
-          onSeek={handleSeek}
-          onRelabel={handleRelabel}
-        />
-      </section>
-
-      <ExportPanel clips={clips} sources={sources} />
+      </div>
     </div>
   );
 }

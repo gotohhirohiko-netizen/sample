@@ -27,8 +27,11 @@ export function ClipList({ clips, sources, onReorder, onRemove, onSeek, onRelabe
           <input
             type="text"
             className="clip-label-input"
-            value={clip.label}
-            onChange={(e) => onRelabel(clip.id, e.target.value)}
+            defaultValue={clip.label}
+            onBlur={(e) => onRelabel(clip.id, e.target.value.trim() || clip.label)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
           />
           <span className="clip-source-title">{titleFor(clip.sourceVideoId)}</span>
           <span className="clip-time">

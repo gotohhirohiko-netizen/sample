@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { formatTime } from "../lib/format.ts";
 
 interface Props {
@@ -9,7 +9,9 @@ interface Props {
 
 export function ClipTagger({ disabled, getCurrentTime, onAddClip }: Props) {
   const [pendingStart, setPendingStart] = useState<number | null>(null);
-  const [label, setLabel] = useState("");
+  // ラベル入力はuncontrolledにしている。value+onChangeで毎キー入力ごとに
+  // 再描画すると、日本語入力(IME)中に文字化けする不具合が起きるため。
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
   const markStart = () => setPendingStart(getCurrentTime());
 
@@ -20,18 +22,18 @@ export function ClipTagger({ disabled, getCurrentTime, onAddClip }: Props) {
       setPendingStart(null);
       return;
     }
-    onAddClip(pendingStart, end, label.trim() || "クリップ");
+    const label = labelInputRef.current?.value.trim() || "クリップ";
+    onAddClip(pendingStart, end, label);
     setPendingStart(null);
-    setLabel("");
+    if (labelInputRef.current) labelInputRef.current.value = "";
   };
 
   return (
     <div className="clip-tagger">
       <input
         type="text"
+        ref={labelInputRef}
         placeholder="クリップ名(任意、例: 前半ゴール)"
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
         disabled={disabled}
       />
       <button type="button" onClick={markStart} disabled={disabled}>

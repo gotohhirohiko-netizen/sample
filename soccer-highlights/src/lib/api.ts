@@ -22,6 +22,19 @@ export function resolveSource(youtubeUrl: string): Promise<VideoMetadata> {
   }).then((res) => asJson<VideoMetadata>(res));
 }
 
+export interface PlaylistVideo {
+  videoId: string;
+  title: string;
+}
+
+export function resolvePlaylist(youtubeUrl: string): Promise<{ title: string; videos: PlaylistVideo[] }> {
+  return fetch("/api/sources/resolve-playlist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ youtubeUrl }),
+  }).then((res) => asJson<{ title: string; videos: PlaylistVideo[] }>(res));
+}
+
 export function startExport(
   clips: Clip[],
   sources: ClipSource[],

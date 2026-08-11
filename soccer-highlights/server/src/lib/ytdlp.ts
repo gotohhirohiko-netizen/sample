@@ -35,6 +35,47 @@ export async function resolveVideoMetadata(youtubeUrl: string): Promise<VideoMet
   };
 }
 
+export interface PlaylistVideo {
+  videoId: string;
+  title: string;
+}
+
+export interface PlaylistInfo {
+  title: string;
+  videos: PlaylistVideo[];
+}
+
+/**
+ * 再生リストに含まれる動画の一覧(id・タイトルのみ)を取得する。
+ * --flat-playlistで各動画の詳細取得を省略し高速に済ませる。
+ */
+export async function resolvePlaylistVideos(youtubeUrl: string): Promise<PlaylistInfo> {
+  const { stdout } = await runCommand("yt-dlp", [
+    "--flat-playlist",
+    "--dump-single-json",
+    youtubeUrl,
+  ]);
+
+  let data: { title?: string; entries?: Array<{ id?: string; title?: string }> };
+  try {
+    data = JSON.parse(stdout);
+  } catch {
+    throw new Error("再生リスト情報の解析に失敗しました。");
+  }
+
+  const videos = (data.entries ?? [])
+    .filter((entry): entry is { id: string; title?: string } => typeof entry.id === "string")
+    .map((entry) => ({ videoId: entry.id, title: entry.title ?? entry.id }));
+
+  if (videos.length === 0) {
+    throw new Error(
+      "再生リストに動画が見つかりませんでした。単一動画のURLの場合は上の「読み込む」欄をお使いください。",
+    );
+  }
+
+  return { title: data.title ?? "再生リスト", videos };
+}
+
 export function downloadedFilePath(videoId: string): string {
   return path.join(downloadsDir, `${videoId}.mp4`);
 }
