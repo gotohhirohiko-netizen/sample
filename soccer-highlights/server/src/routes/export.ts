@@ -141,12 +141,14 @@ async function runExportPipeline(jobId: string, payload: ExportRequestPayload): 
   registerJobController(jobId, controller);
   const { signal } = controller;
 
+  // catch節で失敗時の後片付けに使うため、tryの外で宣言しておく
+  const localPathByVideoId = new Map<string, string>();
+
   try {
     const sourceByVideoId = new Map(payload.sources.map((s) => [s.videoId, s]));
 
     // 1. 参照されている元動画をダウンロード(重複はキャッシュ済みならスキップ)
     const uniqueVideoIds = [...new Set(payload.clips.map((c) => c.sourceVideoId))];
-    const localPathByVideoId = new Map<string, string>();
     for (let i = 0; i < uniqueVideoIds.length; i++) {
       if (signal.aborted) throw new CancelledError();
       await assertEnoughDiskSpace();
@@ -193,6 +195,7 @@ async function runExportPipeline(jobId: string, payload: ExportRequestPayload): 
 
       if (lastClipIndexForVideo.get(clip.sourceVideoId) === i) {
         await rm(sourcePath, { force: true }).catch(() => {});
+        localPathByVideoId.delete(clip.sourceVideoId);
       }
     }
 
@@ -217,9 +220,15 @@ async function runExportPipeline(jobId: string, payload: ExportRequestPayload): 
     const job = getJob(jobId);
     if (job) job.outputFile = outputFile;
   } catch (err) {
+    // 失敗・キャンセル時は、このジョブでダウンロードしたまま未削除の元動画と
+    // 一時ファイルを片付ける(やり直す際は再ダウンロードされるため残す意味がない)。
+    for (const localPath of localPathByVideoId.values()) {
+      await rm(localPath, { force: true }).catch(() => {});
+    }
+    await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
+
     if (err instanceof CancelledError) {
       setJobStage(jobId, "cancelled", 100, "キャンセルされました");
-      await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
       return;
     }
     throw err;
@@ -276,9 +285,9 @@ async function runApplyAudioPipeline(
     const job = getJob(jobId);
     if (job) job.outputFile = outputFile;
   } catch (err) {
+    await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
     if (err instanceof CancelledError) {
       setJobStage(jobId, "cancelled", 100, "キャンセルされました");
-      await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
       return;
     }
     throw err;

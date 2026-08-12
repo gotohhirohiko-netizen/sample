@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,4 +28,16 @@ export function ensureDataDirs(): void {
   for (const dir of [dataDir, downloadsDir, outputDir, tmpDir, projectsDir]) {
     mkdirSync(dir, { recursive: true });
   }
+}
+
+/**
+ * サーバー起動時に呼ぶ。前回サーバーが異常終了(強制終了・クラッシュ等)した場合、
+ * 書き出しジョブが後片付けできずにdata/downloads・data/tmpへ残骸が残ることがあるため、
+ * 起動のたびに空にする(どちらも純粋なキャッシュ/作業領域で、必要なら自動的に作り直される)。
+ */
+export function cleanupStaleCaches(): void {
+  rmSync(downloadsDir, { recursive: true, force: true });
+  rmSync(tmpDir, { recursive: true, force: true });
+  mkdirSync(downloadsDir, { recursive: true });
+  mkdirSync(tmpDir, { recursive: true });
 }

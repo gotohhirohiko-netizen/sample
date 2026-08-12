@@ -2,13 +2,14 @@ import path from "node:path";
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
-import { distDir, ensureDataDirs, port } from "./config.ts";
+import { cleanupStaleCaches, distDir, ensureDataDirs, port } from "./config.ts";
 import { exportRouter, outputRouter, systemRouter } from "./routes/export.ts";
 import { projectsRouter } from "./routes/projects.ts";
 import { sourcesRouter } from "./routes/sources.ts";
 import { youtubeRouter } from "./routes/youtube.ts";
 
 ensureDataDirs();
+cleanupStaleCaches();
 
 const app = express();
 app.use(cors());
