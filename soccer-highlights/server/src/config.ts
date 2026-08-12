@@ -27,6 +27,11 @@ export const minFreeDiskBytes = minFreeDiskGb * 1024 * 1024 * 1024;
 export const ytdlpCookiesFile = process.env.YTDLP_COOKIES_FILE || undefined;
 export const ytdlpCookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER || undefined;
 
+// "[download] Got error: N bytes read, M more expected. Giving up after 10 retries" のような
+// ダウンロード中の接続切れがWindowsで頻発する場合、IPv6経路の不安定さが原因のことが多い。
+// trueにすると--force-ipv4をyt-dlpに渡す。
+export const ytdlpForceIpv4 = process.env.YTDLP_FORCE_IPV4 === "true";
+
 export function ensureDataDirs(): void {
   for (const dir of [dataDir, outputDir, tmpDir, projectsDir, workRootDir]) {
     mkdirSync(dir, { recursive: true });

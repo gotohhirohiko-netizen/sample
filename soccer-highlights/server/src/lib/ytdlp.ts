@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { ytdlpCookiesFile, ytdlpCookiesFromBrowser } from "../config.ts";
-import { runCommand } from "./spawnUtil.ts";
+import { ytdlpCookiesFile, ytdlpCookiesFromBrowser, ytdlpForceIpv4 } from "../config.ts";
+import { CancelledError, runCommand } from "./spawnUtil.ts";
 
 export interface VideoMetadata {
   videoId: string;
@@ -22,12 +22,22 @@ function cookieArgs(): string[] {
 }
 
 /**
+ * WindowsではIPv6経路が不安定で、ダウンロード中に接続が切れる
+ * ("N bytes read, M more expected. Giving up after 10 retries")ことがある。
+ * YTDLP_FORCE_IPV4が設定されていればIPv4を強制する。
+ */
+function networkArgs(): string[] {
+  return ytdlpForceIpv4 ? ["--force-ipv4"] : [];
+}
+
+/**
  * ダウンロードせずに動画のメタ情報(実際のvideoId/タイトル/再生時間)だけ取得する。
  * フロントエンドでURL入力直後にタイトルを表示するために使う。
  */
 export async function resolveVideoMetadata(youtubeUrl: string): Promise<VideoMetadata> {
   const { stdout } = await runCommand("yt-dlp", [
     ...cookieArgs(),
+    ...networkArgs(),
     "--no-playlist",
     "--skip-download",
     "--print",
@@ -65,6 +75,7 @@ export interface PlaylistInfo {
 export async function resolvePlaylistVideos(youtubeUrl: string): Promise<PlaylistInfo> {
   const { stdout } = await runCommand("yt-dlp", [
     ...cookieArgs(),
+    ...networkArgs(),
     "--flat-playlist",
     "--dump-single-json",
     youtubeUrl,
@@ -99,6 +110,9 @@ export function downloadedFilePathIn(downloadDir: string, videoId: string): stri
  * downloadDirはプロジェクトごとの作業フォルダ(data/work/<プロジェクト名>/downloads/)を
  * 渡すことを想定している(一時停止・再開のあいだ保持され、書き出し完了時に片付けられる)。
  */
+const DOWNLOAD_ATTEMPTS = 3;
+const DOWNLOAD_RETRY_DELAY_MS = 5000;
+
 export async function ensureVideoDownloaded(
   downloadDir: string,
   youtubeUrl: string,
@@ -110,25 +124,43 @@ export async function ensureVideoDownloaded(
     return outputPath;
   }
 
-  await runCommand(
-    "yt-dlp",
-    [
-      ...cookieArgs(),
-      "--no-playlist",
-      "-f",
-      "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-      "--merge-output-format",
-      "mp4",
-      "-o",
-      outputPath,
-      youtubeUrl,
-    ],
-    signal,
-  );
+  // 接続切れ等の一時的なネットワークエラー("N bytes read, M more expected")で
+  // yt-dlp自体は10回リトライしてもあきらめてしまうことがあるため、
+  // ダウンロード試行そのものを数回リトライする。
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+    try {
+      await runCommand(
+        "yt-dlp",
+        [
+          ...cookieArgs(),
+          ...networkArgs(),
+          "--no-playlist",
+          "-f",
+          "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+          "--merge-output-format",
+          "mp4",
+          "-o",
+          outputPath,
+          youtubeUrl,
+        ],
+        signal,
+      );
 
-  if (!existsSync(outputPath)) {
-    throw new Error(`ダウンロードに失敗しました: ${youtubeUrl}`);
+      if (!existsSync(outputPath)) {
+        throw new Error(`ダウンロードに失敗しました: ${youtubeUrl}`);
+      }
+      return outputPath;
+    } catch (err) {
+      if (err instanceof CancelledError) throw err;
+      lastError = err;
+      if (attempt < DOWNLOAD_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_RETRY_DELAY_MS));
+      }
+    }
   }
 
-  return outputPath;
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`ダウンロードに失敗しました: ${youtubeUrl}`);
 }
