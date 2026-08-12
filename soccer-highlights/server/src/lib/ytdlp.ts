@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { downloadsDir, ytdlpCookiesFromBrowser } from "../config.ts";
+import { downloadsDir, ytdlpCookiesFile, ytdlpCookiesFromBrowser } from "../config.ts";
 import { runCommand } from "./spawnUtil.ts";
 
 export interface VideoMetadata {
@@ -10,11 +10,15 @@ export interface VideoMetadata {
 }
 
 /**
- * YouTube側の「ログイン必須」対策(403 Forbidden)を回避するため、
- * YTDLP_COOKIES_FROM_BROWSERが設定されていればブラウザのCookieを使う。
+ * YouTube側の「ログイン必須」対策(403 Forbidden)を回避するため、Cookieを使う。
+ * YTDLP_COOKIES_FILE(cookies.txtエクスポート)が設定されていればそちらを優先する。
+ * ブラウザから直接読む--cookies-from-browserは、ブラウザ起動中はCookie DBがロックされて
+ * 読めないことがある(yt-dlp issue #7271)ため、cookies.txt方式の方が安定する。
  */
 function cookieArgs(): string[] {
-  return ytdlpCookiesFromBrowser ? ["--cookies-from-browser", ytdlpCookiesFromBrowser] : [];
+  if (ytdlpCookiesFile) return ["--cookies", ytdlpCookiesFile];
+  if (ytdlpCookiesFromBrowser) return ["--cookies-from-browser", ytdlpCookiesFromBrowser];
+  return [];
 }
 
 /**

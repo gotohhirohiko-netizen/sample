@@ -39,11 +39,29 @@ YouTube動画のダウンロードや動画の切り抜き・結合には`yt-dlp
 ### `HTTP Error 403: Forbidden` が出る場合
 
 `yt-dlp -U` で最新版にしても解消しない場合、YouTube側が「ログイン状態でないとダウンロードさせない」
-制限をかけている動画である可能性が高い。その場合はブラウザのCookieを使ってyt-dlpにログイン状態を
-渡す必要がある。
+制限をかけている動画である可能性が高い。その場合はCookieを使ってyt-dlpにログイン状態を渡す必要がある。
+方法は2つあり、**方法A(cookies.txt)の方が安定して動く**(方法Bはブラウザ起動中だとCookie DBが
+ロックされて失敗しやすい)。
+
+**方法A: cookies.txtをエクスポートして使う(推奨)**
+
+1. 普段YouTubeを見ているブラウザに、Cookieをファイルにエクスポートできる拡張機能を入れる
+   (例: Chrome/Edgeなら「Get cookies.txt LOCALLY」、Firefoxなら「cookies.txt」などのストア名で検索)
+2. YouTubeにログインした状態で `youtube.com` を開き、拡張機能でCookieをエクスポートして
+   `cookies.txt` として保存する(場所はどこでもよいが、例えば`soccer-highlights/cookies.txt`)
+3. `soccer-highlights/.env` に以下を追加(`.env.example`にひな形あり)
+
+   ```
+   YTDLP_COOKIES_FILE=./cookies.txt
+   ```
+
+4. サーバー(`npm run dev` / `npm start`)を再起動する
+5. Cookieには有効期限があるため、しばらくしてまた403が出るようになったら再エクスポートすること
+
+**方法B: ブラウザのCookieを直接使う**
 
 1. 普段YouTubeを見ているブラウザで、一度その動画(または同じチャンネルの動画)を開いてログインしておく
-2. `soccer-highlights/.env` に以下を追加(`.env.example`にひな形あり)
+2. `soccer-highlights/.env` に以下を追加
 
    ```
    YTDLP_COOKIES_FROM_BROWSER=chrome
@@ -51,9 +69,11 @@ YouTube動画のダウンロードや動画の切り抜き・結合には`yt-dlp
 
    Edgeなら`edge`、Firefoxなら`firefox`。複数プロファイルを使い分けている場合は
    `chrome:Default` のようにプロファイル名も指定する。
-3. サーバー(`npm run dev` / `npm start`)を再起動する
-4. ブラウザ側でCookieファイルがロックされて読めないことがあるため、ダウンロードが失敗する場合は
-   一度そのブラウザを閉じてから試す
+3. サーバーを再起動する
+4. `Could not copy Chrome cookie database` というエラーが出る場合、そのブラウザが(タスクトレイの
+   バックグラウンドプロセスも含めて)完全に終了していないことが原因。タスクマネージャーで
+   `chrome.exe` が残っていないか確認して全て終了してから再試行する。それでも解消しない場合は
+   方法Aのcookies.txt方式に切り替えること。
 
 ## セットアップ
 
