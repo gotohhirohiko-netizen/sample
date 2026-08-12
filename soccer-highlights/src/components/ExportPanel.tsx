@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { cancelExport, getDiskSpace, getJobStatus, startExport } from "../lib/api.ts";
+import { cancelExport, getDiskSpace, getJobStatus, startExport, type CombinedVideoInfo } from "../lib/api.ts";
 import type { Clip, ClipSource, JobStage, JobStatus } from "../types.ts";
 import { YoutubeUploadPanel } from "./YoutubeUploadPanel.tsx";
 
 interface Props {
   clips: Clip[];
   sources: ClipSource[];
+  onCombinedVideoReady: (info: CombinedVideoInfo) => void;
 }
 
 const stageLabel: Record<JobStage, string> = {
@@ -13,15 +14,14 @@ const stageLabel: Record<JobStage, string> = {
   downloading: "元動画をダウンロード中",
   trimming: "クリップを切り出し中",
   concatenating: "結合中",
-  "applying-audio": "音声を差し替え中",
+  "applying-audio": "音声を適用中",
   done: "完了",
   error: "エラー",
   cancelled: "キャンセルされました",
 };
 
-export function ExportPanel({ clips, sources }: Props) {
+export function ExportPanel({ clips, sources, onCombinedVideoReady }: Props) {
   const [outputName, setOutputName] = useState("highlight");
-  const [musicFile, setMusicFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [starting, setStarting] = useState(false);
@@ -51,22 +51,25 @@ export function ExportPanel({ clips, sources }: Props) {
           if (data.stage === "done" || data.stage === "error" || data.stage === "cancelled") {
             refreshDiskSpace();
           }
+          if (data.stage === "done" && data.outputFile) {
+            onCombinedVideoReady({
+              file: data.outputFile,
+              durationSec: clips.reduce((sum, c) => sum + (c.endSec - c.startSec), 0),
+              clipCount: clips.length,
+              createdAt: Date.now(),
+            });
+          }
         })
         .catch((err) => setError(err instanceof Error ? err.message : String(err)));
     }, 1500);
     return () => clearInterval(timer);
-  }, [jobId, isRunning]);
+  }, [jobId, isRunning, clips, onCombinedVideoReady]);
 
   const handleExport = async () => {
     setError(null);
     setStarting(true);
     try {
-      const { jobId: newJobId } = await startExport(
-        clips,
-        sources,
-        outputName.trim() || "highlight",
-        musicFile,
-      );
+      const { jobId: newJobId } = await startExport(clips, sources, outputName.trim() || "highlight");
       setJobId(newJobId);
       setJob({ id: newJobId, stage: "queued", progress: 0, createdAt: Date.now() });
     } catch (err) {
@@ -91,7 +94,11 @@ export function ExportPanel({ clips, sources }: Props) {
 
   return (
     <section className="export-panel">
-      <h2>書き出し</h2>
+      <h2>書き出し(切り抜き・結合)</h2>
+      <p className="hint">
+        ここではクリップの切り抜きと結合のみを行う(音声はそのまま)。音楽を差し替えたい場合は、
+        完了後に下の「音楽を追加」で行う。
+      </p>
 
       {freeDiskGb && <p className="hint">PCの空き容量: {freeDiskGb}</p>}
 
@@ -100,18 +107,9 @@ export function ExportPanel({ clips, sources }: Props) {
         <input type="text" value={outputName} onChange={(e) => setOutputName(e.target.value)} />
       </label>
 
-      <label>
-        音楽で音声を上書き(mp3・任意)
-        <input
-          type="file"
-          accept="audio/mpeg,.mp3"
-          onChange={(e) => setMusicFile(e.target.files?.[0] ?? null)}
-        />
-      </label>
-
       <div className="export-start-row">
         <button type="button" onClick={handleExport} disabled={starting || clips.length === 0 || isRunning}>
-          {starting ? "開始中..." : "書き出し開始(ローカル保存)"}
+          {starting ? "開始中..." : "結合して書き出し(ローカル保存)"}
         </button>
         {isRunning && (
           <button type="button" onClick={handleCancel} disabled={cancelling}>

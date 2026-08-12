@@ -18,11 +18,19 @@ interface ProjectPlaylist {
   videos: PlaylistVideo[];
 }
 
+interface CombinedVideoInfo {
+  file: string;
+  durationSec: number;
+  clipCount: number;
+  createdAt: number;
+}
+
 interface ProjectFile {
   name: string;
   sources: ClipSource[];
   clips: Clip[];
   playlist: ProjectPlaylist | null;
+  combinedVideo: CombinedVideoInfo | null;
   updatedAt: number;
 }
 
@@ -67,16 +75,18 @@ projectsRouter.put("/:name", async (req: Request<{ name: string }>, res: Respons
     return;
   }
 
-  const { sources, clips, playlist } = req.body as {
+  const { sources, clips, playlist, combinedVideo } = req.body as {
     sources?: ClipSource[];
     clips?: Clip[];
     playlist?: ProjectPlaylist | null;
+    combinedVideo?: CombinedVideoInfo | null;
   };
   const project: ProjectFile = {
     name: req.params.name,
     sources: sources ?? [],
     clips: clips ?? [],
     playlist: playlist ?? null,
+    combinedVideo: combinedVideo ?? null,
     updatedAt: Date.now(),
   };
 

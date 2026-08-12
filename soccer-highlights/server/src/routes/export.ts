@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -5,27 +6,27 @@ import express, { type Request, type Response } from "express";
 import multer from "multer";
 import { outputDir, tmpDir } from "../config.ts";
 import { assertEnoughDiskSpace, formatBytesAsGb, getFreeDiskSpaceBytes } from "../lib/diskSpace.ts";
-import { concatClips, replaceAudioWithMusic, trimClip } from "../lib/ffmpegPipeline.ts";
-import { cancelJob, clearJobController, createJob, getJob, registerJobController, setJobStage } from "../lib/jobs.ts";
+import { concatClips, replaceAudioWithMusicTracks, trimClip } from "../lib/ffmpegPipeline.ts";
+import {
+  cancelJob,
+  clearJobController,
+  createJob,
+  getJob,
+  registerJobController,
+  setJobStage,
+} from "../lib/jobs.ts";
 import { sanitizeFileName } from "../lib/sanitize.ts";
 import { CancelledError } from "../lib/spawnUtil.ts";
 import { ensureVideoDownloaded } from "../lib/ytdlp.ts";
 import type { ExportRequestPayload } from "../types.ts";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+const musicUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 export const exportRouter = express.Router();
 
-exportRouter.post("/", upload.single("music"), async (req: Request, res: Response) => {
-  let payload: ExportRequestPayload;
-  try {
-    payload = JSON.parse(req.body.payload) as ExportRequestPayload;
-  } catch {
-    res.status(400).json({ error: "payloadの形式が不正です" });
-    return;
-  }
-
-  if (!payload.clips?.length) {
+exportRouter.post("/", async (req: Request, res: Response) => {
+  const payload = req.body as ExportRequestPayload;
+  if (!payload?.clips?.length) {
     res.status(400).json({ error: "クリップが1つもありません" });
     return;
   }
@@ -40,8 +41,51 @@ exportRouter.post("/", upload.single("music"), async (req: Request, res: Respons
   const jobId = randomUUID();
   createJob(jobId);
 
-  runExportPipeline(jobId, payload, req.file?.buffer).catch((err: unknown) => {
+  runExportPipeline(jobId, payload).catch((err: unknown) => {
     if (err instanceof CancelledError) return; // runExportPipeline側で既にstage更新済み
+    setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
+  });
+
+  res.status(202).json({ jobId });
+});
+
+exportRouter.post("/apply-audio", musicUpload.array("music"), async (req: Request, res: Response) => {
+  const combinedFile = req.body.combinedFile as string | undefined;
+  const outputName = req.body.outputName as string | undefined;
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+
+  if (!combinedFile) {
+    res.status(400).json({ error: "combinedFileは必須です" });
+    return;
+  }
+  if (files.length === 0) {
+    res.status(400).json({ error: "mp3ファイルを1つ以上指定してください" });
+    return;
+  }
+
+  const combinedPath = path.join(outputDir, path.basename(combinedFile));
+  if (!existsSync(combinedPath)) {
+    res.status(404).json({ error: "結合済み動画ファイルが見つかりません。書き出しをやり直してください。" });
+    return;
+  }
+
+  try {
+    await assertEnoughDiskSpace();
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
+
+  const jobId = randomUUID();
+  createJob(jobId);
+
+  runApplyAudioPipeline(
+    jobId,
+    combinedPath,
+    files.map((f) => f.buffer),
+    outputName,
+  ).catch((err: unknown) => {
+    if (err instanceof CancelledError) return;
     setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
   });
 
@@ -84,11 +128,12 @@ exportRouter.get("/:jobId/download", (req: Request<{ jobId: string }>, res: Resp
   res.download(path.join(outputDir, job.outputFile));
 });
 
-async function runExportPipeline(
-  jobId: string,
-  payload: ExportRequestPayload,
-  musicBuffer: Buffer | undefined,
-): Promise<void> {
+/**
+ * クリップの切り抜き・結合のみを行う(音声の差し替えは行わない)。
+ * 結合結果はdata/output/にそのまま残り、あとで/apply-audioから
+ * 何度でも音楽を差し替えて書き出せるようにする。
+ */
+async function runExportPipeline(jobId: string, payload: ExportRequestPayload): Promise<void> {
   const jobTmpDir = path.join(tmpDir, jobId);
   await mkdir(jobTmpDir, { recursive: true });
 
@@ -113,7 +158,7 @@ async function runExportPipeline(
       setJobStage(
         jobId,
         "downloading",
-        Math.round((i / uniqueVideoIds.length) * 30),
+        Math.round((i / uniqueVideoIds.length) * 40),
         `元動画を取得中 (${i + 1}/${uniqueVideoIds.length}): ${source.title ?? source.youtubeUrl}`,
       );
       const localPath = await ensureVideoDownloaded(source.youtubeUrl, videoId, signal);
@@ -139,7 +184,7 @@ async function runExportPipeline(
       setJobStage(
         jobId,
         "trimming",
-        30 + Math.round((i / payload.clips.length) * 30),
+        40 + Math.round((i / payload.clips.length) * 40),
         `クリップを切り出し中 (${i + 1}/${payload.clips.length}): ${clip.label || "無題"}`,
       );
       const clipOutPath = path.join(jobTmpDir, `clip-${i}.mp4`);
@@ -154,29 +199,77 @@ async function runExportPipeline(
     if (signal.aborted) throw new CancelledError();
 
     // 3. 結合
-    setJobStage(jobId, "concatenating", 65, "クリップを結合中...");
+    setJobStage(jobId, "concatenating", 85, "クリップを結合中...");
     const concatenatedPath = path.join(jobTmpDir, "concatenated.mp4");
     await concatClips(clipPaths, concatenatedPath, jobTmpDir, signal);
 
-    // 4. 音楽で音声を上書き(指定時のみ)
-    let finalPath = concatenatedPath;
-    if (musicBuffer) {
-      if (signal.aborted) throw new CancelledError();
-      setJobStage(jobId, "applying-audio", 85, "音声を差し替え中...");
-      const musicPath = path.join(jobTmpDir, "music.mp3");
-      await writeFile(musicPath, musicBuffer);
-      finalPath = path.join(jobTmpDir, "final.mp4");
-      await replaceAudioWithMusic(concatenatedPath, musicPath, finalPath, signal);
-    }
-
-    // 5. 出力先へ配置
+    // 4. 出力先へ配置(結合済み動画として保存。音声を後から差し替える際に再利用する)
     const safeName = sanitizeFileName(payload.outputName) ?? `highlight-${jobId.slice(0, 8)}`;
     const outputFile = `${safeName}.mp4`;
     await mkdir(outputDir, { recursive: true });
-    await rename(finalPath, path.join(outputDir, outputFile));
+    await rename(concatenatedPath, path.join(outputDir, outputFile));
 
     // 中間ファイル(切り出し済みクリップ等)を削除。元動画のダウンロードキャッシュは
     // 上のループで既に不要になった時点で削除済み。
+    await rm(jobTmpDir, { recursive: true, force: true });
+
+    setJobStage(jobId, "done", 100, "完了しました");
+    const job = getJob(jobId);
+    if (job) job.outputFile = outputFile;
+  } catch (err) {
+    if (err instanceof CancelledError) {
+      setJobStage(jobId, "cancelled", 100, "キャンセルされました");
+      await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
+      return;
+    }
+    throw err;
+  } finally {
+    clearJobController(jobId);
+  }
+}
+
+/**
+ * 既に結合済みの動画に、複数のmp3(指定順に連結)を音声トラックとして適用する。
+ * ダウンロード・切り出し・結合はやり直さないため、通常の書き出しよりずっと速い。
+ */
+async function runApplyAudioPipeline(
+  jobId: string,
+  combinedPath: string,
+  musicBuffers: Buffer[],
+  outputName: string | undefined,
+): Promise<void> {
+  const jobTmpDir = path.join(tmpDir, jobId);
+  await mkdir(jobTmpDir, { recursive: true });
+
+  const controller = new AbortController();
+  registerJobController(jobId, controller);
+  const { signal } = controller;
+
+  try {
+    if (signal.aborted) throw new CancelledError();
+    await assertEnoughDiskSpace();
+
+    setJobStage(jobId, "applying-audio", 20, "音声ファイルを準備中...");
+    const musicPaths: string[] = [];
+    for (let i = 0; i < musicBuffers.length; i++) {
+      const musicPath = path.join(jobTmpDir, `music-${i}.mp3`);
+      await writeFile(musicPath, musicBuffers[i]);
+      musicPaths.push(musicPath);
+    }
+
+    if (signal.aborted) throw new CancelledError();
+    setJobStage(jobId, "applying-audio", 50, "音声を適用中...");
+    const finalTmpPath = path.join(jobTmpDir, "final.mp4");
+    await replaceAudioWithMusicTracks(combinedPath, musicPaths, finalTmpPath, signal);
+
+    const safeName = sanitizeFileName(outputName) ?? `highlight-with-music-${jobId.slice(0, 8)}`;
+    const outputFile = `${safeName}.mp4`;
+    if (outputFile === path.basename(combinedPath)) {
+      throw new Error("出力ファイル名が結合済み動画と同じです。別の名前を指定してください。");
+    }
+
+    await mkdir(outputDir, { recursive: true });
+    await rename(finalTmpPath, path.join(outputDir, outputFile));
     await rm(jobTmpDir, { recursive: true, force: true });
 
     setJobStage(jobId, "done", 100, "完了しました");

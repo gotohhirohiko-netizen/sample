@@ -56,29 +56,33 @@ export async function concatClips(
 }
 
 /**
- * 動画の音声トラックを指定のmp3で丸ごと置き換える。
- * mp3を無限ループさせつつ、-shortestで動画の長さに合わせて切り詰める。
+ * 動画の音声トラックを、指定した順番のmp3群を連結したものに丸ごと置き換える。
+ * 音楽の合計時間が動画より短い場合は無音でパディングする(動画を切り詰めない)。
+ * 長い場合は-shortestで動画の長さに合わせて切り詰める。
  */
-export async function replaceAudioWithMusic(
+export async function replaceAudioWithMusicTracks(
   videoPath: string,
-  musicPath: string,
+  musicPaths: string[],
   outPath: string,
   signal?: AbortSignal,
 ): Promise<void> {
+  const inputArgs = [videoPath, ...musicPaths].flatMap((p) => ["-i", p]);
+  const n = musicPaths.length;
+  const audioInputs = musicPaths.map((_, i) => `[${i + 1}:a]`).join("");
+  const filterComplex =
+    n === 1 ? "[1:a]apad[aout]" : `${audioInputs}concat=n=${n}:v=0:a=1[acat];[acat]apad[aout]`;
+
   await runCommand(
     "ffmpeg",
     [
       "-y",
-      "-i",
-      videoPath,
-      "-stream_loop",
-      "-1",
-      "-i",
-      musicPath,
+      ...inputArgs,
+      "-filter_complex",
+      filterComplex,
       "-map",
       "0:v:0",
       "-map",
-      "1:a:0",
+      "[aout]",
       "-c:v",
       "copy",
       "-c:a",

@@ -47,11 +47,19 @@ export interface ProjectPlaylist {
   videos: PlaylistVideo[];
 }
 
+export interface CombinedVideoInfo {
+  file: string;
+  durationSec: number;
+  clipCount: number;
+  createdAt: number;
+}
+
 export interface ProjectData {
   name: string;
   sources: ClipSource[];
   clips: Clip[];
   playlist: ProjectPlaylist | null;
+  combinedVideo: CombinedVideoInfo | null;
   updatedAt: number;
 }
 
@@ -68,25 +76,41 @@ export function saveProject(
   sources: ClipSource[],
   clips: Clip[],
   playlist: ProjectPlaylist | null,
+  combinedVideo: CombinedVideoInfo | null,
 ): Promise<ProjectData> {
   return fetch(`/api/projects/${encodeURIComponent(name)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sources, clips, playlist }),
+    body: JSON.stringify({ sources, clips, playlist, combinedVideo }),
   }).then((res) => asJson<ProjectData>(res));
 }
 
+/** クリップの切り抜き・結合のみを行う(音声は差し替えない)。結合結果はdata/output/に残り、
+ * あとでapplyAudioTracksから何度でも音楽を差し替えられる。 */
 export function startExport(
   clips: Clip[],
   sources: ClipSource[],
   outputName: string,
-  musicFile: File | null,
+): Promise<{ jobId: string }> {
+  return fetch("/api/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clips, sources, outputName }),
+  }).then((res) => asJson<{ jobId: string }>(res));
+}
+
+/** 既に結合済みの動画に、指定順のmp3群を音声として適用する。 */
+export function applyAudioTracks(
+  combinedFile: string,
+  outputName: string,
+  musicFiles: File[],
 ): Promise<{ jobId: string }> {
   const formData = new FormData();
-  formData.append("payload", JSON.stringify({ clips, sources, outputName }));
-  if (musicFile) formData.append("music", musicFile);
+  formData.append("combinedFile", combinedFile);
+  formData.append("outputName", outputName);
+  musicFiles.forEach((file) => formData.append("music", file));
 
-  return fetch("/api/export", { method: "POST", body: formData }).then((res) =>
+  return fetch("/api/export/apply-audio", { method: "POST", body: formData }).then((res) =>
     asJson<{ jobId: string }>(res),
   );
 }

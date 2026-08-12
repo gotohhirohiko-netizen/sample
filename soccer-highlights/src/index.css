@@ -316,6 +316,7 @@ section,
 }
 
 .export-panel label,
+.apply-audio-panel label,
 .youtube-upload-form label {
   display: flex;
   flex-direction: column;
@@ -326,6 +327,51 @@ section,
 .export-start-row {
   display: flex;
   gap: 8px;
+}
+
+.music-track-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.music-track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #e3e3e8;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.music-track-name {
+  flex: 1 1 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.music-track-duration {
+  font-variant-numeric: tabular-nums;
+  color: #333;
+  flex: 0 0 auto;
+}
+
+.music-coverage {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.music-coverage.ok {
+  color: #1a7f37;
+}
+
+.music-coverage.insufficient {
+  color: #c0392b;
 }
 
 .job-status {

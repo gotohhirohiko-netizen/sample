@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ApplyAudioPanel } from "./components/ApplyAudioPanel.tsx";
 import { ClipList } from "./components/ClipList.tsx";
 import { ClipTagger } from "./components/ClipTagger.tsx";
 import { ExportPanel } from "./components/ExportPanel.tsx";
@@ -8,6 +9,7 @@ import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
 import {
   saveProject,
+  type CombinedVideoInfo,
   type PlaylistVideo,
   type ProjectData,
   type ProjectPlaylist,
@@ -35,6 +37,7 @@ export default function App() {
   const [playlistUrl, setPlaylistUrl] = useState("");
   const [playlistTitle, setPlaylistTitle] = useState<string | null>(null);
   const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
+  const [combinedVideo, setCombinedVideo] = useState<CombinedVideoInfo | null>(null);
   const [projectName, setProjectName] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -55,7 +58,7 @@ export default function App() {
     const timer = setTimeout(() => {
       setSaveStatus("saving");
       const playlist = buildPlaylistSnapshot(playlistUrl, playlistTitle, playlistVideos);
-      saveProject(projectName, sources, clips, playlist)
+      saveProject(projectName, sources, clips, playlist, combinedVideo)
         .then((data) => {
           setSaveStatus("saved");
           setLastSavedAt(data.updatedAt);
@@ -66,9 +69,19 @@ export default function App() {
     }, AUTOSAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
-    // clips/sources/再生リストの中身が変わるたびに保存タイマーをリセットしたいので依存配列はこれで正しい
+    // clips/sources/再生リスト/結合済み動画の中身が変わるたびに保存タイマーをリセットしたいので
+    // 依存配列はこれで正しい
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clips, sources, playlistUrl, playlistTitle, playlistVideos, projectName, autosaveEnabled]);
+  }, [
+    clips,
+    sources,
+    playlistUrl,
+    playlistTitle,
+    playlistVideos,
+    combinedVideo,
+    projectName,
+    autosaveEnabled,
+  ]);
 
   const handleRenameProject = (name: string) => {
     setProjectName(name);
@@ -78,7 +91,7 @@ export default function App() {
     if (!projectName) return;
     setSaveStatus("saving");
     const playlist = buildPlaylistSnapshot(playlistUrl, playlistTitle, playlistVideos);
-    saveProject(projectName, sources, clips, playlist)
+    saveProject(projectName, sources, clips, playlist, combinedVideo)
       .then((data) => {
         setSaveStatus("saved");
         setLastSavedAt(data.updatedAt);
@@ -96,6 +109,7 @@ export default function App() {
     setPlaylistUrl(data.playlist?.url ?? "");
     setPlaylistTitle(data.playlist?.title ?? null);
     setPlaylistVideos(data.playlist?.videos ?? []);
+    setCombinedVideo(data.combinedVideo ?? null);
     setActiveVideoId(null);
     setPlayerErrorCode(null);
     setLastSavedAt(data.updatedAt);
@@ -112,6 +126,7 @@ export default function App() {
     setPlaylistUrl("");
     setPlaylistTitle(null);
     setPlaylistVideos([]);
+    setCombinedVideo(null);
     setActiveVideoId(null);
     setPlayerErrorCode(null);
     setLastSavedAt(null);
@@ -290,7 +305,8 @@ export default function App() {
             />
           </section>
 
-          <ExportPanel clips={clips} sources={sources} />
+          <ExportPanel clips={clips} sources={sources} onCombinedVideoReady={setCombinedVideo} />
+          <ApplyAudioPanel combinedVideo={combinedVideo} clips={clips} />
         </div>
       </div>
     </div>
