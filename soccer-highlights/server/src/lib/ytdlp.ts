@@ -31,6 +31,26 @@ function networkArgs(): string[] {
 }
 
 /**
+ * "[download] Got error: N bytes read, M more expected. Giving up after 10 retries" は、
+ * 1本の大きなHTTPレンジリクエストの途中で接続が切れ、yt-dlp内部のデフォルト10回リトライを
+ * 使い切って諦めてしまうことで起きる。--http-chunk-sizeでリクエストを細切れにすると、
+ * 切れても取り直す範囲が小さくて済み成功しやすくなる。--retries/--fragment-retriesも
+ * 併せて増やし、内部リトライを使い切りにくくする。
+ */
+function resilientDownloadArgs(): string[] {
+  return [
+    "--http-chunk-size",
+    "10M",
+    "--retries",
+    "20",
+    "--fragment-retries",
+    "20",
+    "--retry-sleep",
+    "3",
+  ];
+}
+
+/**
  * ダウンロードせずに動画のメタ情報(実際のvideoId/タイトル/再生時間)だけ取得する。
  * フロントエンドでURL入力直後にタイトルを表示するために使う。
  */
@@ -113,6 +133,13 @@ export function downloadedFilePathIn(downloadDir: string, videoId: string): stri
 const DOWNLOAD_ATTEMPTS = 3;
 const DOWNLOAD_RETRY_DELAY_MS = 5000;
 
+// 映像・音声を別ストリームで取得し結合する形式。画質を優先するが、
+// 大きめのフラグメントを扱うため接続切れの影響を受けやすい。
+const FORMAT_PRIMARY = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
+// 単一ストリームのみで完結する形式。画質面で劣ることがあるが結合が不要な分安定しやすく、
+// 最終試行でのフォールバックに使う。
+const FORMAT_FALLBACK = "best";
+
 export async function ensureVideoDownloaded(
   downloadDir: string,
   youtubeUrl: string,
@@ -126,18 +153,22 @@ export async function ensureVideoDownloaded(
 
   // 接続切れ等の一時的なネットワークエラー("N bytes read, M more expected")で
   // yt-dlp自体は10回リトライしてもあきらめてしまうことがあるため、
-  // ダウンロード試行そのものを数回リトライする。
+  // ダウンロード試行そのものを数回リトライする。同じ形式で毎回失敗する動画向けに、
+  // 最終試行だけは結合不要な単一ストリーム形式にフォールバックする。
   let lastError: unknown;
   for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+    const isFinalAttempt = attempt === DOWNLOAD_ATTEMPTS;
+    const format = isFinalAttempt ? FORMAT_FALLBACK : FORMAT_PRIMARY;
     try {
       await runCommand(
         "yt-dlp",
         [
           ...cookieArgs(),
           ...networkArgs(),
+          ...resilientDownloadArgs(),
           "--no-playlist",
           "-f",
-          "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+          format,
           "--merge-output-format",
           "mp4",
           "-o",
