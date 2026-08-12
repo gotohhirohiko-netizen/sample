@@ -22,7 +22,8 @@ export type JobStage =
   | "concatenating"
   | "applying-audio"
   | "done"
-  | "error";
+  | "error"
+  | "cancelled";
 
 export interface JobStatus {
   id: string;

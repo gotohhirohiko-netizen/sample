@@ -1,6 +1,23 @@
 import type { JobStage, JobStatus } from "../types.ts";
 
 const jobs = new Map<string, JobStatus>();
+const controllers = new Map<string, AbortController>();
+
+export function registerJobController(id: string, controller: AbortController): void {
+  controllers.set(id, controller);
+}
+
+export function clearJobController(id: string): void {
+  controllers.delete(id);
+}
+
+/** 実行中のジョブをキャンセルする。対象が見つからない/既に終わっていればfalseを返す。 */
+export function cancelJob(id: string): boolean {
+  const controller = controllers.get(id);
+  if (!controller) return false;
+  controller.abort();
+  return true;
+}
 
 export function createJob(id: string): JobStatus {
   const job: JobStatus = { id, stage: "queued", progress: 0, createdAt: Date.now() };

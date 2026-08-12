@@ -86,22 +86,30 @@ export function downloadedFilePath(videoId: string): string {
  * 切り出しが全て終わると(export.tsのrunExportPipeline側で)削除される。
  * ディスク容量を圧迫しないよう、書き出しジョブをまたいでは残さない設計。
  */
-export async function ensureVideoDownloaded(youtubeUrl: string, videoId: string): Promise<string> {
+export async function ensureVideoDownloaded(
+  youtubeUrl: string,
+  videoId: string,
+  signal?: AbortSignal,
+): Promise<string> {
   const outputPath = downloadedFilePath(videoId);
   if (existsSync(outputPath)) {
     return outputPath;
   }
 
-  await runCommand("yt-dlp", [
-    "--no-playlist",
-    "-f",
-    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-    "--merge-output-format",
-    "mp4",
-    "-o",
-    outputPath,
-    youtubeUrl,
-  ]);
+  await runCommand(
+    "yt-dlp",
+    [
+      "--no-playlist",
+      "-f",
+      "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+      "--merge-output-format",
+      "mp4",
+      "-o",
+      outputPath,
+      youtubeUrl,
+    ],
+    signal,
+  );
 
   if (!existsSync(outputPath)) {
     throw new Error(`ダウンロードに失敗しました: ${youtubeUrl}`);

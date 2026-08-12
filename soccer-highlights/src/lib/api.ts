@@ -95,6 +95,14 @@ export function getJobStatus(jobId: string): Promise<JobStatus> {
   return fetch(`/api/export/${jobId}`).then((res) => asJson<JobStatus>(res));
 }
 
+export function cancelExport(jobId: string): Promise<{ ok: true }> {
+  return fetch(`/api/export/${jobId}/cancel`, { method: "POST" }).then((res) => asJson<{ ok: true }>(res));
+}
+
+export function getDiskSpace(): Promise<{ freeBytes: number; freeGb: string }> {
+  return fetch("/api/system/disk-space").then((res) => asJson<{ freeBytes: number; freeGb: string }>(res));
+}
+
 export interface OutputFile {
   name: string;
   sizeBytes: number;

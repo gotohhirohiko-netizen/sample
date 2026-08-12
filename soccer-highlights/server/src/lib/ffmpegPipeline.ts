@@ -8,48 +8,51 @@ export async function trimClip(
   startSec: number,
   endSec: number,
   outPath: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   const duration = endSec - startSec;
-  await runCommand("ffmpeg", [
-    "-y",
-    "-ss",
-    String(startSec),
-    "-i",
-    sourcePath,
-    "-t",
-    String(duration),
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "20",
-    "-c:a",
-    "aac",
-    "-movflags",
-    "+faststart",
-    outPath,
-  ]);
+  await runCommand(
+    "ffmpeg",
+    [
+      "-y",
+      "-ss",
+      String(startSec),
+      "-i",
+      sourcePath,
+      "-t",
+      String(duration),
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "20",
+      "-c:a",
+      "aac",
+      "-movflags",
+      "+faststart",
+      outPath,
+    ],
+    signal,
+  );
 }
 
 /** 同一コーデックで書き出したクリップ群をconcat demuxerで結合する(再エンコードなし)。 */
-export async function concatClips(clipPaths: string[], outPath: string, tmpDir: string): Promise<void> {
+export async function concatClips(
+  clipPaths: string[],
+  outPath: string,
+  tmpDir: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const listPath = path.join(tmpDir, "concat-list.txt");
   const listContent = clipPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n");
   await writeFile(listPath, listContent, "utf-8");
 
-  await runCommand("ffmpeg", [
-    "-y",
-    "-f",
-    "concat",
-    "-safe",
-    "0",
-    "-i",
-    listPath,
-    "-c",
-    "copy",
-    outPath,
-  ]);
+  await runCommand(
+    "ffmpeg",
+    ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outPath],
+    signal,
+  );
 }
 
 /**
@@ -60,26 +63,31 @@ export async function replaceAudioWithMusic(
   videoPath: string,
   musicPath: string,
   outPath: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  await runCommand("ffmpeg", [
-    "-y",
-    "-i",
-    videoPath,
-    "-stream_loop",
-    "-1",
-    "-i",
-    musicPath,
-    "-map",
-    "0:v:0",
-    "-map",
-    "1:a:0",
-    "-c:v",
-    "copy",
-    "-c:a",
-    "aac",
-    "-shortest",
-    "-movflags",
-    "+faststart",
-    outPath,
-  ]);
+  await runCommand(
+    "ffmpeg",
+    [
+      "-y",
+      "-i",
+      videoPath,
+      "-stream_loop",
+      "-1",
+      "-i",
+      musicPath,
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-shortest",
+      "-movflags",
+      "+faststart",
+      outPath,
+    ],
+    signal,
+  );
 }

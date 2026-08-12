@@ -3,7 +3,7 @@ import cors from "cors";
 import "dotenv/config";
 import express from "express";
 import { distDir, ensureDataDirs, port } from "./config.ts";
-import { exportRouter, outputRouter } from "./routes/export.ts";
+import { exportRouter, outputRouter, systemRouter } from "./routes/export.ts";
 import { projectsRouter } from "./routes/projects.ts";
 import { sourcesRouter } from "./routes/sources.ts";
 import { youtubeRouter } from "./routes/youtube.ts";
@@ -19,6 +19,7 @@ app.use("/api/export", exportRouter);
 app.use("/api/output", outputRouter);
 app.use("/api/youtube", youtubeRouter);
 app.use("/api/projects", projectsRouter);
+app.use("/api/system", systemRouter);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(distDir));
