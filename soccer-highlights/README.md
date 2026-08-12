@@ -36,6 +36,25 @@ YouTube動画のダウンロードや動画の切り抜き・結合には`yt-dlp
 
 いずれもコマンドラインで `ffmpeg -version` / `yt-dlp --version` が通ることを確認してから使うこと。
 
+### `HTTP Error 403: Forbidden` が出る場合
+
+`yt-dlp -U` で最新版にしても解消しない場合、YouTube側が「ログイン状態でないとダウンロードさせない」
+制限をかけている動画である可能性が高い。その場合はブラウザのCookieを使ってyt-dlpにログイン状態を
+渡す必要がある。
+
+1. 普段YouTubeを見ているブラウザで、一度その動画(または同じチャンネルの動画)を開いてログインしておく
+2. `soccer-highlights/.env` に以下を追加(`.env.example`にひな形あり)
+
+   ```
+   YTDLP_COOKIES_FROM_BROWSER=chrome
+   ```
+
+   Edgeなら`edge`、Firefoxなら`firefox`。複数プロファイルを使い分けている場合は
+   `chrome:Default` のようにプロファイル名も指定する。
+3. サーバー(`npm run dev` / `npm start`)を再起動する
+4. ブラウザ側でCookieファイルがロックされて読めないことがあるため、ダウンロードが失敗する場合は
+   一度そのブラウザを閉じてから試す
+
 ## セットアップ
 
 ```bash

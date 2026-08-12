@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { downloadsDir } from "../config.ts";
+import { downloadsDir, ytdlpCookiesFromBrowser } from "../config.ts";
 import { runCommand } from "./spawnUtil.ts";
 
 export interface VideoMetadata {
@@ -10,11 +10,20 @@ export interface VideoMetadata {
 }
 
 /**
+ * YouTube側の「ログイン必須」対策(403 Forbidden)を回避するため、
+ * YTDLP_COOKIES_FROM_BROWSERが設定されていればブラウザのCookieを使う。
+ */
+function cookieArgs(): string[] {
+  return ytdlpCookiesFromBrowser ? ["--cookies-from-browser", ytdlpCookiesFromBrowser] : [];
+}
+
+/**
  * ダウンロードせずに動画のメタ情報(実際のvideoId/タイトル/再生時間)だけ取得する。
  * フロントエンドでURL入力直後にタイトルを表示するために使う。
  */
 export async function resolveVideoMetadata(youtubeUrl: string): Promise<VideoMetadata> {
   const { stdout } = await runCommand("yt-dlp", [
+    ...cookieArgs(),
     "--no-playlist",
     "--skip-download",
     "--print",
@@ -51,6 +60,7 @@ export interface PlaylistInfo {
  */
 export async function resolvePlaylistVideos(youtubeUrl: string): Promise<PlaylistInfo> {
   const { stdout } = await runCommand("yt-dlp", [
+    ...cookieArgs(),
     "--flat-playlist",
     "--dump-single-json",
     youtubeUrl,
@@ -99,6 +109,7 @@ export async function ensureVideoDownloaded(
   await runCommand(
     "yt-dlp",
     [
+      ...cookieArgs(),
       "--no-playlist",
       "-f",
       "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",

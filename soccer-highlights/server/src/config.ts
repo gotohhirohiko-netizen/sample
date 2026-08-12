@@ -18,6 +18,10 @@ export const port = Number(process.env.PORT ?? 8787);
 const minFreeDiskGb = Number(process.env.MIN_FREE_DISK_GB ?? 3);
 export const minFreeDiskBytes = minFreeDiskGb * 1024 * 1024 * 1024;
 
+// YouTube側の「ログイン必須」対策で403 Forbiddenになる場合、指定したブラウザの
+// Cookieを使ってyt-dlpを実行する(例: "chrome" "edge" "firefox"。プロファイル指定は "chrome:Default" のように)
+export const ytdlpCookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER || undefined;
+
 export function ensureDataDirs(): void {
   for (const dir of [dataDir, downloadsDir, outputDir, tmpDir, projectsDir]) {
     mkdirSync(dir, { recursive: true });
