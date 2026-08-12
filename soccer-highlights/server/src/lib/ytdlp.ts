@@ -81,9 +81,10 @@ export function downloadedFilePath(videoId: string): string {
 }
 
 /**
- * 動画をmp4としてダウンロードする。既にキャッシュ済みならスキップする。
- * 同じ動画から複数クリップを切り出す場合の再ダウンロードを避けるため、
- * videoId単位で data/downloads/ にキャッシュする。
+ * 動画をmp4としてダウンロードする。同一ジョブ内で既にダウンロード済みならスキップする。
+ * videoId単位で data/downloads/ に一時的にキャッシュするが、そのジョブでの
+ * 切り出しが全て終わると(export.tsのrunExportPipeline側で)削除される。
+ * ディスク容量を圧迫しないよう、書き出しジョブをまたいでは残さない設計。
  */
 export async function ensureVideoDownloaded(youtubeUrl: string, videoId: string): Promise<string> {
   const outputPath = downloadedFilePath(videoId);

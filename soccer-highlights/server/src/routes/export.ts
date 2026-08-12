@@ -85,6 +85,12 @@ async function runExportPipeline(
   }
 
   // 2. 各クリップを切り出し
+  // クリップ一覧の中で各動画が最後に使われるインデックスを事前に調べておき、
+  // そこまで切り出しが終わった時点でダウンロード済みの元動画を即座に削除する
+  // (試合動画は1本あたり数百MB〜になるため、ダウンロードキャッシュを溜め込まないようにする)
+  const lastClipIndexForVideo = new Map<string, number>();
+  payload.clips.forEach((clip, index) => lastClipIndexForVideo.set(clip.sourceVideoId, index));
+
   const clipPaths: string[] = [];
   for (let i = 0; i < payload.clips.length; i++) {
     const clip = payload.clips[i];
@@ -100,6 +106,10 @@ async function runExportPipeline(
     const clipOutPath = path.join(jobTmpDir, `clip-${i}.mp4`);
     await trimClip(sourcePath, clip.startSec, clip.endSec, clipOutPath);
     clipPaths.push(clipOutPath);
+
+    if (lastClipIndexForVideo.get(clip.sourceVideoId) === i) {
+      await rm(sourcePath, { force: true }).catch(() => {});
+    }
   }
 
   // 3. 結合
@@ -123,7 +133,8 @@ async function runExportPipeline(
   await mkdir(outputDir, { recursive: true });
   await rename(finalPath, path.join(outputDir, outputFile));
 
-  // 中間ファイル(切り出し済みクリップ等)を削除。ダウンロード済み元動画のキャッシュは残す。
+  // 中間ファイル(切り出し済みクリップ等)を削除。元動画のダウンロードキャッシュは
+  // 上のループで既に不要になった時点で削除済み。
   await rm(jobTmpDir, { recursive: true, force: true });
 
   setJobStage(jobId, "done", 100, "完了しました");
