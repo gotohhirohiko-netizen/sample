@@ -22,6 +22,28 @@ import type { ExportRequestPayload } from "../types.ts";
 
 const musicUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
+/**
+ * ダウンロードキャッシュの削除は、Windowsではffmpegプロセス終了直後にOSがまだ
+ * ファイルハンドルを解放しておらず(ウイルス対策ソフトのスキャン等も影響しうる)、
+ * 一度目の削除がEBUSY/EPERMで失敗することがある。以前は結果を無視して握りつぶして
+ * いたため、失敗しても気づけずファイルが残り続けていた。リトライしつつ、最終的に
+ * 失敗した場合はログに残す。
+ */
+async function deleteWithRetry(filePath: string, attempts = 5, delayMs = 400): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await rm(filePath, { force: true });
+      return;
+    } catch (err) {
+      if (i === attempts - 1) {
+        console.warn(`ダウンロードキャッシュの削除に失敗しました: ${filePath}`, err);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 export const exportRouter = express.Router();
 
 exportRouter.post("/", async (req: Request, res: Response) => {
@@ -194,7 +216,7 @@ async function runExportPipeline(jobId: string, payload: ExportRequestPayload): 
       clipPaths.push(clipOutPath);
 
       if (lastClipIndexForVideo.get(clip.sourceVideoId) === i) {
-        await rm(sourcePath, { force: true }).catch(() => {});
+        await deleteWithRetry(sourcePath);
         localPathByVideoId.delete(clip.sourceVideoId);
       }
     }
@@ -223,7 +245,7 @@ async function runExportPipeline(jobId: string, payload: ExportRequestPayload): 
     // 失敗・キャンセル時は、このジョブでダウンロードしたまま未削除の元動画と
     // 一時ファイルを片付ける(やり直す際は再ダウンロードされるため残す意味がない)。
     for (const localPath of localPathByVideoId.values()) {
-      await rm(localPath, { force: true }).catch(() => {});
+      await deleteWithRetry(localPath);
     }
     await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
 
