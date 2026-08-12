@@ -1,11 +1,21 @@
 import { useEffect, useState } from "react";
-import { cancelExport, getDiskSpace, getJobStatus, startExport, type CombinedVideoInfo } from "../lib/api.ts";
+import {
+  cancelExport,
+  getDiskSpace,
+  getExportResumeStatus,
+  getJobStatus,
+  pauseExport,
+  startExport,
+  type CombinedVideoInfo,
+  type ResumeStatus,
+} from "../lib/api.ts";
 import type { Clip, ClipSource, JobStage, JobStatus } from "../types.ts";
 import { YoutubeUploadPanel } from "./YoutubeUploadPanel.tsx";
 
 interface Props {
   clips: Clip[];
   sources: ClipSource[];
+  projectName: string;
   onCombinedVideoReady: (info: CombinedVideoInfo) => void;
 }
 
@@ -18,19 +28,26 @@ const stageLabel: Record<JobStage, string> = {
   done: "完了",
   error: "エラー",
   cancelled: "キャンセルされました",
+  paused: "一時停止中",
 };
 
-export function ExportPanel({ clips, sources, onCombinedVideoReady }: Props) {
+export function ExportPanel({ clips, sources, projectName, onCombinedVideoReady }: Props) {
   const [outputName, setOutputName] = useState("highlight");
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [pausing, setPausing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [freeDiskGb, setFreeDiskGb] = useState<string | null>(null);
+  const [resumeStatus, setResumeStatus] = useState<ResumeStatus | null>(null);
 
   const isRunning =
-    job !== null && job.stage !== "done" && job.stage !== "error" && job.stage !== "cancelled";
+    job !== null &&
+    job.stage !== "done" &&
+    job.stage !== "error" &&
+    job.stage !== "cancelled" &&
+    job.stage !== "paused";
 
   const refreshDiskSpace = () => {
     getDiskSpace()
@@ -38,9 +55,24 @@ export function ExportPanel({ clips, sources, onCombinedVideoReady }: Props) {
       .catch(() => setFreeDiskGb(null));
   };
 
+  const refreshResumeStatus = () => {
+    if (!projectName) {
+      setResumeStatus(null);
+      return;
+    }
+    getExportResumeStatus(projectName)
+      .then(setResumeStatus)
+      .catch(() => setResumeStatus(null));
+  };
+
   useEffect(() => {
     refreshDiskSpace();
   }, []);
+
+  useEffect(() => {
+    refreshResumeStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectName]);
 
   useEffect(() => {
     if (!jobId || !isRunning) return;
@@ -48,8 +80,9 @@ export function ExportPanel({ clips, sources, onCombinedVideoReady }: Props) {
       getJobStatus(jobId)
         .then((data) => {
           setJob(data);
-          if (data.stage === "done" || data.stage === "error" || data.stage === "cancelled") {
+          if (data.stage === "done" || data.stage === "error" || data.stage === "cancelled" || data.stage === "paused") {
             refreshDiskSpace();
+            refreshResumeStatus();
           }
           if (data.stage === "done" && data.outputFile) {
             onCombinedVideoReady({
@@ -63,13 +96,30 @@ export function ExportPanel({ clips, sources, onCombinedVideoReady }: Props) {
         .catch((err) => setError(err instanceof Error ? err.message : String(err)));
     }, 1500);
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, isRunning, clips, onCombinedVideoReady]);
 
   const handleExport = async () => {
+    if (!projectName) return;
+    if (resumeStatus?.resumable) {
+      const proceed = window.confirm(
+        `前回の途中経過(${resumeStatus.doneClips}/${resumeStatus.totalClips}クリップ完了)が残っています。\n` +
+          "削除して最初からやり直しますか?\n\n" +
+          "続きから再開したい場合は「キャンセル」を押して、下の「続きから再開」ボタンを使ってください。",
+      );
+      if (!proceed) return;
+    }
+
     setError(null);
     setStarting(true);
     try {
-      const { jobId: newJobId } = await startExport(clips, sources, outputName.trim() || "highlight");
+      const { jobId: newJobId } = await startExport(
+        clips,
+        sources,
+        outputName.trim() || "highlight",
+        projectName,
+        false,
+      );
       setJobId(newJobId);
       setJob({ id: newJobId, stage: "queued", progress: 0, createdAt: Date.now() });
     } catch (err) {
@@ -79,12 +129,50 @@ export function ExportPanel({ clips, sources, onCombinedVideoReady }: Props) {
     }
   };
 
+  const handleResume = async () => {
+    if (!projectName) return;
+    setError(null);
+    setStarting(true);
+    try {
+      const { jobId: newJobId } = await startExport(
+        clips,
+        sources,
+        outputName.trim() || "highlight",
+        projectName,
+        true,
+      );
+      setJobId(newJobId);
+      setJob({ id: newJobId, stage: "queued", progress: 0, createdAt: Date.now() });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handlePause = async () => {
+    if (!jobId) return;
+    setPausing(true);
+    try {
+      await pauseExport(jobId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPausing(false);
+    }
+  };
+
   const handleCancel = async () => {
     if (!jobId) return;
-    if (!window.confirm("書き出しをキャンセルしますか?ここまでの処理内容は破棄されます。")) return;
+    if (!window.confirm("書き出しをキャンセルしますか?")) return;
+    const deleteCache = window.confirm(
+      "ダウンロード済み・切り出し済みのファイルも削除しますか?\n\n" +
+        "「OK」: 削除する(次回は最初からやり直しになります)\n" +
+        "「キャンセル」: 保持する(あとで「続きから再開」できます)",
+    );
     setCancelling(true);
     try {
-      await cancelExport(jobId);
+      await cancelExport(jobId, deleteCache);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -102,19 +190,45 @@ export function ExportPanel({ clips, sources, onCombinedVideoReady }: Props) {
 
       {freeDiskGb && <p className="hint">PCの空き容量: {freeDiskGb}</p>}
 
+      {!projectName && (
+        <p className="error-text">
+          左メニューの「プロジェクト」欄でプロジェクト名を設定してください(一時停止・再開の管理に使う)。
+        </p>
+      )}
+
+      {resumeStatus?.resumable && !isRunning && (
+        <div className="resume-banner">
+          <p>
+            前回の途中経過があります({resumeStatus.doneClips}/{resumeStatus.totalClips}クリップ完了)。
+          </p>
+          <button type="button" onClick={handleResume} disabled={starting}>
+            {starting ? "再開中..." : "続きから再開"}
+          </button>
+        </div>
+      )}
+
       <label>
         ファイル名
         <input type="text" value={outputName} onChange={(e) => setOutputName(e.target.value)} />
       </label>
 
       <div className="export-start-row">
-        <button type="button" onClick={handleExport} disabled={starting || clips.length === 0 || isRunning}>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={starting || clips.length === 0 || isRunning || !projectName}
+        >
           {starting ? "開始中..." : "結合して書き出し(ローカル保存)"}
         </button>
         {isRunning && (
-          <button type="button" onClick={handleCancel} disabled={cancelling}>
-            {cancelling ? "キャンセル中..." : "キャンセル"}
-          </button>
+          <>
+            <button type="button" onClick={handlePause} disabled={pausing}>
+              {pausing ? "一時停止をリクエスト中..." : "一時停止"}
+            </button>
+            <button type="button" onClick={handleCancel} disabled={cancelling}>
+              {cancelling ? "キャンセル中..." : "キャンセル"}
+            </button>
+          </>
         )}
       </div>
 

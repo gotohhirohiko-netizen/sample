@@ -85,18 +85,43 @@ export function saveProject(
   }).then((res) => asJson<ProjectData>(res));
 }
 
-/** クリップの切り抜き・結合のみを行う(音声は差し替えない)。結合結果はdata/output/に残り、
- * あとでapplyAudioTracksから何度でも音楽を差し替えられる。 */
+/**
+ * クリップの切り抜き・結合のみを行う(音声は差し替えない)。結合結果はdata/output/に残り、
+ * あとでapplyAudioTracksから何度でも音楽を差し替えられる。
+ * projectNameはプロジェクトごとの作業フォルダ(一時停止・再開用)を特定するために必須。
+ * resume:trueの場合、clips/sourcesは無視され前回中断した内容から再開する。
+ */
 export function startExport(
   clips: Clip[],
   sources: ClipSource[],
   outputName: string,
+  projectName: string,
+  resume: boolean,
 ): Promise<{ jobId: string }> {
   return fetch("/api/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ clips, sources, outputName }),
+    body: JSON.stringify({ clips, sources, outputName, projectName, resume }),
   }).then((res) => asJson<{ jobId: string }>(res));
+}
+
+export interface ResumeStatus {
+  resumable: boolean;
+  totalClips: number;
+  doneClips: number;
+  outputName?: string;
+}
+
+export function getExportResumeStatus(projectName: string): Promise<ResumeStatus> {
+  return fetch(`/api/export/resume-status?projectName=${encodeURIComponent(projectName)}`).then((res) =>
+    asJson<ResumeStatus>(res),
+  );
+}
+
+/** 実行中の書き出しジョブに一時停止をリクエストする。動画のダウンロード完了・クリップの
+ * 切り出し完了などキリのいい時点で安全に停止し、再開可能な状態で残す。 */
+export function pauseExport(jobId: string): Promise<{ ok: true }> {
+  return fetch(`/api/export/${jobId}/pause`, { method: "POST" }).then((res) => asJson<{ ok: true }>(res));
 }
 
 /** 既に結合済みの動画に、指定順のmp3群を音声として適用する。 */
@@ -119,8 +144,12 @@ export function getJobStatus(jobId: string): Promise<JobStatus> {
   return fetch(`/api/export/${jobId}`).then((res) => asJson<JobStatus>(res));
 }
 
-export function cancelExport(jobId: string): Promise<{ ok: true }> {
-  return fetch(`/api/export/${jobId}/cancel`, { method: "POST" }).then((res) => asJson<{ ok: true }>(res));
+export function cancelExport(jobId: string, deleteCache: boolean): Promise<{ ok: true }> {
+  return fetch(`/api/export/${jobId}/cancel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deleteCache }),
+  }).then((res) => asJson<{ ok: true }>(res));
 }
 
 export function getDiskSpace(): Promise<{ freeBytes: number; freeGb: string }> {

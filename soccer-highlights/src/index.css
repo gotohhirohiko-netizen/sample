@@ -327,6 +327,24 @@ section,
 .export-start-row {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.resume-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #fff8e1;
+  border: 1px solid #f0d98c;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.resume-banner p {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .music-track-list {

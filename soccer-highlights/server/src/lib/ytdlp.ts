@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { downloadsDir, ytdlpCookiesFile, ytdlpCookiesFromBrowser } from "../config.ts";
+import { ytdlpCookiesFile, ytdlpCookiesFromBrowser } from "../config.ts";
 import { runCommand } from "./spawnUtil.ts";
 
 export interface VideoMetadata {
@@ -90,22 +90,22 @@ export async function resolvePlaylistVideos(youtubeUrl: string): Promise<Playlis
   return { title: data.title ?? "再生リスト", videos };
 }
 
-export function downloadedFilePath(videoId: string): string {
-  return path.join(downloadsDir, `${videoId}.mp4`);
+export function downloadedFilePathIn(downloadDir: string, videoId: string): string {
+  return path.join(downloadDir, `${videoId}.mp4`);
 }
 
 /**
- * 動画をmp4としてダウンロードする。同一ジョブ内で既にダウンロード済みならスキップする。
- * videoId単位で data/downloads/ に一時的にキャッシュするが、そのジョブでの
- * 切り出しが全て終わると(export.tsのrunExportPipeline側で)削除される。
- * ディスク容量を圧迫しないよう、書き出しジョブをまたいでは残さない設計。
+ * 動画をmp4としてダウンロードする。指定したdownloadDir配下に既に存在すればスキップする。
+ * downloadDirはプロジェクトごとの作業フォルダ(data/work/<プロジェクト名>/downloads/)を
+ * 渡すことを想定している(一時停止・再開のあいだ保持され、書き出し完了時に片付けられる)。
  */
 export async function ensureVideoDownloaded(
+  downloadDir: string,
   youtubeUrl: string,
   videoId: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const outputPath = downloadedFilePath(videoId);
+  const outputPath = downloadedFilePathIn(downloadDir, videoId);
   if (existsSync(outputPath)) {
     return outputPath;
   }

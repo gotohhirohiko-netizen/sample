@@ -305,7 +305,12 @@ export default function App() {
             />
           </section>
 
-          <ExportPanel clips={clips} sources={sources} onCombinedVideoReady={setCombinedVideo} />
+          <ExportPanel
+            clips={clips}
+            sources={sources}
+            projectName={projectName}
+            onCombinedVideoReady={setCombinedVideo}
+          />
           <ApplyAudioPanel combinedVideo={combinedVideo} clips={clips} />
         </div>
       </div>

@@ -30,6 +30,7 @@ const stageLabel: Record<JobStage, string> = {
   done: "完了",
   error: "エラー",
   cancelled: "キャンセルされました",
+  paused: "一時停止中",
 };
 
 function defaultOutputName(combinedFile: string): string {
@@ -136,7 +137,7 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
     if (!window.confirm("処理をキャンセルしますか?")) return;
     setCancelling(true);
     try {
-      await cancelExport(jobId);
+      await cancelExport(jobId, true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
