@@ -163,72 +163,72 @@ async function runExportPipeline(jobId: string, payload: ExportRequestPayload): 
   registerJobController(jobId, controller);
   const { signal } = controller;
 
-  // catch節で失敗時の後片付けに使うため、tryの外で宣言しておく
-  const localPathByVideoId = new Map<string, string>();
+  // catch節で失敗時の後片付けに使うため、tryの外で宣言しておく。
+  // 動画は1本ずつダウンロード→切り出し→削除の順で処理するため、同時にダウンロード済みで
+  // 残っているのは基本的にこの1本だけ(複数動画を先に全部ダウンロードしてから切り出す方式だと、
+  // 動画数が多いとダウンロード段階だけでディスクを使い切ってしまうため、この順序にしている)。
+  let currentDownloadedPath: string | null = null;
 
   try {
     const sourceByVideoId = new Map(payload.sources.map((s) => [s.videoId, s]));
-
-    // 1. 参照されている元動画をダウンロード(重複はキャッシュ済みならスキップ)
     const uniqueVideoIds = [...new Set(payload.clips.map((c) => c.sourceVideoId))];
-    for (let i = 0; i < uniqueVideoIds.length; i++) {
+    const clipPaths: string[] = new Array(payload.clips.length);
+    const totalClips = payload.clips.length;
+    let completedClips = 0;
+
+    for (let vi = 0; vi < uniqueVideoIds.length; vi++) {
       if (signal.aborted) throw new CancelledError();
       await assertEnoughDiskSpace();
 
-      const videoId = uniqueVideoIds[i];
+      const videoId = uniqueVideoIds[vi];
       const source = sourceByVideoId.get(videoId);
       if (!source) throw new Error(`クリップが参照する動画が見つかりません: ${videoId}`);
 
+      // 1. この動画をダウンロード(重複はキャッシュ済みならスキップ)
       setJobStage(
         jobId,
         "downloading",
-        Math.round((i / uniqueVideoIds.length) * 40),
-        `元動画を取得中 (${i + 1}/${uniqueVideoIds.length}): ${source.title ?? source.youtubeUrl}`,
+        Math.round((completedClips / totalClips) * 80),
+        `元動画を取得中 (${vi + 1}/${uniqueVideoIds.length}): ${source.title ?? source.youtubeUrl}`,
       );
-      const localPath = await ensureVideoDownloaded(source.youtubeUrl, videoId, signal);
-      localPathByVideoId.set(videoId, localPath);
-    }
+      const sourcePath = await ensureVideoDownloaded(source.youtubeUrl, videoId, signal);
+      currentDownloadedPath = sourcePath;
 
-    // 2. 各クリップを切り出し
-    // クリップ一覧の中で各動画が最後に使われるインデックスを事前に調べておき、
-    // そこまで切り出しが終わった時点でダウンロード済みの元動画を即座に削除する
-    // (試合動画は1本あたり数百MB〜になるため、ダウンロードキャッシュを溜め込まないようにする)
-    const lastClipIndexForVideo = new Map<string, number>();
-    payload.clips.forEach((clip, index) => lastClipIndexForVideo.set(clip.sourceVideoId, index));
+      // 2. この動画を参照するクリップだけを、全体の並び順を保ったまま切り出す
+      const clipIndexesForThisVideo = payload.clips
+        .map((clip, index) => (clip.sourceVideoId === videoId ? index : -1))
+        .filter((index) => index !== -1);
 
-    const clipPaths: string[] = [];
-    for (let i = 0; i < payload.clips.length; i++) {
-      if (signal.aborted) throw new CancelledError();
-      await assertEnoughDiskSpace();
+      for (const clipIndex of clipIndexesForThisVideo) {
+        if (signal.aborted) throw new CancelledError();
+        await assertEnoughDiskSpace();
 
-      const clip = payload.clips[i];
-      const sourcePath = localPathByVideoId.get(clip.sourceVideoId);
-      if (!sourcePath) throw new Error(`クリップの元動画が未ダウンロードです: ${clip.sourceVideoId}`);
-
-      setJobStage(
-        jobId,
-        "trimming",
-        40 + Math.round((i / payload.clips.length) * 40),
-        `クリップを切り出し中 (${i + 1}/${payload.clips.length}): ${clip.label || "無題"}`,
-      );
-      const clipOutPath = path.join(jobTmpDir, `clip-${i}.mp4`);
-      await trimClip(sourcePath, clip.startSec, clip.endSec, clipOutPath, signal);
-      clipPaths.push(clipOutPath);
-
-      if (lastClipIndexForVideo.get(clip.sourceVideoId) === i) {
-        await deleteWithRetry(sourcePath);
-        localPathByVideoId.delete(clip.sourceVideoId);
+        const clip = payload.clips[clipIndex];
+        setJobStage(
+          jobId,
+          "trimming",
+          Math.round((completedClips / totalClips) * 80),
+          `クリップを切り出し中 (${completedClips + 1}/${totalClips}): ${clip.label || "無題"}`,
+        );
+        const clipOutPath = path.join(jobTmpDir, `clip-${clipIndex}.mp4`);
+        await trimClip(sourcePath, clip.startSec, clip.endSec, clipOutPath, signal);
+        clipPaths[clipIndex] = clipOutPath;
+        completedClips++;
       }
+
+      // 3. この動画のクリップは全て切り出し終わったので、次の動画に進む前に即削除する
+      await deleteWithRetry(sourcePath);
+      currentDownloadedPath = null;
     }
 
     if (signal.aborted) throw new CancelledError();
 
-    // 3. 結合
+    // 4. 結合
     setJobStage(jobId, "concatenating", 85, "クリップを結合中...");
     const concatenatedPath = path.join(jobTmpDir, "concatenated.mp4");
     await concatClips(clipPaths, concatenatedPath, jobTmpDir, signal);
 
-    // 4. 出力先へ配置(結合済み動画として保存。音声を後から差し替える際に再利用する)
+    // 5. 出力先へ配置(結合済み動画として保存。音声を後から差し替える際に再利用する)
     const safeName = sanitizeFileName(payload.outputName) ?? `highlight-${jobId.slice(0, 8)}`;
     const outputFile = `${safeName}.mp4`;
     await mkdir(outputDir, { recursive: true });
@@ -242,10 +242,10 @@ async function runExportPipeline(jobId: string, payload: ExportRequestPayload): 
     const job = getJob(jobId);
     if (job) job.outputFile = outputFile;
   } catch (err) {
-    // 失敗・キャンセル時は、このジョブでダウンロードしたまま未削除の元動画と
+    // 失敗・キャンセル時は、このジョブでダウンロードしたまま未削除の元動画(あれば1本のみ)と
     // 一時ファイルを片付ける(やり直す際は再ダウンロードされるため残す意味がない)。
-    for (const localPath of localPathByVideoId.values()) {
-      await deleteWithRetry(localPath);
+    if (currentDownloadedPath) {
+      await deleteWithRetry(currentDownloadedPath);
     }
     await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
 
