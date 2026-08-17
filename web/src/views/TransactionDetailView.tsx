@@ -8,13 +8,12 @@ import {
   isMerchantExclusionAmbiguous,
   merchantMatchKey,
 } from "../lib/categoryResolver";
-import { isEligibleForMonthlyRecurring, resolveRecurringType } from "../lib/recurringResolver";
+import {
+  RECURRING_OVERRIDE_TYPE_LABELS,
+  isEligibleForMonthlyRecurring,
+  resolveRecurringType,
+} from "../lib/recurringResolver";
 import type { RecurringOverrideType, Transaction } from "../types/models";
-
-const RECURRING_OVERRIDE_TYPE_LABELS: Record<RecurringOverrideType, string> = {
-  monthly: "毎月定常",
-  specific: "該当月定常",
-};
 
 /** 取引詳細・編集画面(要件定義書 4.3)。カテゴリ手動修正時は学習マッピングをupsertする(4.9) */
 export default function TransactionDetailView() {

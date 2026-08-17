@@ -1,5 +1,10 @@
-import type { RecurringOverride, RecurringType, Transaction } from "../types/models";
+import type { RecurringOverride, RecurringOverrideType, RecurringType, Transaction } from "../types/models";
 import { merchantMatchKey } from "./categoryResolver";
+
+export const RECURRING_OVERRIDE_TYPE_LABELS: Record<RecurringOverrideType, string> = {
+  monthly: "毎月定常",
+  specific: "該当月定常",
+};
 
 /**
  * 定常費用区分の判定。取引詳細画面で手動設定したオーバーライドのみを見る

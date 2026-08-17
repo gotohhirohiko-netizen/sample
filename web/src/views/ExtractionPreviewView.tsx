@@ -21,7 +21,8 @@ import {
 import { formatYen, isSameDay } from "../lib/dateUtils";
 import { downloadBackup, exportBackup } from "../lib/backup";
 import { matchesBonusIncomeSchedule, suggestBonusIncome } from "../lib/bonusIncomeHeuristic";
-import type { FundingSource, Transaction } from "../types/models";
+import { RECURRING_OVERRIDE_TYPE_LABELS, resolveRecurringType } from "../lib/recurringResolver";
+import type { FundingSource, RecurringOverrideType, Transaction } from "../types/models";
 
 interface LocationState {
   sourceId: string;
@@ -38,6 +39,9 @@ interface PreviewItem {
   isDuplicate: boolean;
   excludedFromBudget: boolean;
   isBonusIncome: boolean;
+  isBonusPayment: boolean;
+  /** 定常費用の区分(店名単位の設定。未設定はnull=比例費用) */
+  recurringType: RecurringOverrideType | null;
 }
 
 /** 抽出結果プレビュー画面(要件定義書 4.2/4.9、docs/design.md 4.4/5章) */
@@ -60,6 +64,7 @@ export default function ExtractionPreviewView() {
   );
   const existingTransactions = useLiveQuery(() => db.transactions.toArray(), []);
   const bonusIncomeSchedules = useLiveQuery(() => db.bonusIncomeSchedules.toArray(), []);
+  const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
   const fundingSource = useLiveQuery<FundingSource | undefined>(
     () => (state ? db.fundingSources.get(state.sourceId) : undefined),
     [state?.sourceId]
@@ -71,6 +76,7 @@ export default function ExtractionPreviewView() {
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
   const [hideDuplicates, setHideDuplicates] = useState(true);
   const [isCommitting, setIsCommitting] = useState(false);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const hasStartedExtractionRef = useRef(false);
 
   useEffect(() => {
@@ -89,7 +95,8 @@ export default function ExtractionPreviewView() {
       !existingTransactions ||
       !bonusIncomeSchedules ||
       !ambiguousFlags ||
-      !exclusionAmbiguousFlags
+      !exclusionAmbiguousFlags ||
+      !recurringOverrides
     ) {
       return;
     }
@@ -209,6 +216,7 @@ export default function ExtractionPreviewView() {
             item.type === "income" &&
             (matchesBonusIncomeSchedule(item.date, state.sourceId, bonusIncomeSchedules) ||
               suggestBonusIncome(item.merchant, item.amount, existingTransactions));
+          const resolvedRecurringType = resolveRecurringType(item.merchant, recurringOverrides);
           resolved.push({
             key: `${index}-${item.merchant}-${item.amount}`,
             date,
@@ -219,6 +227,8 @@ export default function ExtractionPreviewView() {
             isDuplicate,
             excludedFromBudget,
             isBonusIncome,
+            isBonusPayment: false,
+            recurringType: resolvedRecurringType === "spontaneous" ? null : resolvedRecurringType,
           });
         });
 
@@ -249,6 +259,7 @@ export default function ExtractionPreviewView() {
     bonusIncomeSchedules,
     ambiguousFlags,
     exclusionAmbiguousFlags,
+    recurringOverrides,
   ]);
 
   if (!state) {
@@ -288,10 +299,37 @@ export default function ExtractionPreviewView() {
         memo: null,
         importedAt: now,
         excludedFromBudget: item.excludedFromBudget,
-        isBonusPayment: false,
+        isBonusPayment: item.isBonusPayment,
         isBonusIncome: item.isBonusIncome,
       };
       await db.transactions.add(transaction);
+
+      if (item.type === "expense") {
+        const currentResolved = resolveRecurringType(item.merchant, recurringOverrides ?? []);
+        const currentType = currentResolved === "spontaneous" ? null : currentResolved;
+        if (item.recurringType !== currentType) {
+          const recurringKey = merchantMatchKey(item.merchant);
+          const existingOverride = await db.recurringOverrides
+            .where("merchantKey")
+            .equals(recurringKey)
+            .first();
+          if (item.recurringType === null) {
+            if (existingOverride) await db.recurringOverrides.delete(existingOverride.id);
+          } else if (existingOverride) {
+            await db.recurringOverrides.update(existingOverride.id, {
+              type: item.recurringType,
+              updatedAt: now,
+            });
+          } else {
+            await db.recurringOverrides.add({
+              id: crypto.randomUUID(),
+              merchantKey: recurringKey,
+              type: item.recurringType,
+              updatedAt: now,
+            });
+          }
+        }
+      }
 
       if (item.subcategoryID && !isMerchantAmbiguous(item.merchant, ambiguousFlags ?? [])) {
         const key = merchantMatchKey(item.merchant);
@@ -393,64 +431,121 @@ export default function ExtractionPreviewView() {
               .filter((item) => !hideDuplicates || !item.isDuplicate)
               .map((item) => {
               const willBeExcluded = excludeDuplicates && item.isDuplicate;
+              const expanded = expandedKey === item.key;
               return (
               <div key={item.key} className="card" style={willBeExcluded ? { opacity: 0.5 } : undefined}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <strong>{item.merchant}</strong>
-                  <span className={`amount ${item.type === "income" ? "income" : "expense"}`}>
-                    {item.type === "income" ? "+" : "-"}
-                    {formatYen(item.amount)}
+                <button
+                  type="button"
+                  className="category-toggle"
+                  onClick={() => setExpandedKey((k) => (k === item.key ? null : item.key))}
+                >
+                  <span>
+                    <strong>{item.merchant}</strong>
+                    <p className="muted" style={{ margin: "2px 0 0" }}>
+                      {item.date} ・ {item.type === "income" ? "収入" : "支出"}
+                    </p>
                   </span>
-                </div>
-                <p className="muted">
-                  {item.date} ・ {item.type === "income" ? "収入" : "支出"}
-                </p>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span className={`amount ${item.type === "income" ? "income" : "expense"}`}>
+                      {item.type === "income" ? "+" : "-"}
+                      {formatYen(item.amount)}
+                    </span>
+                    <span className="muted">{expanded ? "▴" : "▾"}</span>
+                  </span>
+                </button>
                 {item.isDuplicate && (
                   <p style={{ color: "var(--danger)" }}>
                     重複の可能性があります{willBeExcluded && "(取り込まれません)"}
                   </p>
                 )}
-                <label className="filter-row">
-                  <input
-                    type="checkbox"
-                    checked={item.excludedFromBudget}
-                    onChange={(e) =>
-                      updateItem(item.key, { excludedFromBudget: e.target.checked })
-                    }
-                  />
-                  家計に含めない
-                </label>
-                {item.type === "income" && (
-                  <label className="filter-row">
-                    <input
-                      type="checkbox"
-                      checked={item.isBonusIncome}
-                      onChange={(e) => updateItem(item.key, { isBonusIncome: e.target.checked })}
-                    />
-                    ボーナス収入(賞与等)
-                    {item.isBonusIncome && <span className="muted">(自動推定)</span>}
-                  </label>
-                )}
-                {item.type === "expense" && (
-                  <select
-                    value={item.subcategoryID ?? ""}
-                    onChange={(e) =>
-                      updateItem(item.key, { subcategoryID: e.target.value === "" ? null : e.target.value })
-                    }
-                  >
-                    <option value="">未分類</option>
-                    {majorCategories.map((major) => (
-                      <optgroup key={major.id} label={major.name}>
-                        {subcategories
-                          .filter((s) => s.majorCategoryID === major.id)
-                          .map((sub) => (
-                            <option key={sub.id} value={sub.id}>
-                              {sub.name}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
-                  </select>
+
+                {expanded && (
+                  <div style={{ marginTop: 8 }}>
+                    <label className="filter-row">
+                      <input
+                        type="checkbox"
+                        checked={item.excludedFromBudget}
+                        onChange={(e) =>
+                          updateItem(item.key, { excludedFromBudget: e.target.checked })
+                        }
+                      />
+                      家計に含めない
+                    </label>
+                    {item.type === "income" && (
+                      <label className="filter-row">
+                        <input
+                          type="checkbox"
+                          checked={item.isBonusIncome}
+                          onChange={(e) =>
+                            updateItem(item.key, { isBonusIncome: e.target.checked })
+                          }
+                        />
+                        ボーナス収入(賞与等)
+                        {item.isBonusIncome && <span className="muted">(自動推定)</span>}
+                      </label>
+                    )}
+                    {item.type === "expense" && (
+                      <>
+                        <label className="filter-row">
+                          <input
+                            type="checkbox"
+                            checked={item.isBonusPayment}
+                            onChange={(e) =>
+                              updateItem(item.key, { isBonusPayment: e.target.checked })
+                            }
+                          />
+                          ボーナス払い
+                        </label>
+                        <div className="form-row">
+                          <label>カテゴリ</label>
+                          <select
+                            value={item.subcategoryID ?? ""}
+                            onChange={(e) =>
+                              updateItem(item.key, {
+                                subcategoryID: e.target.value === "" ? null : e.target.value,
+                              })
+                            }
+                          >
+                            <option value="">未分類</option>
+                            {majorCategories.map((major) => (
+                              <optgroup key={major.id} label={major.name}>
+                                {subcategories
+                                  .filter((s) => s.majorCategoryID === major.id)
+                                  .map((sub) => (
+                                    <option key={sub.id} value={sub.id}>
+                                      {sub.name}
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-row">
+                          <label>定常費用の区分</label>
+                          <div className="button-row">
+                            {(["monthly", "specific"] as RecurringOverrideType[]).map((type) => (
+                              <button
+                                key={type}
+                                type="button"
+                                className={item.recurringType === type ? "btn-primary" : "btn-secondary"}
+                                onClick={() =>
+                                  updateItem(item.key, {
+                                    recurringType: item.recurringType === type ? null : type,
+                                  })
+                                }
+                              >
+                                {RECURRING_OVERRIDE_TYPE_LABELS[type]}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="muted">
+                            未設定の店名は比例費用(突発)として扱われます。同じ店名の他の取引にも適用されます。
+                            選択中のボタンをもう一度押すと解除できます。
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
               );
