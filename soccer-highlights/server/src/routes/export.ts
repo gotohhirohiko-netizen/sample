@@ -32,7 +32,11 @@ import {
 import { sanitizeFileName } from "../lib/sanitize.ts";
 import { CancelledError } from "../lib/spawnUtil.ts";
 import { ensureVideoDownloaded } from "../lib/ytdlp.ts";
-import type { Clip, ClipSource } from "../types.ts";
+import { VIDEO_QUALITIES, type Clip, type ClipSource, type VideoQuality } from "../types.ts";
+
+function parseQuality(value: unknown): VideoQuality {
+  return (VIDEO_QUALITIES as readonly string[]).includes(value as string) ? (value as VideoQuality) : "best";
+}
 
 const musicUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
@@ -66,6 +70,7 @@ interface CombineRequestBody {
   outputName?: string;
   projectName?: string;
   resume?: boolean;
+  quality?: string;
 }
 
 exportRouter.post("/", async (req: Request, res: Response) => {
@@ -227,6 +232,7 @@ async function runCombinePipeline(jobId: string, workKey: string, body: CombineR
       clips: body.clips,
       sources: body.sources,
       outputName: body.outputName,
+      quality: parseQuality(body.quality),
       createdAt: Date.now(),
     };
     await writeWorkMeta(paths, meta);
@@ -270,7 +276,13 @@ async function runCombinePipeline(jobId: string, workKey: string, body: CombineR
         Math.round((completedClips / totalClips) * 80),
         `元動画を取得中 (${vi + 1}/${uniqueVideoIds.length}): ${source.title ?? source.youtubeUrl}`,
       );
-      const sourcePath = await ensureVideoDownloaded(paths.downloadsDir, source.youtubeUrl, videoId, signal);
+      const sourcePath = await ensureVideoDownloaded(
+        paths.downloadsDir,
+        source.youtubeUrl,
+        videoId,
+        meta.quality,
+        signal,
+      );
       currentDownloadedPath = sourcePath;
 
       if (isPauseRequested(jobId)) {

@@ -1,4 +1,4 @@
-import type { Clip, ClipSource, JobStatus } from "../types.ts";
+import type { Clip, ClipSource, JobStatus, VideoQuality } from "../types.ts";
 
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -119,11 +119,12 @@ export function startExport(
   outputName: string,
   projectName: string,
   resume: boolean,
+  quality: VideoQuality,
 ): Promise<{ jobId: string }> {
   return fetch("/api/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ clips, sources, outputName, projectName, resume }),
+    body: JSON.stringify({ clips, sources, outputName, projectName, resume, quality }),
   }).then((res) => asJson<{ jobId: string }>(res));
 }
 

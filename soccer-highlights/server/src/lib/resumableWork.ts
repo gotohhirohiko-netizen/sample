@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { dataDir } from "../config.ts";
 import { sanitizeFileName } from "./sanitize.ts";
-import type { Clip, ClipSource } from "../types.ts";
+import type { Clip, ClipSource, VideoQuality } from "../types.ts";
 
 export const workRootDir = path.join(dataDir, "work");
 
@@ -11,6 +11,7 @@ export interface WorkMeta {
   clips: Clip[];
   sources: ClipSource[];
   outputName?: string;
+  quality: VideoQuality;
   createdAt: number;
 }
 
@@ -48,7 +49,9 @@ export async function ensureWorkDirs(paths: WorkPaths): Promise<void> {
 export async function readWorkMeta(paths: WorkPaths): Promise<WorkMeta | null> {
   try {
     const raw = await readFile(paths.metaPath, "utf-8");
-    return JSON.parse(raw) as WorkMeta;
+    const meta = JSON.parse(raw) as WorkMeta;
+    // qualityフィールド追加前に作られたmeta.jsonとの互換性のため、無ければ従来通りの挙動(best)にする。
+    return { ...meta, quality: meta.quality ?? "best" };
   } catch {
     return null;
   }

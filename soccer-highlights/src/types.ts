@@ -35,3 +35,7 @@ export interface JobStatus {
   error?: string;
   createdAt: number;
 }
+
+/** "best"は元動画で配信されている最高解像度(4K等)をそのまま使う。他は指定した高さ以下に制限する。 */
+export const VIDEO_QUALITIES = ["best", "1080", "720"] as const;
+export type VideoQuality = (typeof VIDEO_QUALITIES)[number];

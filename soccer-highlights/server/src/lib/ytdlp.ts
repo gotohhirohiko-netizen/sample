@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { ytdlpCookiesFile, ytdlpCookiesFromBrowser, ytdlpExtraArgs, ytdlpForceIpv4 } from "../config.ts";
+import type { VideoQuality } from "../types.ts";
 import { CancelledError, runCommand } from "./spawnUtil.ts";
 
 export interface VideoMetadata {
@@ -170,17 +171,32 @@ export async function extractAudioAsMp3(youtubeUrl: string, outDir: string, sign
 const DOWNLOAD_ATTEMPTS = 3;
 const DOWNLOAD_RETRY_DELAY_MS = 5000;
 
-// 映像・音声を別ストリームで取得し結合する形式。画質を優先するが、
-// 大きめのフラグメントを扱うため接続切れの影響を受けやすい。
-const FORMAT_PRIMARY = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
-// 単一ストリームのみで完結する形式。画質面で劣ることがあるが結合が不要な分安定しやすく、
-// 最終試行でのフォールバックに使う。
-const FORMAT_FALLBACK = "best";
+/**
+ * 映像・音声を別ストリームで取得し結合する形式。以前は`ext=mp4`縛りだったが、
+ * YouTubeは4K/2K画質をVP9/AV1(webm)でしか配信しないことが多く、mp4縛りのままだと
+ * 動画によって実質1080p以下に落ちてしまい、クリップ間で画質がバラつく原因になっていた。
+ * コンテナ形式は問わず最高画質を取得し、mp4への変換は`--merge-output-format`に任せる。
+ * qualityが"best"以外の場合は指定した高さ以下に制限する(ファイルサイズ・処理時間を抑えたい場合用)。
+ */
+function primaryFormat(quality: VideoQuality): string {
+  if (quality === "best") return "bestvideo+bestaudio/best";
+  return `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]/best`;
+}
+
+/**
+ * 単一ストリームのみで完結する形式。画質面で劣ることがあるが結合が不要な分安定しやすく、
+ * 最終試行でのフォールバックに使う。qualityの高さ制限は維持する。
+ */
+function fallbackFormat(quality: VideoQuality): string {
+  if (quality === "best") return "best";
+  return `best[height<=${quality}]/best`;
+}
 
 export async function ensureVideoDownloaded(
   downloadDir: string,
   youtubeUrl: string,
   videoId: string,
+  quality: VideoQuality,
   signal?: AbortSignal,
 ): Promise<string> {
   const outputPath = downloadedFilePathIn(downloadDir, videoId);
@@ -195,7 +211,7 @@ export async function ensureVideoDownloaded(
   let lastError: unknown;
   for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
     const isFinalAttempt = attempt === DOWNLOAD_ATTEMPTS;
-    const format = isFinalAttempt ? FORMAT_FALLBACK : FORMAT_PRIMARY;
+    const format = isFinalAttempt ? fallbackFormat(quality) : primaryFormat(quality);
     try {
       await runCommand(
         "yt-dlp",

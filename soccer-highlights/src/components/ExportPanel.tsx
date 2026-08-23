@@ -9,8 +9,14 @@ import {
   type CombinedVideoInfo,
   type ResumeStatus,
 } from "../lib/api.ts";
-import type { Clip, ClipSource, JobStage, JobStatus } from "../types.ts";
+import { VIDEO_QUALITIES, type Clip, type ClipSource, type JobStage, type JobStatus, type VideoQuality } from "../types.ts";
 import { YoutubeUploadPanel } from "./YoutubeUploadPanel.tsx";
+
+const qualityLabel: Record<VideoQuality, string> = {
+  best: "最高画質(元動画が4Kならそのまま4K)",
+  "1080": "1080pまでに制限",
+  "720": "720pまでに制限",
+};
 
 interface Props {
   clips: Clip[];
@@ -33,6 +39,7 @@ const stageLabel: Record<JobStage, string> = {
 
 export function ExportPanel({ clips, sources, projectName, onCombinedVideoReady }: Props) {
   const [outputName, setOutputName] = useState("highlight");
+  const [quality, setQuality] = useState<VideoQuality>("best");
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [starting, setStarting] = useState(false);
@@ -119,6 +126,7 @@ export function ExportPanel({ clips, sources, projectName, onCombinedVideoReady 
         outputName.trim() || "highlight",
         projectName,
         false,
+        quality,
       );
       setJobId(newJobId);
       setJob({ id: newJobId, stage: "queued", progress: 0, createdAt: Date.now() });
@@ -140,6 +148,7 @@ export function ExportPanel({ clips, sources, projectName, onCombinedVideoReady 
         outputName.trim() || "highlight",
         projectName,
         true,
+        quality,
       );
       setJobId(newJobId);
       setJob({ id: newJobId, stage: "queued", progress: 0, createdAt: Date.now() });
@@ -211,6 +220,21 @@ export function ExportPanel({ clips, sources, projectName, onCombinedVideoReady 
         ファイル名
         <input type="text" value={outputName} onChange={(e) => setOutputName(e.target.value)} />
       </label>
+
+      <label>
+        画質
+        <select value={quality} onChange={(e) => setQuality(e.target.value as VideoQuality)} disabled={isRunning}>
+          {VIDEO_QUALITIES.map((q) => (
+            <option key={q} value={q}>
+              {qualityLabel[q]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="hint">
+        画質が高いほど元動画のダウンロードサイズ・書き出し時間が増える。途中から再開する場合は
+        最初に選んだ画質がそのまま使われる。
+      </p>
 
       <div className="export-start-row">
         <button
