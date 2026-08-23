@@ -75,6 +75,20 @@ YouTube動画のダウンロードや動画の切り抜き・結合には`yt-dlp
    `chrome.exe` が残っていないか確認して全て終了してから再試行する。それでも解消しない場合は
    方法Aのcookies.txt方式に切り替えること。
 
+**方法A・Bどちらを試しても403が解消しない場合**
+
+Cookieが正しく効いていても、YouTube側のボット対策強化でyt-dlpの取得方法(player_client)自体が
+ブロックされていることがある。この場合は`soccer-highlights/.env`に以下を追加し、
+取得方法を明示的に変更してみること。
+
+```
+YTDLP_EXTRA_ARGS=--extractor-args youtube:player_client=android
+```
+
+サーバー再起動後も直らない場合は`web_safari`など別のクライアント名も試すこと。この値はYouTube側の
+対策強化とyt-dlp側の対応が繰り返されるたびに有効なものが変わるため、うまくいかない場合は
+「yt-dlp 403 player_client」などで最新の回避策を検索し、その値を`YTDLP_EXTRA_ARGS`に設定すること。
+
 ### `Got error: N bytes read, M more expected. Giving up after 10 retries` が出る場合
 
 ダウンロード中に接続が切れてしまう、ネットワーク起因のエラー。まずはもう一度同じ操作を試すこと

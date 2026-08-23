@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { ytdlpCookiesFile, ytdlpCookiesFromBrowser, ytdlpForceIpv4 } from "../config.ts";
+import { ytdlpCookiesFile, ytdlpCookiesFromBrowser, ytdlpExtraArgs, ytdlpForceIpv4 } from "../config.ts";
 import { CancelledError, runCommand } from "./spawnUtil.ts";
 
 export interface VideoMetadata {
@@ -58,6 +58,7 @@ export async function resolveVideoMetadata(youtubeUrl: string): Promise<VideoMet
   const { stdout } = await runCommand("yt-dlp", [
     ...cookieArgs(),
     ...networkArgs(),
+    ...ytdlpExtraArgs,
     "--no-playlist",
     "--skip-download",
     "--print",
@@ -96,6 +97,7 @@ export async function resolvePlaylistVideos(youtubeUrl: string): Promise<Playlis
   const { stdout } = await runCommand("yt-dlp", [
     ...cookieArgs(),
     ...networkArgs(),
+    ...ytdlpExtraArgs,
     "--flat-playlist",
     "--dump-single-json",
     youtubeUrl,
@@ -137,6 +139,7 @@ export async function extractAudioAsMp3(youtubeUrl: string, outDir: string, sign
     [
       ...cookieArgs(),
       ...networkArgs(),
+      ...ytdlpExtraArgs,
       ...resilientDownloadArgs(),
       "--no-playlist",
       "-f",

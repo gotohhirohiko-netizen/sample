@@ -32,6 +32,13 @@ export const ytdlpCookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER ||
 // trueにすると--force-ipv4をyt-dlpに渡す。
 export const ytdlpForceIpv4 = process.env.YTDLP_FORCE_IPV4 === "true";
 
+// Cookieを設定しても403 Forbiddenが解消しない場合の抜け道。YouTube側のボット対策強化により、
+// yt-dlpが使う取得方法(player_client)そのものがブロックされていることがあり、その場合は
+// `--extractor-args "youtube:player_client=android"` のような追加オプションが必要になる
+// (有効な値はyt-dlpのアップデートとともに変わるため、READMEのトラブルシューティングを参照)。
+// スペース区切りでyt-dlpにそのまま渡す(値にスペースを含めたい場合は使えない)。
+export const ytdlpExtraArgs = (process.env.YTDLP_EXTRA_ARGS ?? "").trim().split(/\s+/).filter(Boolean);
+
 export function ensureDataDirs(): void {
   for (const dir of [dataDir, outputDir, tmpDir, projectsDir, workRootDir]) {
     mkdirSync(dir, { recursive: true });
