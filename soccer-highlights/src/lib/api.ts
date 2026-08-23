@@ -1,4 +1,4 @@
-import type { Clip, ClipSource, JobStatus, VideoQuality } from "../types.ts";
+import type { Clip, ClipSource, JobStatus, MusicTrackMeta, VideoQuality } from "../types.ts";
 
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -35,28 +35,6 @@ export function resolvePlaylist(youtubeUrl: string): Promise<{ title: string; vi
   }).then((res) => asJson<{ title: string; videos: PlaylistVideo[] }>(res));
 }
 
-/**
- * YouTube動画から音声だけをmp3として抽出し、Fileとして受け取る。
- * ローカルでmp3をアップロードした場合と同じFileになるので、呼び出し側は
- * probeAudioDurationで再生時間を計測してから既存のmusicトラック一覧にそのまま追加できる。
- */
-export async function extractAudioFromYoutube(youtubeUrl: string): Promise<File> {
-  const res = await fetch("/api/sources/extract-audio", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ youtubeUrl }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}) as { error?: string });
-    throw new Error(body.error ?? `リクエストに失敗しました (${res.status})`);
-  }
-  const blob = await res.blob();
-  const disposition = res.headers.get("Content-Disposition") ?? "";
-  const match = disposition.match(/filename\*=UTF-8''([^;]+)/);
-  const fileName = match ? decodeURIComponent(match[1]) : "audio.mp3";
-  return new File([blob], fileName, { type: "audio/mpeg" });
-}
-
 export interface ProjectSummary {
   name: string;
   updatedAt: number;
@@ -82,6 +60,7 @@ export interface ProjectData {
   clips: Clip[];
   playlist: ProjectPlaylist | null;
   combinedVideo: CombinedVideoInfo | null;
+  musicTracks: MusicTrackMeta[];
   updatedAt: number;
 }
 
@@ -99,12 +78,39 @@ export function saveProject(
   clips: Clip[],
   playlist: ProjectPlaylist | null,
   combinedVideo: CombinedVideoInfo | null,
+  musicTracks: MusicTrackMeta[],
 ): Promise<ProjectData> {
   return fetch(`/api/projects/${encodeURIComponent(name)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sources, clips, playlist, combinedVideo }),
+    body: JSON.stringify({ sources, clips, playlist, combinedVideo, musicTracks }),
   }).then((res) => asJson<ProjectData>(res));
+}
+
+/** ローカルのmp3ファイルをプロジェクトの音楽フォルダにアップロードして保存する。 */
+export function uploadMusicTrack(projectName: string, file: File): Promise<MusicTrackMeta> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return fetch(`/api/projects/${encodeURIComponent(projectName)}/music`, {
+    method: "POST",
+    body: formData,
+  }).then((res) => asJson<MusicTrackMeta>(res));
+}
+
+/** YouTube動画から音声だけを抽出し、そのままプロジェクトの音楽フォルダに保存する。 */
+export function extractMusicTrackFromYoutube(projectName: string, youtubeUrl: string): Promise<MusicTrackMeta> {
+  return fetch(`/api/projects/${encodeURIComponent(projectName)}/music/extract-from-youtube`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ youtubeUrl }),
+  }).then((res) => asJson<MusicTrackMeta>(res));
+}
+
+/** プロジェクトに保存済みの音楽トラックを削除する。 */
+export function deleteMusicTrack(projectName: string, trackId: string): Promise<{ ok: true }> {
+  return fetch(`/api/projects/${encodeURIComponent(projectName)}/music/${encodeURIComponent(trackId)}`, {
+    method: "DELETE",
+  }).then((res) => asJson<{ ok: true }>(res));
 }
 
 /**
@@ -147,20 +153,18 @@ export function pauseExport(jobId: string): Promise<{ ok: true }> {
   return fetch(`/api/export/${jobId}/pause`, { method: "POST" }).then((res) => asJson<{ ok: true }>(res));
 }
 
-/** 既に結合済みの動画に、指定順のmp3群を音声として適用する。 */
+/** 既に結合済みの動画に、指定順のmp3群(プロジェクトに保存済みのトラックID)を音声として適用する。 */
 export function applyAudioTracks(
   combinedFile: string,
   outputName: string,
-  musicFiles: File[],
+  projectName: string,
+  musicTrackIds: string[],
 ): Promise<{ jobId: string }> {
-  const formData = new FormData();
-  formData.append("combinedFile", combinedFile);
-  formData.append("outputName", outputName);
-  musicFiles.forEach((file) => formData.append("music", file));
-
-  return fetch("/api/export/apply-audio", { method: "POST", body: formData }).then((res) =>
-    asJson<{ jobId: string }>(res),
-  );
+  return fetch("/api/export/apply-audio", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ combinedFile, outputName, projectName, musicTrackIds }),
+  }).then((res) => asJson<{ jobId: string }>(res));
 }
 
 export function getJobStatus(jobId: string): Promise<JobStatus> {

@@ -2,24 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import {
   applyAudioTracks,
   cancelExport,
-  extractAudioFromYoutube,
+  deleteMusicTrack,
+  extractMusicTrackFromYoutube,
   getJobStatus,
+  uploadMusicTrack,
   type CombinedVideoInfo,
 } from "../lib/api.ts";
-import { probeAudioDuration } from "../lib/audioProbe.ts";
 import { formatTime } from "../lib/format.ts";
-import type { Clip, JobStage, JobStatus } from "../types.ts";
+import type { Clip, JobStage, JobStatus, MusicTrackMeta } from "../types.ts";
 import { YoutubeUploadPanel } from "./YoutubeUploadPanel.tsx";
-
-interface MusicTrack {
-  id: string;
-  file: File;
-  durationSec: number;
-}
 
 interface Props {
   combinedVideo: CombinedVideoInfo | null;
   clips: Clip[];
+  projectName: string;
+  musicTracks: MusicTrackMeta[];
+  onMusicTracksChange: (tracks: MusicTrackMeta[]) => void;
 }
 
 const stageLabel: Record<JobStage, string> = {
@@ -38,8 +36,7 @@ function defaultOutputName(combinedFile: string): string {
   return `${combinedFile.replace(/\.mp4$/i, "")}-with-music`;
 }
 
-export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
-  const [tracks, setTracks] = useState<MusicTrack[]>([]);
+export function ApplyAudioPanel({ combinedVideo, clips, projectName, musicTracks, onMusicTracksChange }: Props) {
   const [outputName, setOutputName] = useState(() =>
     combinedVideo ? defaultOutputName(combinedVideo.file) : "highlight-with-music",
   );
@@ -50,6 +47,7 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [extracting, setExtracting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isRunning =
@@ -83,35 +81,32 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
     clips.length !== combinedVideo.clipCount ||
     Math.abs(currentClipsDurationSec - combinedVideo.durationSec) > 1;
 
-  const addTracksFromFiles = async (files: File[]) => {
-    const newTracks: MusicTrack[] = [];
-    for (const file of files) {
-      const durationSec = await probeAudioDuration(file);
-      newTracks.push({ id: crypto.randomUUID(), file, durationSec });
-    }
-    setTracks((prev) => [...prev, ...newTracks]);
-  };
-
   const handleAddFiles = async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return;
+    if (!fileList || fileList.length === 0 || !projectName) return;
     setError(null);
+    setUploading(true);
     try {
-      await addTracksFromFiles(Array.from(fileList));
+      // 選んだ順を保つため、並列アップロードではなく1つずつ順番に行う。
+      for (const file of Array.from(fileList)) {
+        const track = await uploadMusicTrack(projectName, file);
+        onMusicTracksChange([...musicTracks, track]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const handleExtractFromYoutube = async () => {
     const url = youtubeUrl.trim();
-    if (!url) return;
+    if (!url || !projectName) return;
     setError(null);
     setExtracting(true);
     try {
-      const file = await extractAudioFromYoutube(url);
-      await addTracksFromFiles([file]);
+      const track = await extractMusicTrackFromYoutube(projectName, url);
+      onMusicTracksChange([...musicTracks, track]);
       setYoutubeUrl("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -120,31 +115,38 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
     }
   };
 
-  const handleRemoveTrack = (id: string) => setTracks((prev) => prev.filter((t) => t.id !== id));
-
-  const handleReorderTrack = (fromIndex: number, toIndex: number) => {
-    setTracks((prev) => {
-      if (toIndex < 0 || toIndex >= prev.length) return prev;
-      const next = [...prev];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      return next;
-    });
+  const handleRemoveTrack = async (id: string) => {
+    setError(null);
+    try {
+      await deleteMusicTrack(projectName, id);
+      onMusicTracksChange(musicTracks.filter((t) => t.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
-  const totalMusicSec = tracks.reduce((sum, t) => sum + t.durationSec, 0);
+  const handleReorderTrack = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= musicTracks.length) return;
+    const next = [...musicTracks];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    onMusicTracksChange(next);
+  };
+
+  const totalMusicSec = musicTracks.reduce((sum, t) => sum + t.durationSec, 0);
   const diffSec = totalMusicSec - combinedVideo.durationSec;
   const isEnough = diffSec >= 0;
 
   const handleApply = async () => {
-    if (tracks.length === 0) return;
+    if (musicTracks.length === 0 || !projectName) return;
     setError(null);
     setStarting(true);
     try {
       const { jobId: newJobId } = await applyAudioTracks(
         combinedVideo.file,
         outputName.trim() || "highlight-with-music",
-        tracks.map((t) => t.file),
+        projectName,
+        musicTracks.map((t) => t.id),
       );
       setJobId(newJobId);
       setJob({ id: newJobId, stage: "queued", progress: 0, createdAt: Date.now() });
@@ -183,15 +185,17 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
       )}
 
       <label>
-        mp3を追加(複数選択可・追加した順に連結される)
+        mp3を追加(複数選択可・追加した順に連結される・プロジェクトに保存される)
         <input
           type="file"
           accept="audio/mpeg,.mp3"
           multiple
           ref={fileInputRef}
+          disabled={uploading}
           onChange={(e) => void handleAddFiles(e.target.files)}
         />
       </label>
+      {uploading && <p className="hint">アップロード中...</p>}
 
       <label>
         YouTube動画から音声を抽出して追加
@@ -209,12 +213,12 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
         </div>
       </label>
 
-      {tracks.length > 0 && (
+      {musicTracks.length > 0 && (
         <ol className="music-track-list">
-          {tracks.map((t, i) => (
+          {musicTracks.map((t, i) => (
             <li key={t.id} className="music-track-row">
               <span className="music-track-name">
-                {i + 1}. {t.file.name}
+                {i + 1}. {t.fileName}
               </span>
               <span className="music-track-duration">{formatTime(t.durationSec)}</span>
               <div className="clip-actions">
@@ -224,11 +228,11 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
                 <button
                   type="button"
                   onClick={() => handleReorderTrack(i, i + 1)}
-                  disabled={i === tracks.length - 1}
+                  disabled={i === musicTracks.length - 1}
                 >
                   ↓
                 </button>
-                <button type="button" onClick={() => handleRemoveTrack(t.id)}>
+                <button type="button" onClick={() => void handleRemoveTrack(t.id)}>
                   削除
                 </button>
               </div>
@@ -239,7 +243,7 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
 
       <p className={isEnough ? "music-coverage ok" : "music-coverage insufficient"}>
         音楽合計 {formatTime(totalMusicSec)} / 動画 {formatTime(combinedVideo.durationSec)}
-        {tracks.length === 0
+        {musicTracks.length === 0
           ? ""
           : isEnough
             ? ` — 足りている(余り ${formatTime(diffSec)})`
@@ -252,7 +256,7 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
       </label>
 
       <div className="export-start-row">
-        <button type="button" onClick={handleApply} disabled={starting || tracks.length === 0 || isRunning}>
+        <button type="button" onClick={handleApply} disabled={starting || musicTracks.length === 0 || isRunning}>
           {starting ? "開始中..." : "音声を適用して書き出し"}
         </button>
         {isRunning && (

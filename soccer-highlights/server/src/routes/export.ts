@@ -1,10 +1,9 @@
-import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import express, { type Request, type Response } from "express";
-import multer from "multer";
-import { outputDir, tmpDir } from "../config.ts";
+import { outputDir, projectMusicDir, tmpDir } from "../config.ts";
 import { assertEnoughDiskSpace, formatBytesAsGb, getFreeDiskSpaceBytes } from "../lib/diskSpace.ts";
 import { concatClips, replaceAudioWithMusicTracks, trimClip } from "../lib/ffmpegPipeline.ts";
 import {
@@ -29,7 +28,7 @@ import {
   writeWorkMeta,
   type WorkMeta,
 } from "../lib/resumableWork.ts";
-import { sanitizeFileName } from "../lib/sanitize.ts";
+import { isUuid, sanitizeFileName } from "../lib/sanitize.ts";
 import { CancelledError } from "../lib/spawnUtil.ts";
 import { ensureVideoDownloaded } from "../lib/ytdlp.ts";
 import { VIDEO_QUALITIES, type Clip, type ClipSource, type VideoQuality } from "../types.ts";
@@ -37,8 +36,6 @@ import { VIDEO_QUALITIES, type Clip, type ClipSource, type VideoQuality } from "
 function parseQuality(value: unknown): VideoQuality {
   return (VIDEO_QUALITIES as readonly string[]).includes(value as string) ? (value as VideoQuality) : "best";
 }
-
-const musicUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 /**
  * ダウンロードキャッシュの削除は、Windowsではffmpegプロセス終了直後にOSがまだ
@@ -130,23 +127,40 @@ exportRouter.post("/:jobId/pause", (req: Request<{ jobId: string }>, res: Respon
   res.status(202).json({ ok: true });
 });
 
-exportRouter.post("/apply-audio", musicUpload.array("music"), async (req: Request, res: Response) => {
+exportRouter.post("/apply-audio", async (req: Request, res: Response) => {
   const combinedFile = req.body.combinedFile as string | undefined;
   const outputName = req.body.outputName as string | undefined;
-  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  const musicTrackIds = (req.body.musicTrackIds as string[] | undefined) ?? [];
 
   if (!combinedFile) {
     res.status(400).json({ error: "combinedFileは必須です" });
     return;
   }
-  if (files.length === 0) {
-    res.status(400).json({ error: "mp3ファイルを1つ以上指定してください" });
+  const projectKey = sanitizeFileName(req.body.projectName as string | undefined);
+  if (!projectKey) {
+    res.status(400).json({ error: "プロジェクト名は必須です" });
+    return;
+  }
+  if (musicTrackIds.length === 0) {
+    res.status(400).json({ error: "mp3を1つ以上指定してください" });
+    return;
+  }
+  if (!musicTrackIds.every((id) => typeof id === "string" && isUuid(id))) {
+    res.status(400).json({ error: "不正な音楽トラックIDです" });
     return;
   }
 
   const combinedPath = path.join(outputDir, path.basename(combinedFile));
   if (!existsSync(combinedPath)) {
     res.status(404).json({ error: "結合済み動画ファイルが見つかりません。書き出しをやり直してください。" });
+    return;
+  }
+
+  const musicDir = projectMusicDir(projectKey);
+  const musicPaths = musicTrackIds.map((id) => path.join(musicDir, `${id}.mp3`));
+  const missing = musicPaths.some((p) => !existsSync(p));
+  if (missing) {
+    res.status(404).json({ error: "音楽ファイルが見つかりません。プロジェクトで音楽を追加し直してください。" });
     return;
   }
 
@@ -160,12 +174,7 @@ exportRouter.post("/apply-audio", musicUpload.array("music"), async (req: Reques
   const jobId = randomUUID();
   createJob(jobId);
 
-  runApplyAudioPipeline(
-    jobId,
-    combinedPath,
-    files.map((f) => f.buffer),
-    outputName,
-  ).catch((err: unknown) => {
+  runApplyAudioPipeline(jobId, combinedPath, musicPaths, outputName).catch((err: unknown) => {
     if (err instanceof CancelledError) return;
     setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
   });
@@ -374,12 +383,13 @@ async function runCombinePipeline(jobId: string, workKey: string, body: CombineR
 
 /**
  * 既に結合済みの動画に、複数のmp3(指定順に連結)を音声トラックとして適用する。
- * ダウンロード・切り出し・結合はやり直さないため、通常の書き出しよりずっと速い。
+ * mp3自体はプロジェクトの音楽フォルダに既に保存済みのものをそのまま参照するため、
+ * ダウンロード・切り出し・結合はもちろん、mp3のアップロードもやり直さない。
  */
 async function runApplyAudioPipeline(
   jobId: string,
   combinedPath: string,
-  musicBuffers: Buffer[],
+  musicPaths: string[],
   outputName: string | undefined,
 ): Promise<void> {
   const jobTmpDir = path.join(tmpDir, jobId);
@@ -393,15 +403,6 @@ async function runApplyAudioPipeline(
     if (signal.aborted) throw new CancelledError();
     await assertEnoughDiskSpace();
 
-    setJobStage(jobId, "applying-audio", 20, "音声ファイルを準備中...");
-    const musicPaths: string[] = [];
-    for (let i = 0; i < musicBuffers.length; i++) {
-      const musicPath = path.join(jobTmpDir, `music-${i}.mp3`);
-      await writeFile(musicPath, musicBuffers[i]);
-      musicPaths.push(musicPath);
-    }
-
-    if (signal.aborted) throw new CancelledError();
     setJobStage(jobId, "applying-audio", 50, "音声を適用中...");
     const finalTmpPath = path.join(jobTmpDir, "final.mp4");
     await replaceAudioWithMusicTracks(combinedPath, musicPaths, finalTmpPath, signal);

@@ -16,7 +16,7 @@ import {
 } from "./lib/api.ts";
 import { preventFocusSteal } from "./lib/focus.ts";
 import { describeYoutubePlayerError } from "./lib/youtubeErrorMessages.ts";
-import type { Clip, ClipSource } from "./types.ts";
+import type { Clip, ClipSource, MusicTrackMeta } from "./types.ts";
 
 const AUTOSAVE_DELAY_MS = 1200;
 
@@ -38,6 +38,7 @@ export default function App() {
   const [playlistTitle, setPlaylistTitle] = useState<string | null>(null);
   const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
   const [combinedVideo, setCombinedVideo] = useState<CombinedVideoInfo | null>(null);
+  const [musicTracks, setMusicTracks] = useState<MusicTrackMeta[]>([]);
   const [projectName, setProjectName] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -58,7 +59,7 @@ export default function App() {
     const timer = setTimeout(() => {
       setSaveStatus("saving");
       const playlist = buildPlaylistSnapshot(playlistUrl, playlistTitle, playlistVideos);
-      saveProject(projectName, sources, clips, playlist, combinedVideo)
+      saveProject(projectName, sources, clips, playlist, combinedVideo, musicTracks)
         .then((data) => {
           setSaveStatus("saved");
           setLastSavedAt(data.updatedAt);
@@ -69,8 +70,8 @@ export default function App() {
     }, AUTOSAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
-    // clips/sources/再生リスト/結合済み動画の中身が変わるたびに保存タイマーをリセットしたいので
-    // 依存配列はこれで正しい
+    // clips/sources/再生リスト/結合済み動画/音楽トラックの中身が変わるたびに保存タイマーを
+    // リセットしたいので依存配列はこれで正しい
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     clips,
@@ -79,6 +80,7 @@ export default function App() {
     playlistTitle,
     playlistVideos,
     combinedVideo,
+    musicTracks,
     projectName,
     autosaveEnabled,
   ]);
@@ -91,7 +93,7 @@ export default function App() {
     if (!projectName) return;
     setSaveStatus("saving");
     const playlist = buildPlaylistSnapshot(playlistUrl, playlistTitle, playlistVideos);
-    saveProject(projectName, sources, clips, playlist, combinedVideo)
+    saveProject(projectName, sources, clips, playlist, combinedVideo, musicTracks)
       .then((data) => {
         setSaveStatus("saved");
         setLastSavedAt(data.updatedAt);
@@ -110,6 +112,7 @@ export default function App() {
     setPlaylistTitle(data.playlist?.title ?? null);
     setPlaylistVideos(data.playlist?.videos ?? []);
     setCombinedVideo(data.combinedVideo ?? null);
+    setMusicTracks(data.musicTracks ?? []);
     setActiveVideoId(null);
     setPlayerErrorCode(null);
     setLastSavedAt(data.updatedAt);
@@ -127,6 +130,7 @@ export default function App() {
     setPlaylistTitle(null);
     setPlaylistVideos([]);
     setCombinedVideo(null);
+    setMusicTracks([]);
     setActiveVideoId(null);
     setPlayerErrorCode(null);
     setLastSavedAt(null);
@@ -311,7 +315,13 @@ export default function App() {
             projectName={projectName}
             onCombinedVideoReady={setCombinedVideo}
           />
-          <ApplyAudioPanel combinedVideo={combinedVideo} clips={clips} />
+          <ApplyAudioPanel
+            combinedVideo={combinedVideo}
+            clips={clips}
+            projectName={projectName}
+            musicTracks={musicTracks}
+            onMusicTracksChange={setMusicTracks}
+          />
         </div>
       </div>
     </div>

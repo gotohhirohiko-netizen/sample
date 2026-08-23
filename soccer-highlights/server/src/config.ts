@@ -39,6 +39,12 @@ export const ytdlpForceIpv4 = process.env.YTDLP_FORCE_IPV4 === "true";
 // スペース区切りでyt-dlpにそのまま渡す(値にスペースを含めたい場合は使えない)。
 export const ytdlpExtraArgs = (process.env.YTDLP_EXTRA_ARGS ?? "").trim().split(/\s+/).filter(Boolean);
 
+/** プロジェクトごとに保存する音楽トラック(mp3)の置き場所。プロジェクトのJSONファイル
+ * (<name>.json)と対になる<name>.musicディレクトリに、トラックIDをファイル名として保存する。 */
+export function projectMusicDir(sanitizedProjectName: string): string {
+  return path.join(projectsDir, `${sanitizedProjectName}.music`);
+}
+
 export function ensureDataDirs(): void {
   for (const dir of [dataDir, outputDir, tmpDir, projectsDir, workRootDir]) {
     mkdirSync(dir, { recursive: true });
