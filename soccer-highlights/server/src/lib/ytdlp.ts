@@ -126,6 +126,40 @@ export function downloadedFilePathIn(downloadDir: string, videoId: string): stri
 }
 
 /**
+ * 動画から音声だけをmp3として抽出する(BGM用の音源としてYouTube動画を直接使えるように)。
+ * 映像を取得しない分、通常の動画ダウンロードよりずっと軽量・高速。
+ */
+export async function extractAudioAsMp3(youtubeUrl: string, outDir: string, signal?: AbortSignal): Promise<string> {
+  const outputPath = path.join(outDir, "audio.mp3");
+
+  await runCommand(
+    "yt-dlp",
+    [
+      ...cookieArgs(),
+      ...networkArgs(),
+      ...resilientDownloadArgs(),
+      "--no-playlist",
+      "-f",
+      "bestaudio/best",
+      "-x",
+      "--audio-format",
+      "mp3",
+      "--audio-quality",
+      "0",
+      "-o",
+      path.join(outDir, "audio.%(ext)s"),
+      youtubeUrl,
+    ],
+    signal,
+  );
+
+  if (!existsSync(outputPath)) {
+    throw new Error(`音声の抽出に失敗しました: ${youtubeUrl}`);
+  }
+  return outputPath;
+}
+
+/**
  * 動画をmp4としてダウンロードする。指定したdownloadDir配下に既に存在すればスキップする。
  * downloadDirはプロジェクトごとの作業フォルダ(data/work/<プロジェクト名>/downloads/)を
  * 渡すことを想定している(一時停止・再開のあいだ保持され、書き出し完了時に片付けられる)。

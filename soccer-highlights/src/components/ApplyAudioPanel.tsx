@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   applyAudioTracks,
   cancelExport,
+  extractAudioFromYoutube,
   getJobStatus,
   type CombinedVideoInfo,
 } from "../lib/api.ts";
@@ -47,6 +48,8 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [extracting, setExtracting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isRunning =
@@ -80,20 +83,40 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
     clips.length !== combinedVideo.clipCount ||
     Math.abs(currentClipsDurationSec - combinedVideo.durationSec) > 1;
 
+  const addTracksFromFiles = async (files: File[]) => {
+    const newTracks: MusicTrack[] = [];
+    for (const file of files) {
+      const durationSec = await probeAudioDuration(file);
+      newTracks.push({ id: crypto.randomUUID(), file, durationSec });
+    }
+    setTracks((prev) => [...prev, ...newTracks]);
+  };
+
   const handleAddFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     setError(null);
     try {
-      const newTracks: MusicTrack[] = [];
-      for (const file of Array.from(fileList)) {
-        const durationSec = await probeAudioDuration(file);
-        newTracks.push({ id: crypto.randomUUID(), file, durationSec });
-      }
-      setTracks((prev) => [...prev, ...newTracks]);
+      await addTracksFromFiles(Array.from(fileList));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleExtractFromYoutube = async () => {
+    const url = youtubeUrl.trim();
+    if (!url) return;
+    setError(null);
+    setExtracting(true);
+    try {
+      const file = await extractAudioFromYoutube(url);
+      await addTracksFromFiles([file]);
+      setYoutubeUrl("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -168,6 +191,22 @@ export function ApplyAudioPanel({ combinedVideo, clips }: Props) {
           ref={fileInputRef}
           onChange={(e) => void handleAddFiles(e.target.files)}
         />
+      </label>
+
+      <label>
+        YouTube動画から音声を抽出して追加
+        <div className="youtube-audio-extract-row">
+          <input
+            type="text"
+            placeholder="https://www.youtube.com/watch?v=..."
+            value={youtubeUrl}
+            onChange={(e) => setYoutubeUrl(e.target.value)}
+            disabled={extracting}
+          />
+          <button type="button" onClick={() => void handleExtractFromYoutube()} disabled={extracting || !youtubeUrl.trim()}>
+            {extracting ? "抽出中..." : "抽出して追加"}
+          </button>
+        </div>
       </label>
 
       {tracks.length > 0 && (

@@ -330,6 +330,16 @@ section,
   flex-wrap: wrap;
 }
 
+.youtube-audio-extract-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.youtube-audio-extract-row input[type="text"] {
+  flex: 1 1 260px;
+}
+
 .resume-banner {
   display: flex;
   align-items: center;

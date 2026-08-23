@@ -35,6 +35,28 @@ export function resolvePlaylist(youtubeUrl: string): Promise<{ title: string; vi
   }).then((res) => asJson<{ title: string; videos: PlaylistVideo[] }>(res));
 }
 
+/**
+ * YouTube動画から音声だけをmp3として抽出し、Fileとして受け取る。
+ * ローカルでmp3をアップロードした場合と同じFileになるので、呼び出し側は
+ * probeAudioDurationで再生時間を計測してから既存のmusicトラック一覧にそのまま追加できる。
+ */
+export async function extractAudioFromYoutube(youtubeUrl: string): Promise<File> {
+  const res = await fetch("/api/sources/extract-audio", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ youtubeUrl }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}) as { error?: string });
+    throw new Error(body.error ?? `リクエストに失敗しました (${res.status})`);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename\*=UTF-8''([^;]+)/);
+  const fileName = match ? decodeURIComponent(match[1]) : "audio.mp3";
+  return new File([blob], fileName, { type: "audio/mpeg" });
+}
+
 export interface ProjectSummary {
   name: string;
   updatedAt: number;
