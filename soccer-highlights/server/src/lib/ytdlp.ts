@@ -32,6 +32,15 @@ function networkArgs(): string[] {
 }
 
 /**
+ * Windowsでは、環境変数PYTHONUTF8/PYTHONIOENCODING(spawnUtil.ts側で設定)だけでは
+ * yt-dlp内部の出力処理(特に--printでのタイトル出力)がUTF-8にならず、日本語タイトルが
+ * 「�」のような文字化けになることがある。yt-dlp自身に明示的にUTF-8での出力を指示する。
+ */
+function encodingArgs(): string[] {
+  return ["--encoding", "utf-8"];
+}
+
+/**
  * "[download] Got error: N bytes read, M more expected. Giving up after 10 retries" は、
  * 1本の大きなHTTPレンジリクエストの途中で接続が切れ、yt-dlp内部のデフォルト10回リトライを
  * 使い切って諦めてしまうことで起きる。--http-chunk-sizeでリクエストを細切れにすると、
@@ -60,6 +69,7 @@ export async function resolveVideoMetadata(youtubeUrl: string): Promise<VideoMet
     ...cookieArgs(),
     ...networkArgs(),
     ...ytdlpExtraArgs,
+    ...encodingArgs(),
     "--no-playlist",
     "--skip-download",
     "--print",
@@ -99,6 +109,7 @@ export async function resolvePlaylistVideos(youtubeUrl: string): Promise<Playlis
     ...cookieArgs(),
     ...networkArgs(),
     ...ytdlpExtraArgs,
+    ...encodingArgs(),
     "--flat-playlist",
     "--dump-single-json",
     youtubeUrl,
@@ -141,6 +152,7 @@ export async function extractAudioAsMp3(youtubeUrl: string, outDir: string, sign
       ...cookieArgs(),
       ...networkArgs(),
       ...ytdlpExtraArgs,
+      ...encodingArgs(),
       ...resilientDownloadArgs(),
       "--no-playlist",
       "-f",
@@ -218,6 +230,8 @@ export async function ensureVideoDownloaded(
         [
           ...cookieArgs(),
           ...networkArgs(),
+          ...ytdlpExtraArgs,
+          ...encodingArgs(),
           ...resilientDownloadArgs(),
           "--no-playlist",
           "-f",
