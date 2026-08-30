@@ -11,6 +11,7 @@ interface Props {
   onRelabel: (id: string, label: string) => void;
   onUpdateTime: (id: string, field: "start" | "end", seconds: number) => void;
   onRefreshSourceTitle: (videoId: string) => void;
+  refreshingSourceVideoId: string | null;
 }
 
 function commitOnEnter(e: KeyboardEvent<HTMLInputElement>) {
@@ -26,6 +27,7 @@ export function ClipList({
   onRelabel,
   onUpdateTime,
   onRefreshSourceTitle,
+  refreshingSourceVideoId,
 }: Props) {
   if (clips.length === 0) {
     return <p className="empty-hint">まだクリップがありません。動画を再生しながら区間を追加してください。</p>;
@@ -76,9 +78,10 @@ export function ClipList({
             type="button"
             className="clip-refresh-title"
             onClick={() => onRefreshSourceTitle(clip.sourceVideoId)}
-            title="この動画のタイトルを取得し直す(文字化けの修正など)"
+            disabled={refreshingSourceVideoId !== null}
+            title="この動画のタイトルを取得し直す(文字化けの修正など)。数秒〜十数秒かかることがある"
           >
-            🔄
+            {refreshingSourceVideoId === clip.sourceVideoId ? "取得中..." : "🔄"}
           </button>
           <span className="clip-time-edit">
             <input

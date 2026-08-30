@@ -46,6 +46,7 @@ export default function App() {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [savedClipCount, setSavedClipCount] = useState<number | null>(null);
+  const [refreshingSourceVideoId, setRefreshingSourceVideoId] = useState<string | null>(null);
   const skipNextAutosaveRef = useRef(false);
   const playerRef = useRef<YouTubePlayerHandle>(null);
 
@@ -163,15 +164,20 @@ export default function App() {
   };
 
   /** URLを貼り直さなくても、保存済みのURLからタイトルだけ取得し直せるようにする
-   * (以前の文字化けしたタイトルが残っている場合の修正手段)。 */
+   * (以前の文字化けしたタイトルが残っている場合の修正手段)。SABR回避のJS challenge解決
+   * などでyt-dlp側の応答に数秒〜十数秒かかることがあるため、押した後は無反応に見えないよう
+   * ローディング状態を持たせている。 */
   const handleRefreshSourceTitle = async (videoId: string) => {
     const source = sources.find((s) => s.videoId === videoId);
-    if (!source) return;
+    if (!source || refreshingSourceVideoId) return;
+    setRefreshingSourceVideoId(videoId);
     try {
       const meta = await resolveSource(source.youtubeUrl);
       setSources((prev) => prev.map((s) => (s.videoId === videoId ? { ...s, title: meta.title } : s)));
     } catch (err) {
       window.alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRefreshingSourceVideoId(null);
     }
   };
 
@@ -330,6 +336,7 @@ export default function App() {
               onRelabel={handleRelabel}
               onUpdateTime={handleUpdateTime}
               onRefreshSourceTitle={(videoId) => void handleRefreshSourceTitle(videoId)}
+              refreshingSourceVideoId={refreshingSourceVideoId}
             />
           </section>
 
