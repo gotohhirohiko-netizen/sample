@@ -146,7 +146,16 @@ export default function App() {
   };
 
   const handleLoadSource = (meta: { videoId: string; title: string; youtubeUrl: string }) => {
-    setSources((prev) => (prev.some((s) => s.videoId === meta.videoId) ? prev : [...prev, meta]));
+    setSources((prev) => {
+      const index = prev.findIndex((s) => s.videoId === meta.videoId);
+      if (index === -1) return [...prev, meta];
+      if (prev[index].title === meta.title) return prev;
+      // 既に登録済みの動画でも、同じURLを読み込み直せばタイトルを最新の内容に更新する
+      // (以前の文字化けしたタイトルが残っている場合の修正手段にもなる)。
+      const next = [...prev];
+      next[index] = { ...next[index], title: meta.title };
+      return next;
+    });
     setActiveVideoId(meta.videoId);
     setPlayerErrorCode(null);
     playerRef.current?.loadVideo(meta.videoId);

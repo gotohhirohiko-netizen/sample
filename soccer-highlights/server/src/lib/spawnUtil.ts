@@ -21,7 +21,14 @@ export function runCommand(command: string, args: string[], signal?: AbortSignal
   if (signal?.aborted) return Promise.reject(new CancelledError());
 
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"], signal });
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      signal,
+      // yt-dlp(Python製)はWindowsでは既定でコンソールのコードページ(日本語環境だとcp932)で
+      // 標準出力に書き出すことがあり、UTF-8として読み取るこちら側で動画タイトル等の日本語が
+      // 文字化けする原因になっていた。PYTHONUTF8/PYTHONIOENCODINGでUTF-8出力を強制する。
+      env: { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" },
+    });
 
     let stdout = "";
     let stderr = "";
