@@ -36,10 +36,21 @@ export function ClipList({ clips, sources, onReorder, onRemove, onSeek, onRelabe
     onUpdateTime(clip.id, field, parsed);
   };
 
+  const handleMoveBlur = (e: FocusEvent<HTMLInputElement>, fromIndex: number) => {
+    const target = Number(e.target.value);
+    if (!Number.isInteger(target) || target < 1 || target > clips.length) {
+      e.target.value = String(fromIndex + 1);
+      return;
+    }
+    const toIndex = target - 1;
+    if (toIndex !== fromIndex) onReorder(fromIndex, toIndex);
+  };
+
   return (
     <ol className="clip-list">
       {clips.map((clip, index) => (
         <li key={clip.id} className="clip-row">
+          <span className="clip-index">{index + 1}</span>
           <button type="button" className="clip-play" onClick={() => onSeek(clip)} title="この位置を再生">
             ▶
           </button>
@@ -82,6 +93,17 @@ export function ClipList({ clips, sources, onReorder, onRemove, onSeek, onRelabe
             >
               ↓
             </button>
+            <input
+              key={index}
+              type="number"
+              className="clip-move-input"
+              min={1}
+              max={clips.length}
+              defaultValue={index + 1}
+              onBlur={(e) => handleMoveBlur(e, index)}
+              onKeyDown={commitOnEnter}
+              title="移動先の番号を入力してEnter"
+            />
             <button type="button" onClick={() => onRemove(clip.id)}>
               削除
             </button>

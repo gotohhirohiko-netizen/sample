@@ -265,6 +265,15 @@ section,
   flex-wrap: wrap;
 }
 
+.clip-index {
+  flex: 0 0 auto;
+  min-width: 1.6em;
+  text-align: right;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
 .clip-play {
   flex: 0 0 auto;
 }
@@ -305,8 +314,15 @@ section,
 
 .clip-actions {
   display: flex;
+  align-items: center;
   gap: 4px;
   flex: 0 0 auto;
+}
+
+.clip-move-input {
+  width: 3.5em;
+  text-align: center;
+  padding: 4px 6px;
 }
 
 .empty-hint,
