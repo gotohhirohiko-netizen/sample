@@ -89,9 +89,20 @@ YTDLP_EXTRA_ARGS=--extractor-args youtube:player_client=android
 対策強化とyt-dlp側の対応が繰り返されるたびに有効なものが変わるため、うまくいかない場合は
 「yt-dlp 403 player_client」などで最新の回避策を検索し、その値を`YTDLP_EXTRA_ARGS`に設定すること。
 
+**注意**: `YTDLP_EXTRA_ARGS`でplayer_clientを固定すると、次の「画質が異常に低い」問題を
+かえって引き起こすことがある(固定したクライアントがSABR制限の対象になり、本来なら
+取得できたはずの高画質形式が取れなくなる)。403が出ていた動画では必要でも、他の動画では
+`YTDLP_EXTRA_ARGS`を空にした方が高画質で取得できる場合があるため、403が解消して不要に
+なったら空に戻すか、少なくとも画質面で問題が出ていないか確認すること。
+
 ### 画質が異常に低い(360p止まり等)、または`-v`のログに「SABR」という文字が出る場合
 
-`yt-dlp -v ...`で実行した際に以下のような警告が出ている場合、これは403とは別種の問題で、
+**まず`soccer-highlights/.env`の`YTDLP_EXTRA_ARGS`が空になっているか確認すること。** player_clientを
+固定していると、最新版yt-dlpが備えているJS challenge解決などの新しい取得手段が使われず、かえって
+低画質にしかならないことがある(実際にこの手順で解決した実績あり)。空にしてサーバーを再起動し、
+再度試すこと。
+
+それでも`yt-dlp -v ...`で以下のような警告が出て低画質になる場合、これは403とは別種の問題で、
 **YouTube側が進めている新しい配信方式「SABR」の実験的ロールアウト**が原因であることが多い
 (2025年後半以降に広がった、yt-dlp側もリアルタイムで追いかけている既知の問題。
 [yt-dlp issue #12482](https://github.com/yt-dlp/yt-dlp/issues/12482)を参照)。
@@ -104,22 +115,23 @@ YouTube may have enabled the SABR-only streaming experiment for the current sess
 
 SABR対象のセッションでは高画質(DASH/adaptive)形式にダウンロード用の直接URLが返されなくなり、
 yt-dlpは仕方なく大昔からある互換用の低画質形式(itag 18 = 640×360程度)まで落とさざるを得なくなる。
-Cookieやplayer_clientの変更だけでは、SABR適用中はそもそも高画質URLが返ってこないため回避できない。
 
 対処法:
 
-1. **yt-dlpを最新版に更新する(最重要)**。SABR対策はyt-dlp側の更新で頻繁に修正されるため、
-   少しでも古いと同じ問題に当たり続ける。
+1. **`YTDLP_EXTRA_ARGS`を空にしてyt-dlpのデフォルトのクライアント選択に任せる**(上記の通り、
+   これだけで解決することがある)。
+2. **yt-dlpを最新版に更新する**。SABR対策はyt-dlp側の更新で頻繁に修正されるため、少しでも古いと
+   同じ問題に当たり続ける。
    ```powershell
    yt-dlp -U
    ```
-2. `player_client`に`mweb`(モバイルWeb)も加えて試す(SABR未適用の場合がある)。
+3. 1で直らない場合、`player_client`に`mweb`(モバイルWeb)を指定して試す(SABR未適用の場合がある)。
    ```
-   YTDLP_EXTRA_ARGS=--extractor-args youtube:player_client=mweb,web_safari,android,tv
+   YTDLP_EXTRA_ARGS=--extractor-args youtube:player_client=mweb
    ```
-3. それでも解消しない場合、現状ではyt-dlp側の対応待ちになっている可能性が高い。PO tokenプロバイダー
+4. それでも解消しない場合、現状ではyt-dlp側の対応待ちになっている可能性が高い。PO tokenプロバイダー
    のプラグイン([bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider)等)
-   導入という、よりセットアップが複雑な回避策も存在するが、まずは1のyt-dlp更新を定期的に試すこと。
+   導入という、よりセットアップが複雑な回避策も存在するが、まずは1・2を定期的に試すこと。
 
 ### `Got error: N bytes read, M more expected. Giving up after 10 retries` が出る場合
 
@@ -131,6 +143,14 @@ Cookieやplayer_clientの変更だけでは、SABR適用中はそもそも高画
 ```
 YTDLP_FORCE_IPV4=true
 ```
+
+### `Failed to establish a new connection: [WinError 10061]` が出る場合
+
+YouTubeどころかDNS解決すら届いていない、PC側のその瞬間のネットワーク接続そのものの問題
+(Wi-Fi/回線の瞬断、yt-dlp更新直後でウイルスソフトが実行ファイルを一時的にブロックしている、
+VPN/プロキシの影響など)。403やSABRとは無関係。まずはもう一度同じ操作を試すこと。何度も
+繰り返し発生する場合は、ファイアウォール/ウイルスソフトの除外設定やVPN・プロキシの設定を
+確認すること。
 
 設定後はサーバーを再起動すること。
 
