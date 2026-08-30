@@ -5,7 +5,14 @@ import path from "node:path";
 import express, { type Request, type Response } from "express";
 import { outputDir, projectMusicDir, tmpDir } from "../config.ts";
 import { assertEnoughDiskSpace, formatBytesAsGb, getFreeDiskSpaceBytes } from "../lib/diskSpace.ts";
-import { concatClips, QUALITY_TARGET_RESOLUTION, replaceAudioWithMusicTracks, trimClip } from "../lib/ffmpegPipeline.ts";
+import {
+  concatClips,
+  extractSegmentCopy,
+  probeVideoResolution,
+  QUALITY_TARGET_RESOLUTION,
+  replaceAudioWithMusicTracks,
+  trimClip,
+} from "../lib/ffmpegPipeline.ts";
 import {
   cancelJob,
   clearJobController,
@@ -175,6 +182,64 @@ exportRouter.post("/apply-audio", async (req: Request, res: Response) => {
   createJob(jobId);
 
   runApplyAudioPipeline(jobId, combinedPath, musicPaths, outputName).catch((err: unknown) => {
+    if (err instanceof CancelledError) return;
+    setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
+  });
+
+  res.status(202).json({ jobId });
+});
+
+interface ReplaceClipRequestBody {
+  combinedFile?: string;
+  clips?: Clip[];
+  sources?: ClipSource[];
+  clipId?: string;
+}
+
+/**
+ * 結合済み動画のうち指定した1クリップだけをダウンロード・切り出しし直して差し替える。
+ * 他のクリップは再ダウンロードせず、既存の結合済み動画から前後をそのまま(無劣化で)
+ * 切り出して使い回すため、全体を再書き出しするよりずっと速い。
+ */
+exportRouter.post("/replace-clip", async (req: Request, res: Response) => {
+  const body = req.body as ReplaceClipRequestBody;
+  if (!body.combinedFile || !body.clips?.length || !body.sources || !body.clipId) {
+    res.status(400).json({ error: "combinedFile/clips/sources/clipIdは必須です" });
+    return;
+  }
+
+  const combinedPath = path.join(outputDir, path.basename(body.combinedFile));
+  if (!existsSync(combinedPath)) {
+    res.status(404).json({ error: "結合済み動画ファイルが見つかりません。書き出しをやり直してください。" });
+    return;
+  }
+
+  const clips = body.clips;
+  const sources = body.sources;
+  const clipIndex = clips.findIndex((c) => c.id === body.clipId);
+  if (clipIndex === -1) {
+    res
+      .status(400)
+      .json({ error: "指定されたクリップが見つかりません。クリップ一覧が変わっている可能性があります。" });
+    return;
+  }
+  const source = sources.find((s) => s.videoId === clips[clipIndex].sourceVideoId);
+  if (!source) {
+    res.status(400).json({ error: "クリップが参照する動画が見つかりません。" });
+    return;
+  }
+
+  try {
+    await assertEnoughDiskSpace();
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
+
+  const jobId = randomUUID();
+  createJob(jobId);
+
+  runReplaceClipPipeline(jobId, combinedPath, clips, clipIndex, source).catch((err: unknown) => {
     if (err instanceof CancelledError) return;
     setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
   });
@@ -427,6 +492,85 @@ async function runApplyAudioPipeline(
     setJobStage(jobId, "done", 100, "完了しました");
     const job = getJob(jobId);
     if (job) job.outputFile = outputFile;
+  } catch (err) {
+    await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
+    if (err instanceof CancelledError) {
+      setJobStage(jobId, "cancelled", 100, "キャンセルされました");
+      return;
+    }
+    throw err;
+  } finally {
+    clearJobController(jobId);
+  }
+}
+
+/**
+ * 結合済み動画のうち指定した1クリップだけをダウンロード・切り出しし直し、
+ * 差し替え対象の前後は結合済み動画からそのまま(無劣化で)切り出して使い回して結合し直す。
+ * クリップは元々1本ずつ独立してエンコードされ、その境界がそのままキーフレームになっているため、
+ * クリップの境界で切ってもズレは生じない。新しいクリップは既存の結合済み動画と同じ解像度に
+ * 合わせて作るため(ダウンロード自体は常に最高画質で行い、trimClipでその解像度に揃える)、
+ * ダウンロード時の画質設定を意識する必要はない。
+ */
+async function runReplaceClipPipeline(
+  jobId: string,
+  combinedPath: string,
+  clips: Clip[],
+  clipIndex: number,
+  source: ClipSource,
+): Promise<void> {
+  const jobTmpDir = path.join(tmpDir, jobId);
+  await mkdir(jobTmpDir, { recursive: true });
+
+  const controller = new AbortController();
+  registerJobController(jobId, controller);
+  const { signal } = controller;
+
+  try {
+    if (signal.aborted) throw new CancelledError();
+    await assertEnoughDiskSpace();
+
+    const clip = clips[clipIndex];
+    const offsetSec = clips.slice(0, clipIndex).reduce((sum, c) => sum + (c.endSec - c.startSec), 0);
+    const clipDurationSec = clip.endSec - clip.startSec;
+    const totalDurationSec = clips.reduce((sum, c) => sum + (c.endSec - c.startSec), 0);
+    const afterStartSec = offsetSec + clipDurationSec;
+
+    setJobStage(jobId, "downloading", 10, `動画を取得中: ${source.title ?? source.youtubeUrl}`);
+    const targetResolution = await probeVideoResolution(combinedPath);
+    const sourcePath = await ensureVideoDownloaded(jobTmpDir, source.youtubeUrl, source.videoId, "best", signal);
+
+    if (signal.aborted) throw new CancelledError();
+    setJobStage(jobId, "trimming", 40, "クリップを作り直し中...");
+    const newClipPath = path.join(jobTmpDir, "new-clip.mp4");
+    await trimClip(sourcePath, clip.startSec, clip.endSec, newClipPath, targetResolution, signal);
+    await deleteWithRetry(sourcePath);
+
+    if (signal.aborted) throw new CancelledError();
+    setJobStage(jobId, "concatenating", 70, "結合し直しています...");
+    const segments: string[] = [];
+    if (offsetSec > 0) {
+      const beforePath = path.join(jobTmpDir, "before.mp4");
+      await extractSegmentCopy(combinedPath, beforePath, { durationSec: offsetSec }, signal);
+      segments.push(beforePath);
+    }
+    segments.push(newClipPath);
+    if (afterStartSec < totalDurationSec - 0.05) {
+      const afterPath = path.join(jobTmpDir, "after.mp4");
+      await extractSegmentCopy(combinedPath, afterPath, { startSec: afterStartSec }, signal);
+      segments.push(afterPath);
+    }
+
+    const finalTmpPath = path.join(jobTmpDir, "final.mp4");
+    await concatClips(segments, finalTmpPath, jobTmpDir, signal);
+
+    await rm(combinedPath, { force: true });
+    await rename(finalTmpPath, combinedPath);
+    await rm(jobTmpDir, { recursive: true, force: true });
+
+    setJobStage(jobId, "done", 100, "クリップを差し替えました");
+    const job = getJob(jobId);
+    if (job) job.outputFile = path.basename(combinedPath);
   } catch (err) {
     await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
     if (err instanceof CancelledError) {

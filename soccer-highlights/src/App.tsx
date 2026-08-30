@@ -330,6 +330,7 @@ export default function App() {
             <ClipList
               clips={clips}
               sources={sources}
+              combinedVideo={combinedVideo}
               onReorder={handleReorder}
               onRemove={handleRemove}
               onSeek={handleSeek}

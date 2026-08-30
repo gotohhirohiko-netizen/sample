@@ -67,6 +67,51 @@ export async function trimClip(
   );
 }
 
+/** 既存の動画ファイルの実際の解像度をffprobeで取得する。クリップを1本だけ差し替える際、
+ * 新しく作るクリップを既存の結合済み動画とまったく同じ解像度に合わせるために使う
+ * (揃っていないとconcat demuxerでの差し替えができない)。 */
+export async function probeVideoResolution(filePath: string): Promise<TargetResolution> {
+  const { stdout } = await runCommand("ffprobe", [
+    "-v",
+    "error",
+    "-select_streams",
+    "v:0",
+    "-show_entries",
+    "stream=width,height",
+    "-of",
+    "csv=s=x:p=0",
+    filePath,
+  ]);
+  const [widthRaw, heightRaw] = stdout.trim().split("x");
+  const width = Number(widthRaw);
+  const height = Number(heightRaw);
+  if (!width || !height) {
+    throw new Error(`動画の解像度を取得できませんでした: ${filePath}`);
+  }
+  return { width, height };
+}
+
+/**
+ * 既に結合済みの動画から、指定した範囲を再エンコードなし(-c copy)で切り出す。
+ * クリップ1本だけの差し替え時、差し替え対象の前後をそのまま保持するために使う。
+ * 各クリップは元々1本ずつ独立してエンコードされ、その境界がそのままキーフレームに
+ * なっているため、クリップの境界で切ればコピーでもズレが生じない。
+ * startSecを省略すると先頭から、durationSecを省略すると末尾までになる。
+ */
+export async function extractSegmentCopy(
+  inputPath: string,
+  outPath: string,
+  options: { startSec?: number; durationSec?: number },
+  signal?: AbortSignal,
+): Promise<void> {
+  const args = ["-y"];
+  if (options.startSec !== undefined) args.push("-ss", String(options.startSec));
+  args.push("-i", inputPath);
+  if (options.durationSec !== undefined) args.push("-t", String(options.durationSec));
+  args.push("-c", "copy", outPath);
+  await runCommand("ffmpeg", args, signal);
+}
+
 /** 同一コーデックで書き出したクリップ群をconcat demuxerで結合する(再エンコードなし)。 */
 export async function concatClips(
   clipPaths: string[],

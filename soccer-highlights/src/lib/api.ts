@@ -167,6 +167,23 @@ export function applyAudioTracks(
   }).then((res) => asJson<{ jobId: string }>(res));
 }
 
+/**
+ * 結合済み動画のうち指定した1クリップだけをダウンロード・切り出しし直して差し替える。
+ * 他のクリップは再ダウンロードしないため、全体を書き出し直すよりずっと速い。
+ */
+export function replaceClip(
+  combinedFile: string,
+  clips: Clip[],
+  sources: ClipSource[],
+  clipId: string,
+): Promise<{ jobId: string }> {
+  return fetch("/api/export/replace-clip", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ combinedFile, clips, sources, clipId }),
+  }).then((res) => asJson<{ jobId: string }>(res));
+}
+
 export function getJobStatus(jobId: string): Promise<JobStatus> {
   return fetch(`/api/export/${jobId}`).then((res) => asJson<JobStatus>(res));
 }
