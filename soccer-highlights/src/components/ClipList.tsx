@@ -1,5 +1,5 @@
 import { useEffect, useState, type FocusEvent, type KeyboardEvent } from "react";
-import { cancelExport, getJobStatus, replaceClip, type CombinedVideoInfo } from "../lib/api.ts";
+import { cancelExport, getJobStatus, replaceClips, type CombinedVideoInfo } from "../lib/api.ts";
 import { formatTime, parseTime } from "../lib/format.ts";
 import type { Clip, ClipSource, JobStage, JobStatus } from "../types.ts";
 
@@ -44,7 +44,8 @@ export function ClipList({
   onRefreshSourceTitle,
   refreshingSourceVideoId,
 }: Props) {
-  const [replacingClipId, setReplacingClipId] = useState<string | null>(null);
+  const [selectedClipIds, setSelectedClipIds] = useState<Set<string>>(new Set());
+  const [replacingClipIds, setReplacingClipIds] = useState<Set<string> | null>(null);
   const [replaceJobId, setReplaceJobId] = useState<string | null>(null);
   const [replaceJob, setReplaceJob] = useState<JobStatus | null>(null);
   const [replaceError, setReplaceError] = useState<string | null>(null);
@@ -71,21 +72,22 @@ export function ClipList({
     if (!replaceJobId || isReplaceRunning || !replaceJob) return;
     if (replaceJob.stage === "error") {
       setReplaceError(replaceJob.error ?? "エラーが発生しました");
-      setReplacingClipId(null);
+      setReplacingClipIds(null);
       setReplaceJobId(null);
       setReplaceJob(null);
       return;
     }
     if (replaceJob.stage === "cancelled") {
-      setReplacingClipId(null);
+      setReplacingClipIds(null);
       setReplaceJobId(null);
       setReplaceJob(null);
       return;
     }
     const timer = setTimeout(() => {
-      setReplacingClipId(null);
+      setReplacingClipIds(null);
       setReplaceJobId(null);
       setReplaceJob(null);
+      setSelectedClipIds(new Set());
     }, 1500);
     return () => clearTimeout(timer);
   }, [replaceJobId, isReplaceRunning, replaceJob]);
@@ -119,17 +121,26 @@ export function ClipList({
     if (toIndex !== fromIndex) onReorder(fromIndex, toIndex);
   };
 
-  const handleReplaceClip = async (clip: Clip) => {
-    if (!combinedVideo || replacingClipId) return;
+  const handleToggleSelect = (id: string) => {
+    setSelectedClipIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleReplaceClips = async (ids: string[]) => {
+    if (!combinedVideo || replacingClipIds || ids.length === 0) return;
     setReplaceError(null);
-    setReplacingClipId(clip.id);
+    setReplacingClipIds(new Set(ids));
     try {
-      const { jobId } = await replaceClip(combinedVideo.file, clips, sources, clip.id);
+      const { jobId } = await replaceClips(combinedVideo.file, clips, sources, ids);
       setReplaceJobId(jobId);
       setReplaceJob({ id: jobId, stage: "queued", progress: 0, createdAt: Date.now() });
     } catch (err) {
       setReplaceError(err instanceof Error ? err.message : String(err));
-      setReplacingClipId(null);
+      setReplacingClipIds(null);
     }
   };
 
@@ -146,13 +157,33 @@ export function ClipList({
     <>
       {combinedVideo && (
         <p className="hint">
-          特定のクリップだけ画質・カクつきが気になる場合、行の「🔁 作り直す」から結合済み動画内でその1本だけ
-          差し替えられる(他のクリップは再ダウンロードしない)。
+          特定のクリップだけ画質・カクつきが気になる場合、チェックして「選択したクリップを作り直す」を押すと
+          結合済み動画内でそのクリップだけ差し替えられる(同じ動画のクリップをまとめて選べば、その動画の
+          ダウンロードは1回で済む。他のクリップは再ダウンロードしない)。
         </p>
+      )}
+      {combinedVideo && (
+        <div className="clip-bulk-actions">
+          <button
+            type="button"
+            onClick={() => void handleReplaceClips([...selectedClipIds])}
+            disabled={selectedClipIds.size === 0 || replacingClipIds !== null}
+          >
+            選択したクリップを作り直す({selectedClipIds.size}件)
+          </button>
+        </div>
       )}
       <ol className="clip-list">
         {clips.map((clip, index) => (
           <li key={clip.id} className="clip-row">
+            {combinedVideo && (
+              <input
+                type="checkbox"
+                checked={selectedClipIds.has(clip.id)}
+                onChange={() => handleToggleSelect(clip.id)}
+                title="作り直す対象として選択"
+              />
+            )}
             <span className="clip-index">{index + 1}</span>
             <button type="button" className="clip-play" onClick={() => onSeek(clip)} title="この位置を再生">
               ▶
@@ -219,11 +250,11 @@ export function ClipList({
               {combinedVideo && (
                 <button
                   type="button"
-                  onClick={() => void handleReplaceClip(clip)}
-                  disabled={replacingClipId !== null}
+                  onClick={() => void handleReplaceClips([clip.id])}
+                  disabled={replacingClipIds !== null}
                   title="この区間だけ動画を取得し直し、結合済み動画内で差し替える"
                 >
-                  {replacingClipId === clip.id
+                  {replacingClipIds?.has(clip.id)
                     ? `${replaceStageLabel[replaceJob?.stage ?? "queued"]}${replaceJob ? ` ${replaceJob.progress}%` : ""}`
                     : "🔁 作り直す"}
                 </button>
@@ -238,6 +269,7 @@ export function ClipList({
       {isReplaceRunning && (
         <div className="job-status">
           <progress value={replaceJob?.progress ?? 0} max={100} />
+          <p>{replaceJob?.message}</p>
           <button type="button" onClick={() => void handleCancelReplace()}>
             キャンセル
           </button>

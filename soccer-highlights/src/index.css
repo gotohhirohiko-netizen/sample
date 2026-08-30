@@ -265,6 +265,10 @@ section,
   flex-wrap: wrap;
 }
 
+.clip-bulk-actions {
+  margin-bottom: 8px;
+}
+
 .clip-index {
   flex: 0 0 auto;
   min-width: 1.6em;

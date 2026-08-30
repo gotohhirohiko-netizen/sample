@@ -189,22 +189,23 @@ exportRouter.post("/apply-audio", async (req: Request, res: Response) => {
   res.status(202).json({ jobId });
 });
 
-interface ReplaceClipRequestBody {
+interface ReplaceClipsRequestBody {
   combinedFile?: string;
   clips?: Clip[];
   sources?: ClipSource[];
-  clipId?: string;
+  clipIds?: string[];
 }
 
 /**
- * 結合済み動画のうち指定した1クリップだけをダウンロード・切り出しし直して差し替える。
- * 他のクリップは再ダウンロードせず、既存の結合済み動画から前後をそのまま(無劣化で)
- * 切り出して使い回すため、全体を再書き出しするよりずっと速い。
+ * 結合済み動画のうち指定したクリップ(複数可)だけをダウンロード・切り出しし直して差し替える。
+ * 同じ動画を参照するクリップが複数選ばれていても、その動画のダウンロードは1回で済ませる
+ * (「同じ動画なら同じ問題が起きている」ケースをまとめて直せるようにするため)。
+ * 差し替え対象以外の部分は、既存の結合済み動画から無劣化(-c copy)でそのまま切り出して使い回す。
  */
-exportRouter.post("/replace-clip", async (req: Request, res: Response) => {
-  const body = req.body as ReplaceClipRequestBody;
-  if (!body.combinedFile || !body.clips?.length || !body.sources || !body.clipId) {
-    res.status(400).json({ error: "combinedFile/clips/sources/clipIdは必須です" });
+exportRouter.post("/replace-clips", async (req: Request, res: Response) => {
+  const body = req.body as ReplaceClipsRequestBody;
+  if (!body.combinedFile || !body.clips?.length || !body.sources || !body.clipIds?.length) {
+    res.status(400).json({ error: "combinedFile/clips/sources/clipIdsは必須です" });
     return;
   }
 
@@ -216,15 +217,21 @@ exportRouter.post("/replace-clip", async (req: Request, res: Response) => {
 
   const clips = body.clips;
   const sources = body.sources;
-  const clipIndex = clips.findIndex((c) => c.id === body.clipId);
-  if (clipIndex === -1) {
+  const clipIds = body.clipIds;
+  const clipById = new Map(clips.map((c) => [c.id, c]));
+  const unknownId = clipIds.find((id) => !clipById.has(id));
+  if (unknownId) {
     res
       .status(400)
       .json({ error: "指定されたクリップが見つかりません。クリップ一覧が変わっている可能性があります。" });
     return;
   }
-  const source = sources.find((s) => s.videoId === clips[clipIndex].sourceVideoId);
-  if (!source) {
+
+  const sourceByVideoId = new Map(sources.map((s) => [s.videoId, s]));
+  const missingVideoId = clipIds
+    .map((id) => clipById.get(id)!.sourceVideoId)
+    .find((videoId) => !sourceByVideoId.has(videoId));
+  if (missingVideoId) {
     res.status(400).json({ error: "クリップが参照する動画が見つかりません。" });
     return;
   }
@@ -239,7 +246,7 @@ exportRouter.post("/replace-clip", async (req: Request, res: Response) => {
   const jobId = randomUUID();
   createJob(jobId);
 
-  runReplaceClipPipeline(jobId, combinedPath, clips, clipIndex, source).catch((err: unknown) => {
+  runReplaceClipsPipeline(jobId, combinedPath, clips, new Set(clipIds), sourceByVideoId).catch((err: unknown) => {
     if (err instanceof CancelledError) return;
     setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
   });
@@ -505,19 +512,20 @@ async function runApplyAudioPipeline(
 }
 
 /**
- * 結合済み動画のうち指定した1クリップだけをダウンロード・切り出しし直し、
- * 差し替え対象の前後は結合済み動画からそのまま(無劣化で)切り出して使い回して結合し直す。
+ * 結合済み動画のうち指定したクリップ(複数可)だけをダウンロード・切り出しし直し、
+ * それ以外の部分は結合済み動画からそのまま(無劣化で)切り出して使い回して結合し直す。
  * クリップは元々1本ずつ独立してエンコードされ、その境界がそのままキーフレームになっているため、
  * クリップの境界で切ってもズレは生じない。新しいクリップは既存の結合済み動画と同じ解像度に
  * 合わせて作るため(ダウンロード自体は常に最高画質で行い、trimClipでその解像度に揃える)、
- * ダウンロード時の画質設定を意識する必要はない。
+ * ダウンロード時の画質設定を意識する必要はない。同じ動画を参照するクリップが複数あっても、
+ * その動画のダウンロードは1回で済ませる。
  */
-async function runReplaceClipPipeline(
+async function runReplaceClipsPipeline(
   jobId: string,
   combinedPath: string,
   clips: Clip[],
-  clipIndex: number,
-  source: ClipSource,
+  targetClipIds: Set<string>,
+  sourceByVideoId: Map<string, ClipSource>,
 ): Promise<void> {
   const jobTmpDir = path.join(tmpDir, jobId);
   await mkdir(jobTmpDir, { recursive: true });
@@ -530,35 +538,70 @@ async function runReplaceClipPipeline(
     if (signal.aborted) throw new CancelledError();
     await assertEnoughDiskSpace();
 
-    const clip = clips[clipIndex];
-    const offsetSec = clips.slice(0, clipIndex).reduce((sum, c) => sum + (c.endSec - c.startSec), 0);
-    const clipDurationSec = clip.endSec - clip.startSec;
-    const totalDurationSec = clips.reduce((sum, c) => sum + (c.endSec - c.startSec), 0);
-    const afterStartSec = offsetSec + clipDurationSec;
-
-    setJobStage(jobId, "downloading", 10, `動画を取得中: ${source.title ?? source.youtubeUrl}`);
     const targetResolution = await probeVideoResolution(combinedPath);
-    const sourcePath = await ensureVideoDownloaded(jobTmpDir, source.youtubeUrl, source.videoId, "best", signal);
 
-    if (signal.aborted) throw new CancelledError();
-    setJobStage(jobId, "trimming", 40, "クリップを作り直し中...");
-    const newClipPath = path.join(jobTmpDir, "new-clip.mp4");
-    await trimClip(sourcePath, clip.startSec, clip.endSec, newClipPath, targetResolution, signal);
-    await deleteWithRetry(sourcePath);
+    // 各クリップの、結合済み動画内でのオフセット・長さを先に計算しておく
+    let cursor = 0;
+    const clipTimings = clips.map((c) => {
+      const offsetSec = cursor;
+      cursor += c.endSec - c.startSec;
+      return { clip: c, offsetSec, durationSec: c.endSec - c.startSec };
+    });
 
-    if (signal.aborted) throw new CancelledError();
-    setJobStage(jobId, "concatenating", 70, "結合し直しています...");
-    const segments: string[] = [];
-    if (offsetSec > 0) {
-      const beforePath = path.join(jobTmpDir, "before.mp4");
-      await extractSegmentCopy(combinedPath, beforePath, { durationSec: offsetSec }, signal);
-      segments.push(beforePath);
+    // 差し替え対象のクリップを、参照する動画ごとにまとめる(同じ動画は1回だけダウンロードする)
+    const targetClips = clips.filter((c) => targetClipIds.has(c.id));
+    const videoIds = [...new Set(targetClips.map((c) => c.sourceVideoId))];
+    const newClipPathById = new Map<string, string>();
+
+    for (let vi = 0; vi < videoIds.length; vi++) {
+      if (signal.aborted) throw new CancelledError();
+      await assertEnoughDiskSpace();
+
+      const videoId = videoIds[vi];
+      const source = sourceByVideoId.get(videoId);
+      if (!source) throw new Error(`クリップが参照する動画が見つかりません: ${videoId}`);
+
+      setJobStage(
+        jobId,
+        "downloading",
+        Math.round((vi / videoIds.length) * 50),
+        `動画を取得中 (${vi + 1}/${videoIds.length}): ${source.title ?? source.youtubeUrl}`,
+      );
+      const sourcePath = await ensureVideoDownloaded(jobTmpDir, source.youtubeUrl, videoId, "best", signal);
+
+      const clipsForThisVideo = targetClips.filter((c) => c.sourceVideoId === videoId);
+      for (let ci = 0; ci < clipsForThisVideo.length; ci++) {
+        if (signal.aborted) throw new CancelledError();
+        const clip = clipsForThisVideo[ci];
+        setJobStage(
+          jobId,
+          "trimming",
+          Math.round(((vi + ci / clipsForThisVideo.length) / videoIds.length) * 50) + 5,
+          `クリップを作り直し中: ${clip.label || "無題"}`,
+        );
+        const newClipPath = path.join(jobTmpDir, `new-${clip.id}.mp4`);
+        await trimClip(sourcePath, clip.startSec, clip.endSec, newClipPath, targetResolution, signal);
+        newClipPathById.set(clip.id, newClipPath);
+      }
+      await deleteWithRetry(sourcePath);
     }
-    segments.push(newClipPath);
-    if (afterStartSec < totalDurationSec - 0.05) {
-      const afterPath = path.join(jobTmpDir, "after.mp4");
-      await extractSegmentCopy(combinedPath, afterPath, { startSec: afterStartSec }, signal);
-      segments.push(afterPath);
+
+    if (signal.aborted) throw new CancelledError();
+    setJobStage(jobId, "concatenating", 80, "結合し直しています...");
+
+    // 全クリップ分のセグメントを元の並び順通りに組み立てる
+    // (差し替え対象は作り直したクリップ、それ以外は結合済み動画から無劣化コピー)
+    const segments: string[] = [];
+    for (let i = 0; i < clipTimings.length; i++) {
+      const { clip, offsetSec, durationSec } = clipTimings[i];
+      const newPath = newClipPathById.get(clip.id);
+      if (newPath) {
+        segments.push(newPath);
+        continue;
+      }
+      const keepPath = path.join(jobTmpDir, `keep-${i}.mp4`);
+      await extractSegmentCopy(combinedPath, keepPath, { startSec: offsetSec, durationSec }, signal);
+      segments.push(keepPath);
     }
 
     const finalTmpPath = path.join(jobTmpDir, "final.mp4");
