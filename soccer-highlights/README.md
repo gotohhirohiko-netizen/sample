@@ -89,6 +89,38 @@ YTDLP_EXTRA_ARGS=--extractor-args youtube:player_client=android
 対策強化とyt-dlp側の対応が繰り返されるたびに有効なものが変わるため、うまくいかない場合は
 「yt-dlp 403 player_client」などで最新の回避策を検索し、その値を`YTDLP_EXTRA_ARGS`に設定すること。
 
+### 画質が異常に低い(360p止まり等)、または`-v`のログに「SABR」という文字が出る場合
+
+`yt-dlp -v ...`で実行した際に以下のような警告が出ている場合、これは403とは別種の問題で、
+**YouTube側が進めている新しい配信方式「SABR」の実験的ロールアウト**が原因であることが多い
+(2025年後半以降に広がった、yt-dlp側もリアルタイムで追いかけている既知の問題。
+[yt-dlp issue #12482](https://github.com/yt-dlp/yt-dlp/issues/12482)を参照)。
+
+```
+WARNING: [youtube] <videoId>: Some android client https formats have been skipped as they are missing a URL.
+YouTube may have enabled the SABR-only streaming experiment for the current session.
+[info] <videoId>: Downloading 1 format(s): 18
+```
+
+SABR対象のセッションでは高画質(DASH/adaptive)形式にダウンロード用の直接URLが返されなくなり、
+yt-dlpは仕方なく大昔からある互換用の低画質形式(itag 18 = 640×360程度)まで落とさざるを得なくなる。
+Cookieやplayer_clientの変更だけでは、SABR適用中はそもそも高画質URLが返ってこないため回避できない。
+
+対処法:
+
+1. **yt-dlpを最新版に更新する(最重要)**。SABR対策はyt-dlp側の更新で頻繁に修正されるため、
+   少しでも古いと同じ問題に当たり続ける。
+   ```powershell
+   yt-dlp -U
+   ```
+2. `player_client`に`mweb`(モバイルWeb)も加えて試す(SABR未適用の場合がある)。
+   ```
+   YTDLP_EXTRA_ARGS=--extractor-args youtube:player_client=mweb,web_safari,android,tv
+   ```
+3. それでも解消しない場合、現状ではyt-dlp側の対応待ちになっている可能性が高い。PO tokenプロバイダー
+   のプラグイン([bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider)等)
+   導入という、よりセットアップが複雑な回避策も存在するが、まずは1のyt-dlp更新を定期的に試すこと。
+
 ### `Got error: N bytes read, M more expected. Giving up after 10 retries` が出る場合
 
 ダウンロード中に接続が切れてしまう、ネットワーク起因のエラー。まずはもう一度同じ操作を試すこと
