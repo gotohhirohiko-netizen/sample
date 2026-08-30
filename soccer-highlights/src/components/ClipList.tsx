@@ -10,13 +10,23 @@ interface Props {
   onSeek: (clip: Clip) => void;
   onRelabel: (id: string, label: string) => void;
   onUpdateTime: (id: string, field: "start" | "end", seconds: number) => void;
+  onRefreshSourceTitle: (videoId: string) => void;
 }
 
 function commitOnEnter(e: KeyboardEvent<HTMLInputElement>) {
   if (e.key === "Enter") e.currentTarget.blur();
 }
 
-export function ClipList({ clips, sources, onReorder, onRemove, onSeek, onRelabel, onUpdateTime }: Props) {
+export function ClipList({
+  clips,
+  sources,
+  onReorder,
+  onRemove,
+  onSeek,
+  onRelabel,
+  onUpdateTime,
+  onRefreshSourceTitle,
+}: Props) {
   if (clips.length === 0) {
     return <p className="empty-hint">まだクリップがありません。動画を再生しながら区間を追加してください。</p>;
   }
@@ -62,6 +72,14 @@ export function ClipList({ clips, sources, onReorder, onRemove, onSeek, onRelabe
             onKeyDown={commitOnEnter}
           />
           <span className="clip-source-title">{titleFor(clip.sourceVideoId)}</span>
+          <button
+            type="button"
+            className="clip-refresh-title"
+            onClick={() => onRefreshSourceTitle(clip.sourceVideoId)}
+            title="この動画のタイトルを取得し直す(文字化けの修正など)"
+          >
+            🔄
+          </button>
           <span className="clip-time-edit">
             <input
               type="text"

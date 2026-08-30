@@ -292,6 +292,13 @@ section,
   text-overflow: ellipsis;
 }
 
+.clip-refresh-title {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
 .clip-time-edit {
   display: flex;
   align-items: center;

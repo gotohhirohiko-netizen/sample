@@ -8,6 +8,7 @@ import { ProjectPanel, type SaveStatus } from "./components/ProjectPanel.tsx";
 import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
 import {
+  resolveSource,
   saveProject,
   type CombinedVideoInfo,
   type PlaylistVideo,
@@ -159,6 +160,19 @@ export default function App() {
     setActiveVideoId(meta.videoId);
     setPlayerErrorCode(null);
     playerRef.current?.loadVideo(meta.videoId);
+  };
+
+  /** URLを貼り直さなくても、保存済みのURLからタイトルだけ取得し直せるようにする
+   * (以前の文字化けしたタイトルが残っている場合の修正手段)。 */
+  const handleRefreshSourceTitle = async (videoId: string) => {
+    const source = sources.find((s) => s.videoId === videoId);
+    if (!source) return;
+    try {
+      const meta = await resolveSource(source.youtubeUrl);
+      setSources((prev) => prev.map((s) => (s.videoId === videoId ? { ...s, title: meta.title } : s)));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleAddClip = (startSec: number, endSec: number, label: string): string | null => {
@@ -315,6 +329,7 @@ export default function App() {
               onSeek={handleSeek}
               onRelabel={handleRelabel}
               onUpdateTime={handleUpdateTime}
+              onRefreshSourceTitle={(videoId) => void handleRefreshSourceTitle(videoId)}
             />
           </section>
 
