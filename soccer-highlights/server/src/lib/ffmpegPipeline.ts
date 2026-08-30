@@ -1,16 +1,40 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { VideoQuality } from "../types.ts";
 import { runCommand } from "./spawnUtil.ts";
 
-/** クリップをフレーム精度で切り出す(再エンコードするため若干時間がかかる)。 */
+export interface TargetResolution {
+  width: number;
+  height: number;
+}
+
+/** 画質設定ごとに、クリップ切り出し時に統一する解像度(キャンバスサイズ)。
+ * "best"は動画ごとに実際に取得できる解像度が(4K/1080p等)バラつくため、
+ * 常にこの解像度に揃えることでconcat時のカクつきを防ぐ。 */
+export const QUALITY_TARGET_RESOLUTION: Record<VideoQuality, TargetResolution> = {
+  best: { width: 3840, height: 2160 },
+  "1080": { width: 1920, height: 1080 },
+  "720": { width: 1280, height: 720 },
+};
+
+/**
+ * クリップをフレーム精度で切り出す(再エンコードするため若干時間がかかる)。
+ * 参照元の動画ごとに実際の解像度・フレームレート・音声サンプルレートが異なることがある
+ * (同じ「最高画質」設定でも、動画によって4Kだったり1080pだったりする)。揃えないまま
+ * 後段のconcat demuxer(-c copy、無劣化結合)にかけると、コマ送りのようなカクつきや
+ * 音ズレが起きることがあるため、targetResolutionに合わせてスケール+パディングし、
+ * フレームレート・音声サンプルレートも固定して、常に同一パラメータになるようにする。
+ */
 export async function trimClip(
   sourcePath: string,
   startSec: number,
   endSec: number,
   outPath: string,
+  targetResolution: TargetResolution,
   signal?: AbortSignal,
 ): Promise<void> {
   const duration = endSec - startSec;
+  const { width, height } = targetResolution;
   await runCommand(
     "ffmpeg",
     [
@@ -21,6 +45,10 @@ export async function trimClip(
       sourcePath,
       "-t",
       String(duration),
+      "-vf",
+      `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1`,
+      "-r",
+      "30",
       "-c:v",
       "libx264",
       "-preset",
@@ -29,6 +57,8 @@ export async function trimClip(
       "20",
       "-c:a",
       "aac",
+      "-ar",
+      "48000",
       "-movflags",
       "+faststart",
       outPath,

@@ -5,7 +5,7 @@ import path from "node:path";
 import express, { type Request, type Response } from "express";
 import { outputDir, projectMusicDir, tmpDir } from "../config.ts";
 import { assertEnoughDiskSpace, formatBytesAsGb, getFreeDiskSpaceBytes } from "../lib/diskSpace.ts";
-import { concatClips, replaceAudioWithMusicTracks, trimClip } from "../lib/ffmpegPipeline.ts";
+import { concatClips, QUALITY_TARGET_RESOLUTION, replaceAudioWithMusicTracks, trimClip } from "../lib/ffmpegPipeline.ts";
 import {
   cancelJob,
   clearJobController,
@@ -316,7 +316,14 @@ async function runCombinePipeline(jobId: string, workKey: string, body: CombineR
           Math.round((completedClips / totalClips) * 80),
           `クリップを切り出し中 (${completedClips + 1}/${totalClips}): ${clip.label || "無題"}`,
         );
-        await trimClip(sourcePath, clip.startSec, clip.endSec, clipOutputPath(paths, clip.id), signal);
+        await trimClip(
+          sourcePath,
+          clip.startSec,
+          clip.endSec,
+          clipOutputPath(paths, clip.id),
+          QUALITY_TARGET_RESOLUTION[meta.quality],
+          signal,
+        );
         completedClips++;
 
         if (isPauseRequested(jobId)) {
