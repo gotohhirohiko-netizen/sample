@@ -416,6 +416,22 @@ section,
   flex: 0 0 auto;
 }
 
+.music-track-coverage {
+  font-size: 0.85rem;
+  color: #666;
+  flex: 1 1 220px;
+}
+
+.music-track-coverage.music-coverage-cut {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.music-track-coverage.music-coverage-unused {
+  color: #999;
+  font-style: italic;
+}
+
 .music-coverage {
   font-size: 0.9rem;
   font-weight: 600;

@@ -215,29 +215,46 @@ export function ApplyAudioPanel({ combinedVideo, clips, projectName, musicTracks
 
       {musicTracks.length > 0 && (
         <ol className="music-track-list">
-          {musicTracks.map((t, i) => (
-            <li key={t.id} className="music-track-row">
-              <span className="music-track-name">
-                {i + 1}. {t.fileName}
-              </span>
-              <span className="music-track-duration">{formatTime(t.durationSec)}</span>
-              <div className="clip-actions">
-                <button type="button" onClick={() => handleReorderTrack(i, i - 1)} disabled={i === 0}>
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleReorderTrack(i, i + 1)}
-                  disabled={i === musicTracks.length - 1}
-                >
-                  ↓
-                </button>
-                <button type="button" onClick={() => void handleRemoveTrack(t.id)}>
-                  削除
-                </button>
-              </div>
-            </li>
-          ))}
+          {musicTracks.map((t, i) => {
+            const startSec = musicTracks.slice(0, i).reduce((sum, m) => sum + m.durationSec, 0);
+            const endSec = startSec + t.durationSec;
+            const videoDurationSec = combinedVideo.durationSec;
+            let coverageNote: string | null = null;
+            let coverageClass = "";
+            if (startSec >= videoDurationSec) {
+              coverageNote = "動画の尺を超えるため使われない";
+              coverageClass = "music-coverage-unused";
+            } else if (endSec > videoDurationSec) {
+              coverageNote = `動画の${formatTime(videoDurationSec)}で打ち切り(この曲は${formatTime(videoDurationSec - startSec)}までしか流れない)`;
+              coverageClass = "music-coverage-cut";
+            } else {
+              coverageNote = `動画の${formatTime(endSec)}時点まで再生`;
+            }
+            return (
+              <li key={t.id} className="music-track-row">
+                <span className="music-track-name">
+                  {i + 1}. {t.fileName}
+                </span>
+                <span className="music-track-duration">{formatTime(t.durationSec)}</span>
+                <span className={`music-track-coverage ${coverageClass}`}>{coverageNote}</span>
+                <div className="clip-actions">
+                  <button type="button" onClick={() => handleReorderTrack(i, i - 1)} disabled={i === 0}>
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReorderTrack(i, i + 1)}
+                    disabled={i === musicTracks.length - 1}
+                  >
+                    ↓
+                  </button>
+                  <button type="button" onClick={() => void handleRemoveTrack(t.id)}>
+                    削除
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ol>
       )}
 
