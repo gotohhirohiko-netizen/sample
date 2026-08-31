@@ -113,6 +113,17 @@ section,
   width: auto;
 }
 
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
 .project-name-row {
   display: flex;
   gap: 8px;

@@ -31,6 +31,7 @@ export function ReplaceAudioFromPanel({ projectName, musicTracks }: Props) {
   const [selectedFile, setSelectedFile] = useState("");
   const [beforeAudioFile, setBeforeAudioFile] = useState("");
   const [cutTimeText, setCutTimeText] = useState("");
+  const [overwriteSource, setOverwriteSource] = useState(false);
   const [outputName, setOutputName] = useState("highlight-audio-fixed");
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
@@ -66,6 +67,12 @@ export function ReplaceAudioFromPanel({ projectName, musicTracks }: Props) {
 
   const handleSubmit = async () => {
     if (!selectedFile || cutSec === null || !projectName || isRunning) return;
+    if (overwriteSource) {
+      const proceed = window.confirm(
+        `「${selectedFile}」をこの結果で上書きします。元のファイルの内容は失われます。よろしいですか?`,
+      );
+      if (!proceed) return;
+    }
     setError(null);
     setStarting(true);
     try {
@@ -75,6 +82,7 @@ export function ReplaceAudioFromPanel({ projectName, musicTracks }: Props) {
         cutSec,
         projectName,
         musicTracks.map((t) => t.id),
+        overwriteSource,
         outputName.trim() || "highlight-audio-fixed",
       );
       setJobId(newJobId);
@@ -151,15 +159,28 @@ export function ReplaceAudioFromPanel({ projectName, musicTracks }: Props) {
         <p className="error-text">時間の形式が不正(mm:ss または h:mm:ss で入力)</p>
       )}
 
-      <label>
-        書き出しファイル名
+      <label className="checkbox-label">
         <input
-          type="text"
-          value={outputName}
-          onChange={(e) => setOutputName(e.target.value)}
+          type="checkbox"
+          checked={overwriteSource}
+          onChange={(e) => setOverwriteSource(e.target.checked)}
           disabled={isRunning}
         />
+        ①のファイルをこの結果で上書きする(新しいファイルを作らずディスク使用量を抑える。元のファイルの
+        内容は失われる)
       </label>
+
+      {!overwriteSource && (
+        <label>
+          書き出しファイル名
+          <input
+            type="text"
+            value={outputName}
+            onChange={(e) => setOutputName(e.target.value)}
+            disabled={isRunning}
+          />
+        </label>
+      )}
 
       <div className="export-start-row">
         <button

@@ -262,6 +262,7 @@ interface ReplaceAudioFromRequestBody {
   beforeAudioFile?: string;
   cutSec?: number;
   outputName?: string;
+  overwriteSource?: boolean;
   projectName?: string;
   musicTrackIds?: string[];
 }
@@ -331,6 +332,7 @@ exportRouter.post("/replace-audio-from", async (req: Request, res: Response) => 
     beforeAudioPath,
     body.cutSec,
     musicPaths,
+    Boolean(body.overwriteSource),
     body.outputName,
   ).catch((err: unknown) => {
     if (err instanceof CancelledError) return;
@@ -725,6 +727,7 @@ async function runReplaceAudioFromPipeline(
   beforeAudioPath: string | null,
   cutSec: number,
   musicPaths: string[],
+  overwriteSource: boolean,
   outputName: string | undefined,
 ): Promise<void> {
   const jobTmpDir = path.join(tmpDir, jobId);
@@ -763,14 +766,21 @@ async function runReplaceAudioFromPipeline(
     const finalTmpPath = path.join(jobTmpDir, "final.mp4");
     await concatClips([beforePath, afterPath], finalTmpPath, jobTmpDir, signal);
 
-    const safeName = sanitizeFileName(outputName) ?? `highlight-audio-fixed-${jobId.slice(0, 8)}`;
-    const outputFile = `${safeName}.mp4`;
-    if (outputFile === path.basename(sourcePath)) {
-      throw new Error("出力ファイル名が元の動画と同じです。別の名前を指定してください。");
+    let outputFile: string;
+    if (overwriteSource) {
+      // ①のファイルサイズをそのまま抑えたい場合、新規ファイルを作らずその場で上書きする。
+      outputFile = path.basename(sourcePath);
+      await rm(sourcePath, { force: true });
+      await rename(finalTmpPath, sourcePath);
+    } else {
+      const safeName = sanitizeFileName(outputName) ?? `highlight-audio-fixed-${jobId.slice(0, 8)}`;
+      outputFile = `${safeName}.mp4`;
+      if (outputFile === path.basename(sourcePath)) {
+        throw new Error("出力ファイル名が元の動画と同じです。別の名前を指定してください。");
+      }
+      await mkdir(outputDir, { recursive: true });
+      await rename(finalTmpPath, path.join(outputDir, outputFile));
     }
-
-    await mkdir(outputDir, { recursive: true });
-    await rename(finalTmpPath, path.join(outputDir, outputFile));
     await rm(jobTmpDir, { recursive: true, force: true });
 
     setJobStage(jobId, "done", 100, "完了しました");
