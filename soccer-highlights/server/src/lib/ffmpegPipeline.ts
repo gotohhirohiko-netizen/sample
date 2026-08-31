@@ -172,76 +172,45 @@ export async function replaceAudioWithMusicTracks(
 }
 
 /**
- * videoPathの映像と、audioPathの音声(どちらも先頭からdurationSec分)を組み合わせて
- * 1本にする。「新しく作り直した動画(映像)」に「以前作成した動画の音声(既に選んだ音楽が
- * 焼き込まれている)」を、指定した長さの分だけ流用したい場合に使う。
- * どちらも先頭(0秒)からの切り出しのみなので、-c:v copyでも精度の問題は起きない。
+ * videoPathの映像はそのまま(-c:v copy、再エンコードなし)保ちつつ、音声だけを
+ * cutSecより前はbeforeAudioPath(nullならvideoPath自身)の音声、cutSec以降は
+ * musicPaths(連結+パディング)に差し替えて、1回のffmpeg実行で直接書き出す。
+ * 中間ファイル(差し替え前後を別々に書き出してから結合する等)を作らないため、
+ * 映像を含む巨大な一時ファイルでディスクを圧迫することがない。
+ * 音声だけを扱うため、映像の途中シークにありがちなキーフレーム精度の問題も生じない。
  */
-export async function muxVideoWithAudioFrom(
+export async function replaceAudioSplit(
   videoPath: string,
-  audioPath: string,
-  durationSec: number,
-  outPath: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  await runCommand(
-    "ffmpeg",
-    [
-      "-y",
-      "-i",
-      videoPath,
-      "-i",
-      audioPath,
-      "-t",
-      String(durationSec),
-      "-map",
-      "0:v:0",
-      "-map",
-      "1:a:0",
-      "-c:v",
-      "copy",
-      "-c:a",
-      "aac",
-      "-ar",
-      "48000",
-      "-shortest",
-      "-movflags",
-      "+faststart",
-      outPath,
-    ],
-    signal,
-  );
-}
-
-/**
- * 動画のstartSec以降の部分について、映像はそのまま(内容は変えない)、音声だけを
- * 指定したmusicPaths(連結+パディング)に差し替える。startSecより前の部分は
- * 呼び出し側でextractSegmentCopyしたものと後で結合する想定。
- * -ssによる入力シークは-c:v copyだとキーフレーム単位でしか正確に切れないため、
- * ここでは映像を再エンコードしてフレーム精度でのシークを保証する
- * (解像度・フレームレートは指定せず、元の値をそのまま維持する)。
- */
-export async function replaceAudioFromOffset(
-  sourcePath: string,
-  startSec: number,
+  beforeAudioPath: string | null,
+  cutSec: number,
+  totalDurationSec: number,
   musicPaths: string[],
   outPath: string,
   signal?: AbortSignal,
 ): Promise<void> {
+  const afterDurationSec = totalDurationSec - cutSec;
+  const beforeAudioInputPath = beforeAudioPath ?? videoPath;
+  const inputs = [videoPath, beforeAudioInputPath, ...musicPaths];
+  const musicStartIndex = 2;
   const n = musicPaths.length;
-  const audioInputs = musicPaths.map((_, i) => `[${i + 1}:a]`).join("");
-  const filterComplex =
-    n === 1 ? "[1:a]apad[aout]" : `${audioInputs}concat=n=${n}:v=0:a=1[acat];[acat]apad[aout]`;
+  const musicInputs = musicPaths.map((_, i) => `[${musicStartIndex + i}:a]`).join("");
+  const musicConcat =
+    n === 1
+      ? `[${musicStartIndex}:a]apad[mpad]`
+      : `${musicInputs}concat=n=${n}:v=0:a=1[mcat];[mcat]apad[mpad]`;
+
+  const filterComplex = [
+    `[1:a]atrim=0:${cutSec},asetpts=PTS-STARTPTS[before_a]`,
+    musicConcat,
+    `[mpad]atrim=0:${afterDurationSec},asetpts=PTS-STARTPTS[after_a]`,
+    `[before_a][after_a]concat=n=2:v=0:a=1[aout]`,
+  ].join(";");
 
   await runCommand(
     "ffmpeg",
     [
       "-y",
-      "-ss",
-      String(startSec),
-      "-i",
-      sourcePath,
-      ...musicPaths.flatMap((p) => ["-i", p]),
+      ...inputs.flatMap((p) => ["-i", p]),
       "-filter_complex",
       filterComplex,
       "-map",
@@ -249,16 +218,11 @@ export async function replaceAudioFromOffset(
       "-map",
       "[aout]",
       "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "20",
+      "copy",
       "-c:a",
       "aac",
       "-ar",
       "48000",
-      "-shortest",
       "-movflags",
       "+faststart",
       outPath,

@@ -9,10 +9,9 @@ import { assertEnoughDiskSpace, formatBytesAsGb, getFreeDiskSpaceBytes } from ".
 import {
   concatClips,
   extractSegmentCopy,
-  muxVideoWithAudioFrom,
   probeVideoResolution,
   QUALITY_TARGET_RESOLUTION,
-  replaceAudioFromOffset,
+  replaceAudioSplit,
   replaceAudioWithMusicTracks,
   trimClip,
 } from "../lib/ffmpegPipeline.ts";
@@ -726,11 +725,11 @@ async function runReplaceClipsPipeline(
 }
 
 /**
- * 任意の動画ファイル(sourcePath)について、cutSecより前は映像はsourcePathのまま・音声は
- * sourcePath自身(beforeAudioPathが指定されていればそちらの音声)を保持し、それ以降は
- * 映像はsourcePathのまま音声だけmusicPathsに差し替えて新しいファイルとして書き出す。
- * cutSec以降は映像を再エンコードしてフレーム精度で切り出すため(-c copyでの入力シークは
- * キーフレーム単位でしかズレなく切れないため)、cutSec未満の部分との結合時にズレは生じない。
+ * 任意の動画ファイル(sourcePath)について、映像は常にsourcePathのまま(再エンコードなし)、
+ * cutSecより前の音声はsourcePath自身(beforeAudioPathが指定されていればそちらの音声)を、
+ * それ以降の音声はmusicPathsを、1回のffmpeg実行で直接組み合わせて書き出す。
+ * 差し替え前後を別ファイルに分けてから結合する方式だと、映像を含む巨大な中間ファイルが
+ * ディスクを一時的に圧迫してしまうため、中間ファイルを作らない一括処理にしている。
  */
 async function runReplaceAudioFromPipeline(
   jobId: string,
@@ -759,24 +758,19 @@ async function runReplaceAudioFromPipeline(
       );
     }
 
-    setJobStage(jobId, "trimming", 20, "指定位置より前を保持中...");
-    const beforePath = path.join(jobTmpDir, "before.mp4");
-    if (beforeAudioPath) {
-      await muxVideoWithAudioFrom(sourcePath, beforeAudioPath, cutSec, beforePath, signal);
-    } else {
-      await extractSegmentCopy(sourcePath, beforePath, { durationSec: cutSec }, signal);
-    }
-
-    if (signal.aborted) throw new CancelledError();
-    setJobStage(jobId, "applying-audio", 50, "指定位置以降の音声を差し替え中...");
-    const afterPath = path.join(jobTmpDir, "after.mp4");
-    await replaceAudioFromOffset(sourcePath, cutSec, musicPaths, afterPath, signal);
-
-    if (signal.aborted) throw new CancelledError();
-    setJobStage(jobId, "concatenating", 85, "結合しています...");
+    setJobStage(jobId, "applying-audio", 40, "音声を差し替え中...");
     const finalTmpPath = path.join(jobTmpDir, "final.mp4");
-    await concatClips([beforePath, afterPath], finalTmpPath, jobTmpDir, signal);
+    await replaceAudioSplit(
+      sourcePath,
+      beforeAudioPath,
+      cutSec,
+      totalDurationSec,
+      musicPaths,
+      finalTmpPath,
+      signal,
+    );
 
+    if (signal.aborted) throw new CancelledError();
     let outputFile: string;
     if (overwriteSource) {
       // ①のファイルサイズをそのまま抑えたい場合、新規ファイルを作らずその場で上書きする。
