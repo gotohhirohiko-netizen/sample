@@ -172,6 +172,48 @@ export async function replaceAudioWithMusicTracks(
 }
 
 /**
+ * videoPathの映像と、audioPathの音声(どちらも先頭からdurationSec分)を組み合わせて
+ * 1本にする。「新しく作り直した動画(映像)」に「以前作成した動画の音声(既に選んだ音楽が
+ * 焼き込まれている)」を、指定した長さの分だけ流用したい場合に使う。
+ * どちらも先頭(0秒)からの切り出しのみなので、-c:v copyでも精度の問題は起きない。
+ */
+export async function muxVideoWithAudioFrom(
+  videoPath: string,
+  audioPath: string,
+  durationSec: number,
+  outPath: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await runCommand(
+    "ffmpeg",
+    [
+      "-y",
+      "-i",
+      videoPath,
+      "-i",
+      audioPath,
+      "-t",
+      String(durationSec),
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-ar",
+      "48000",
+      "-shortest",
+      "-movflags",
+      "+faststart",
+      outPath,
+    ],
+    signal,
+  );
+}
+
+/**
  * 動画のstartSec以降の部分について、映像はそのまま(内容は変えない)、音声だけを
  * 指定したmusicPaths(連結+パディング)に差し替える。startSecより前の部分は
  * 呼び出し側でextractSegmentCopyしたものと後で結合する想定。

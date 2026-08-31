@@ -186,12 +186,16 @@ export function replaceClips(
 }
 
 /**
- * data/output/内の任意の動画ファイル(クリップ一覧や音楽トラックの記録が残っていない古い
- * 書き出し結果でもよい)について、指定した時点より前はそのまま保持し、それ以降だけ音声を
- * 指定したmp3群に差し替えて新しいファイルとして書き出す。
+ * data/output/内の任意の動画ファイル(sourceFile。クリップ一覧や音楽トラックの記録が
+ * 残っていない古い書き出し結果でもよい)について、映像は常にsourceFileのものを使いつつ、
+ * 指定した時点より前の音声はsourceFile自身(beforeAudioFileを指定すればそちらの音声)を
+ * 保持し、それ以降だけ音声を指定したmp3群に差し替えて新しいファイルとして書き出す。
+ * beforeAudioFileは、クリップを追加してsourceFileを作り直した際、追加前の動画に既に
+ * 焼き込んであった音楽をそのまま前半部分に引き継ぎたい場合に指定する。
  */
 export function replaceAudioFrom(
   sourceFile: string,
+  beforeAudioFile: string | null,
   cutSec: number,
   projectName: string,
   musicTrackIds: string[],
@@ -200,7 +204,14 @@ export function replaceAudioFrom(
   return fetch("/api/export/replace-audio-from", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sourceFile, cutSec, projectName, musicTrackIds, outputName }),
+    body: JSON.stringify({
+      sourceFile,
+      beforeAudioFile: beforeAudioFile ?? undefined,
+      cutSec,
+      projectName,
+      musicTrackIds,
+      outputName,
+    }),
   }).then((res) => asJson<{ jobId: string }>(res));
 }
 

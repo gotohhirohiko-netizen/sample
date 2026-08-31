@@ -9,6 +9,7 @@ import { assertEnoughDiskSpace, formatBytesAsGb, getFreeDiskSpaceBytes } from ".
 import {
   concatClips,
   extractSegmentCopy,
+  muxVideoWithAudioFrom,
   probeVideoResolution,
   QUALITY_TARGET_RESOLUTION,
   replaceAudioFromOffset,
@@ -258,6 +259,7 @@ exportRouter.post("/replace-clips", async (req: Request, res: Response) => {
 
 interface ReplaceAudioFromRequestBody {
   sourceFile?: string;
+  beforeAudioFile?: string;
   cutSec?: number;
   outputName?: string;
   projectName?: string;
@@ -265,11 +267,15 @@ interface ReplaceAudioFromRequestBody {
 }
 
 /**
- * data/output/内の任意の動画ファイル(クリップ一覧や音楽トラックの記録が残っていない
- * 古い書き出し結果でもよい)について、指定した時点より前はそのまま保持し、それ以降だけ
- * 音声を指定したmp3群に差し替えて新しいファイルとして書き出す。
- * 「複数の曲を1本の動画に適用したら最後の曲が途中で切れてしまった」場合に、切れている
- * 曲の手前で区切って別の曲を差し込み直す、といった用途を想定している。
+ * data/output/内の任意の動画ファイル(sourceFile。クリップ一覧や音楽トラックの記録が
+ * 残っていない古い書き出し結果でもよい)について、指定した時点より前はsourceFile自身の
+ * 音声(beforeAudioFileが指定されていればそちらの音声)を保ちつつsourceFileの映像を使い、
+ * それ以降は映像はsourceFileのまま、音声だけ指定したmp3群に差し替えて新しいファイルとして
+ * 書き出す。「複数の曲を1本の動画に適用したら最後の曲が途中で切れてしまった」場合に、
+ * 切れている曲の手前で区切って別の曲を差し込み直す、といった用途を想定している。
+ * beforeAudioFileは、クリップを追加して動画(sourceFile)を作り直した際、追加前の
+ * 動画に既に焼き込んであった音楽をそのまま前半部分に引き継ぎたい場合に指定する
+ * (映像は常にsourceFileのものを使う)。
  */
 exportRouter.post("/replace-audio-from", async (req: Request, res: Response) => {
   const body = req.body as ReplaceAudioFromRequestBody;
@@ -293,6 +299,15 @@ exportRouter.post("/replace-audio-from", async (req: Request, res: Response) => 
     return;
   }
 
+  let beforeAudioPath: string | null = null;
+  if (body.beforeAudioFile) {
+    beforeAudioPath = path.join(outputDir, path.basename(body.beforeAudioFile));
+    if (!existsSync(beforeAudioPath)) {
+      res.status(404).json({ error: "音声を引き継ぐ元の動画ファイルが見つかりません。" });
+      return;
+    }
+  }
+
   const musicDir = projectMusicDir(projectKey);
   const musicPaths = body.musicTrackIds.map((id) => path.join(musicDir, `${id}.mp3`));
   if (musicPaths.some((p) => !existsSync(p))) {
@@ -310,12 +325,17 @@ exportRouter.post("/replace-audio-from", async (req: Request, res: Response) => 
   const jobId = randomUUID();
   createJob(jobId);
 
-  runReplaceAudioFromPipeline(jobId, sourcePath, body.cutSec, musicPaths, body.outputName).catch(
-    (err: unknown) => {
-      if (err instanceof CancelledError) return;
-      setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
-    },
-  );
+  runReplaceAudioFromPipeline(
+    jobId,
+    sourcePath,
+    beforeAudioPath,
+    body.cutSec,
+    musicPaths,
+    body.outputName,
+  ).catch((err: unknown) => {
+    if (err instanceof CancelledError) return;
+    setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
+  });
 
   res.status(202).json({ jobId });
 });
@@ -693,14 +713,16 @@ async function runReplaceClipsPipeline(
 }
 
 /**
- * 任意の動画ファイルについて、cutSecより前はそのまま保持し、それ以降だけ音声をmusicPathsに
- * 差し替えて新しいファイルとして書き出す。cutSec以降は映像を再エンコードしてフレーム精度で
- * 切り出すため(-c copyでの入力シークはキーフレーム単位でしかズレなく切れないため)、
- * cutSec未満の部分との結合時にズレは生じない。
+ * 任意の動画ファイル(sourcePath)について、cutSecより前は映像はsourcePathのまま・音声は
+ * sourcePath自身(beforeAudioPathが指定されていればそちらの音声)を保持し、それ以降は
+ * 映像はsourcePathのまま音声だけmusicPathsに差し替えて新しいファイルとして書き出す。
+ * cutSec以降は映像を再エンコードしてフレーム精度で切り出すため(-c copyでの入力シークは
+ * キーフレーム単位でしかズレなく切れないため)、cutSec未満の部分との結合時にズレは生じない。
  */
 async function runReplaceAudioFromPipeline(
   jobId: string,
   sourcePath: string,
+  beforeAudioPath: string | null,
   cutSec: number,
   musicPaths: string[],
   outputName: string | undefined,
@@ -725,7 +747,11 @@ async function runReplaceAudioFromPipeline(
 
     setJobStage(jobId, "trimming", 20, "指定位置より前を保持中...");
     const beforePath = path.join(jobTmpDir, "before.mp4");
-    await extractSegmentCopy(sourcePath, beforePath, { durationSec: cutSec }, signal);
+    if (beforeAudioPath) {
+      await muxVideoWithAudioFrom(sourcePath, beforeAudioPath, cutSec, beforePath, signal);
+    } else {
+      await extractSegmentCopy(sourcePath, beforePath, { durationSec: cutSec }, signal);
+    }
 
     if (signal.aborted) throw new CancelledError();
     setJobStage(jobId, "applying-audio", 50, "指定位置以降の音声を差し替え中...");

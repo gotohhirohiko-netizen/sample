@@ -29,6 +29,7 @@ const stageLabel: Record<JobStage, string> = {
 export function ReplaceAudioFromPanel({ projectName, musicTracks }: Props) {
   const [outputs, setOutputs] = useState<OutputFile[]>([]);
   const [selectedFile, setSelectedFile] = useState("");
+  const [beforeAudioFile, setBeforeAudioFile] = useState("");
   const [cutTimeText, setCutTimeText] = useState("");
   const [outputName, setOutputName] = useState("highlight-audio-fixed");
   const [jobId, setJobId] = useState<string | null>(null);
@@ -70,6 +71,7 @@ export function ReplaceAudioFromPanel({ projectName, musicTracks }: Props) {
     try {
       const { jobId: newJobId } = await replaceAudioFrom(
         selectedFile,
+        beforeAudioFile || null,
         cutSec,
         projectName,
         musicTracks.map((t) => t.id),
@@ -101,14 +103,14 @@ export function ReplaceAudioFromPanel({ projectName, musicTracks }: Props) {
     <section className="apply-audio-panel">
       <h2>既存の動画の音声を途中から差し替える</h2>
       <p className="hint">
-        クリップ一覧や当時の音楽トラックの記録が残っていない古い書き出し済み動画でも、指定した時点より前は
-        そのまま保持し、それ以降だけ上の「音楽を追加」欄に現在並んでいる曲(この並び順)に差し替えて
-        新しいファイルとして書き出せる。曲の途中で切れてしまった動画の、切れる手前で区切って別の曲を
-        差し込み直す、といった用途に使う。
+        映像は常に①の動画のものを使う。指定した時点より前の音声は①自身のもの(②を指定すればそちらの音声)を
+        保ち、それ以降だけ上の「音楽を追加」欄に現在並んでいる曲(③・この並び順)に差し替えて、新しいファイルとして
+        書き出す。クリップを追加して動画を作り直したが、前半部分は以前選んだ音楽をそのまま使いたい、
+        といった場合に②を指定する(映像は常に①が使われ、②の映像は使われない)。
       </p>
 
       <label>
-        対象の動画ファイル
+        ① 映像のベースにする動画ファイル
         <select value={selectedFile} onChange={(e) => setSelectedFile(e.target.value)} disabled={isRunning}>
           <option value="">選択してください</option>
           {outputs.map((o) => (
@@ -120,7 +122,23 @@ export function ReplaceAudioFromPanel({ projectName, musicTracks }: Props) {
       </label>
 
       <label>
-        この時点(mm:ss)より後を音楽に差し替える
+        ② 指定時点より前の音声を引き継ぐ動画ファイル(省略可・省略時は①自身の音声を使う)
+        <select
+          value={beforeAudioFile}
+          onChange={(e) => setBeforeAudioFile(e.target.value)}
+          disabled={isRunning}
+        >
+          <option value="">(指定しない。①自身の音声を使う)</option>
+          {outputs.map((o) => (
+            <option key={o.name} value={o.name}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        この時点(mm:ss)より後を③の音楽に差し替える
         <input
           type="text"
           placeholder="例: 25:30"
