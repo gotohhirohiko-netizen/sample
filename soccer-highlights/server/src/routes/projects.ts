@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 import express, { type Request, type Response } from "express";
 import { projectMusicDir, projectsDir } from "../config.ts";
-import { probeAudioDurationSec } from "../lib/audioProbe.ts";
+import { probeMediaDurationSec } from "../lib/audioProbe.ts";
 import { isUuid, sanitizeFileName } from "../lib/sanitize.ts";
 import { extractAudioAsMp3, resolveVideoMetadata } from "../lib/ytdlp.ts";
 import type { Clip, ClipSource, MusicTrackMeta } from "../types.ts";
@@ -128,7 +128,7 @@ projectsRouter.post(
     const storedPath = path.join(musicDir, `${id}.mp3`);
     try {
       await writeFile(storedPath, file.buffer);
-      const durationSec = await probeAudioDurationSec(storedPath);
+      const durationSec = await probeMediaDurationSec(storedPath);
       const track: MusicTrackMeta = { id, fileName: file.originalname, durationSec };
       res.json(track);
     } catch (err) {
@@ -160,7 +160,7 @@ projectsRouter.post(
       const extractedPath = await extractAudioAsMp3(youtubeUrl, extractDir);
       const storedPath = path.join(musicDir, `${id}.mp3`);
       await rename(extractedPath, storedPath);
-      const durationSec = await probeAudioDurationSec(storedPath);
+      const durationSec = await probeMediaDurationSec(storedPath);
       const fileName = `${sanitizeFileName(metadata.title) ?? metadata.videoId}.mp3`;
       const track: MusicTrackMeta = { id, fileName, durationSec };
       res.json(track);

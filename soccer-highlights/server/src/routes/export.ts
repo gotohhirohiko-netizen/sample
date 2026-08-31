@@ -4,12 +4,14 @@ import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import express, { type Request, type Response } from "express";
 import { outputDir, projectMusicDir, tmpDir } from "../config.ts";
+import { probeMediaDurationSec } from "../lib/audioProbe.ts";
 import { assertEnoughDiskSpace, formatBytesAsGb, getFreeDiskSpaceBytes } from "../lib/diskSpace.ts";
 import {
   concatClips,
   extractSegmentCopy,
   probeVideoResolution,
   QUALITY_TARGET_RESOLUTION,
+  replaceAudioFromOffset,
   replaceAudioWithMusicTracks,
   trimClip,
 } from "../lib/ffmpegPipeline.ts";
@@ -250,6 +252,70 @@ exportRouter.post("/replace-clips", async (req: Request, res: Response) => {
     if (err instanceof CancelledError) return;
     setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
   });
+
+  res.status(202).json({ jobId });
+});
+
+interface ReplaceAudioFromRequestBody {
+  sourceFile?: string;
+  cutSec?: number;
+  outputName?: string;
+  projectName?: string;
+  musicTrackIds?: string[];
+}
+
+/**
+ * data/output/内の任意の動画ファイル(クリップ一覧や音楽トラックの記録が残っていない
+ * 古い書き出し結果でもよい)について、指定した時点より前はそのまま保持し、それ以降だけ
+ * 音声を指定したmp3群に差し替えて新しいファイルとして書き出す。
+ * 「複数の曲を1本の動画に適用したら最後の曲が途中で切れてしまった」場合に、切れている
+ * 曲の手前で区切って別の曲を差し込み直す、といった用途を想定している。
+ */
+exportRouter.post("/replace-audio-from", async (req: Request, res: Response) => {
+  const body = req.body as ReplaceAudioFromRequestBody;
+  if (!body.sourceFile || typeof body.cutSec !== "number" || !body.musicTrackIds?.length) {
+    res.status(400).json({ error: "sourceFile/cutSec/musicTrackIdsは必須です" });
+    return;
+  }
+  const projectKey = sanitizeFileName(body.projectName);
+  if (!projectKey) {
+    res.status(400).json({ error: "プロジェクト名は必須です" });
+    return;
+  }
+  if (!body.musicTrackIds.every((id) => isUuid(id))) {
+    res.status(400).json({ error: "不正な音楽トラックIDです" });
+    return;
+  }
+
+  const sourcePath = path.join(outputDir, path.basename(body.sourceFile));
+  if (!existsSync(sourcePath)) {
+    res.status(404).json({ error: "動画ファイルが見つかりません。" });
+    return;
+  }
+
+  const musicDir = projectMusicDir(projectKey);
+  const musicPaths = body.musicTrackIds.map((id) => path.join(musicDir, `${id}.mp3`));
+  if (musicPaths.some((p) => !existsSync(p))) {
+    res.status(404).json({ error: "音楽ファイルが見つかりません。プロジェクトで音楽を追加し直してください。" });
+    return;
+  }
+
+  try {
+    await assertEnoughDiskSpace();
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
+
+  const jobId = randomUUID();
+  createJob(jobId);
+
+  runReplaceAudioFromPipeline(jobId, sourcePath, body.cutSec, musicPaths, body.outputName).catch(
+    (err: unknown) => {
+      if (err instanceof CancelledError) return;
+      setJobStage(jobId, "error", 100, err instanceof Error ? err.message : String(err));
+    },
+  );
 
   res.status(202).json({ jobId });
 });
@@ -614,6 +680,76 @@ async function runReplaceClipsPipeline(
     setJobStage(jobId, "done", 100, "クリップを差し替えました");
     const job = getJob(jobId);
     if (job) job.outputFile = path.basename(combinedPath);
+  } catch (err) {
+    await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
+    if (err instanceof CancelledError) {
+      setJobStage(jobId, "cancelled", 100, "キャンセルされました");
+      return;
+    }
+    throw err;
+  } finally {
+    clearJobController(jobId);
+  }
+}
+
+/**
+ * 任意の動画ファイルについて、cutSecより前はそのまま保持し、それ以降だけ音声をmusicPathsに
+ * 差し替えて新しいファイルとして書き出す。cutSec以降は映像を再エンコードしてフレーム精度で
+ * 切り出すため(-c copyでの入力シークはキーフレーム単位でしかズレなく切れないため)、
+ * cutSec未満の部分との結合時にズレは生じない。
+ */
+async function runReplaceAudioFromPipeline(
+  jobId: string,
+  sourcePath: string,
+  cutSec: number,
+  musicPaths: string[],
+  outputName: string | undefined,
+): Promise<void> {
+  const jobTmpDir = path.join(tmpDir, jobId);
+  await mkdir(jobTmpDir, { recursive: true });
+
+  const controller = new AbortController();
+  registerJobController(jobId, controller);
+  const { signal } = controller;
+
+  try {
+    if (signal.aborted) throw new CancelledError();
+    await assertEnoughDiskSpace();
+
+    const totalDurationSec = await probeMediaDurationSec(sourcePath);
+    if (cutSec <= 0 || cutSec >= totalDurationSec) {
+      throw new Error(
+        `差し替え開始位置が動画の長さの範囲外です(動画の長さ: ${Math.round(totalDurationSec)}秒)`,
+      );
+    }
+
+    setJobStage(jobId, "trimming", 20, "指定位置より前を保持中...");
+    const beforePath = path.join(jobTmpDir, "before.mp4");
+    await extractSegmentCopy(sourcePath, beforePath, { durationSec: cutSec }, signal);
+
+    if (signal.aborted) throw new CancelledError();
+    setJobStage(jobId, "applying-audio", 50, "指定位置以降の音声を差し替え中...");
+    const afterPath = path.join(jobTmpDir, "after.mp4");
+    await replaceAudioFromOffset(sourcePath, cutSec, musicPaths, afterPath, signal);
+
+    if (signal.aborted) throw new CancelledError();
+    setJobStage(jobId, "concatenating", 85, "結合しています...");
+    const finalTmpPath = path.join(jobTmpDir, "final.mp4");
+    await concatClips([beforePath, afterPath], finalTmpPath, jobTmpDir, signal);
+
+    const safeName = sanitizeFileName(outputName) ?? `highlight-audio-fixed-${jobId.slice(0, 8)}`;
+    const outputFile = `${safeName}.mp4`;
+    if (outputFile === path.basename(sourcePath)) {
+      throw new Error("出力ファイル名が元の動画と同じです。別の名前を指定してください。");
+    }
+
+    await mkdir(outputDir, { recursive: true });
+    await rename(finalTmpPath, path.join(outputDir, outputFile));
+    await rm(jobTmpDir, { recursive: true, force: true });
+
+    setJobStage(jobId, "done", 100, "完了しました");
+    const job = getJob(jobId);
+    if (job) job.outputFile = outputFile;
   } catch (err) {
     await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
     if (err instanceof CancelledError) {

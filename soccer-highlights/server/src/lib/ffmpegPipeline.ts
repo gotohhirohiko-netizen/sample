@@ -170,3 +170,57 @@ export async function replaceAudioWithMusicTracks(
     signal,
   );
 }
+
+/**
+ * 動画のstartSec以降の部分について、映像はそのまま(内容は変えない)、音声だけを
+ * 指定したmusicPaths(連結+パディング)に差し替える。startSecより前の部分は
+ * 呼び出し側でextractSegmentCopyしたものと後で結合する想定。
+ * -ssによる入力シークは-c:v copyだとキーフレーム単位でしか正確に切れないため、
+ * ここでは映像を再エンコードしてフレーム精度でのシークを保証する
+ * (解像度・フレームレートは指定せず、元の値をそのまま維持する)。
+ */
+export async function replaceAudioFromOffset(
+  sourcePath: string,
+  startSec: number,
+  musicPaths: string[],
+  outPath: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const n = musicPaths.length;
+  const audioInputs = musicPaths.map((_, i) => `[${i + 1}:a]`).join("");
+  const filterComplex =
+    n === 1 ? "[1:a]apad[aout]" : `${audioInputs}concat=n=${n}:v=0:a=1[acat];[acat]apad[aout]`;
+
+  await runCommand(
+    "ffmpeg",
+    [
+      "-y",
+      "-ss",
+      String(startSec),
+      "-i",
+      sourcePath,
+      ...musicPaths.flatMap((p) => ["-i", p]),
+      "-filter_complex",
+      filterComplex,
+      "-map",
+      "0:v:0",
+      "-map",
+      "[aout]",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "20",
+      "-c:a",
+      "aac",
+      "-ar",
+      "48000",
+      "-shortest",
+      "-movflags",
+      "+faststart",
+      outPath,
+    ],
+    signal,
+  );
+}

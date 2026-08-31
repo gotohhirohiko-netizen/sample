@@ -1,8 +1,8 @@
 import { runCommand } from "./spawnUtil.ts";
 
-/** ffprobeでmp3ファイルの再生時間(秒)を取得する。音楽トラックをプロジェクトに保存する際、
- * クライアントに頼らずサーバー側だけで正確な長さを把握できるようにするために使う。 */
-export async function probeAudioDurationSec(filePath: string): Promise<number> {
+/** ffprobeでメディアファイル(mp3・mp4等)の再生時間(秒)を取得する。コンテナレベルの
+ * durationを見るだけなので音声・映像どちらのファイルにも使える。 */
+export async function probeMediaDurationSec(filePath: string): Promise<number> {
   const { stdout } = await runCommand("ffprobe", [
     "-v",
     "error",

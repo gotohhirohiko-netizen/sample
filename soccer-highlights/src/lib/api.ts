@@ -185,6 +185,25 @@ export function replaceClips(
   }).then((res) => asJson<{ jobId: string }>(res));
 }
 
+/**
+ * data/output/内の任意の動画ファイル(クリップ一覧や音楽トラックの記録が残っていない古い
+ * 書き出し結果でもよい)について、指定した時点より前はそのまま保持し、それ以降だけ音声を
+ * 指定したmp3群に差し替えて新しいファイルとして書き出す。
+ */
+export function replaceAudioFrom(
+  sourceFile: string,
+  cutSec: number,
+  projectName: string,
+  musicTrackIds: string[],
+  outputName: string,
+): Promise<{ jobId: string }> {
+  return fetch("/api/export/replace-audio-from", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sourceFile, cutSec, projectName, musicTrackIds, outputName }),
+  }).then((res) => asJson<{ jobId: string }>(res));
+}
+
 export function getJobStatus(jobId: string): Promise<JobStatus> {
   return fetch(`/api/export/${jobId}`).then((res) => asJson<JobStatus>(res));
 }

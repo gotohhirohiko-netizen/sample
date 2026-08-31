@@ -5,6 +5,7 @@ import { ClipTagger } from "./components/ClipTagger.tsx";
 import { ExportPanel } from "./components/ExportPanel.tsx";
 import { PlaylistPanel } from "./components/PlaylistPanel.tsx";
 import { ProjectPanel, type SaveStatus } from "./components/ProjectPanel.tsx";
+import { ReplaceAudioFromPanel } from "./components/ReplaceAudioFromPanel.tsx";
 import { SourceUrlInput } from "./components/SourceUrlInput.tsx";
 import { YouTubePlayerView, type YouTubePlayerHandle } from "./components/YouTubePlayerView.tsx";
 import {
@@ -354,6 +355,7 @@ export default function App() {
             musicTracks={musicTracks}
             onMusicTracksChange={setMusicTracks}
           />
+          <ReplaceAudioFromPanel projectName={projectName} musicTracks={musicTracks} />
         </div>
       </div>
     </div>
