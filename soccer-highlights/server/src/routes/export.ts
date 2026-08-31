@@ -54,19 +54,30 @@ function parseQuality(value: unknown): VideoQuality {
  * いたため、失敗しても気づけずファイルが残り続けていた。リトライしつつ、最終的に
  * 失敗した場合はログに残す。
  */
-async function deleteWithRetry(filePath: string, attempts = 5, delayMs = 400): Promise<void> {
+async function deleteWithRetry(
+  filePath: string,
+  options: { recursive?: boolean } = {},
+  attempts = 5,
+  delayMs = 400,
+): Promise<void> {
   for (let i = 0; i < attempts; i++) {
     try {
-      await rm(filePath, { force: true });
+      await rm(filePath, { force: true, recursive: options.recursive });
       return;
     } catch (err) {
       if (i === attempts - 1) {
-        console.warn(`ファイルの削除に失敗しました: ${filePath}`, err);
+        console.warn(`削除に失敗しました: ${filePath}`, err);
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
+}
+
+/** ジョブ用の一時作業フォルダ(data/tmp/<jobId>/)を削除する。中に巨大な中間ファイルが
+ * 残っていることがあるため、失敗を握りつぶさずリトライ+ログ出力する(deleteWithRetryと同じ理由)。 */
+async function deleteJobTmpDir(jobTmpDir: string): Promise<void> {
+  await deleteWithRetry(jobTmpDir, { recursive: true });
 }
 
 export const exportRouter = express.Router();
@@ -582,13 +593,13 @@ async function runApplyAudioPipeline(
 
     await mkdir(outputDir, { recursive: true });
     await rename(finalTmpPath, path.join(outputDir, outputFile));
-    await rm(jobTmpDir, { recursive: true, force: true });
+    await deleteJobTmpDir(jobTmpDir);
 
     setJobStage(jobId, "done", 100, "完了しました");
     const job = getJob(jobId);
     if (job) job.outputFile = outputFile;
   } catch (err) {
-    await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
+    await deleteJobTmpDir(jobTmpDir);
     if (err instanceof CancelledError) {
       setJobStage(jobId, "cancelled", 100, "キャンセルされました");
       return;
@@ -695,15 +706,15 @@ async function runReplaceClipsPipeline(
     const finalTmpPath = path.join(jobTmpDir, "final.mp4");
     await concatClips(segments, finalTmpPath, jobTmpDir, signal);
 
-    await rm(combinedPath, { force: true });
+    await deleteWithRetry(combinedPath);
     await rename(finalTmpPath, combinedPath);
-    await rm(jobTmpDir, { recursive: true, force: true });
+    await deleteJobTmpDir(jobTmpDir);
 
     setJobStage(jobId, "done", 100, "クリップを差し替えました");
     const job = getJob(jobId);
     if (job) job.outputFile = path.basename(combinedPath);
   } catch (err) {
-    await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
+    await deleteJobTmpDir(jobTmpDir);
     if (err instanceof CancelledError) {
       setJobStage(jobId, "cancelled", 100, "キャンセルされました");
       return;
@@ -770,7 +781,7 @@ async function runReplaceAudioFromPipeline(
     if (overwriteSource) {
       // ①のファイルサイズをそのまま抑えたい場合、新規ファイルを作らずその場で上書きする。
       outputFile = path.basename(sourcePath);
-      await rm(sourcePath, { force: true });
+      await deleteWithRetry(sourcePath);
       await rename(finalTmpPath, sourcePath);
     } else {
       const safeName = sanitizeFileName(outputName) ?? `highlight-audio-fixed-${jobId.slice(0, 8)}`;
@@ -781,13 +792,13 @@ async function runReplaceAudioFromPipeline(
       await mkdir(outputDir, { recursive: true });
       await rename(finalTmpPath, path.join(outputDir, outputFile));
     }
-    await rm(jobTmpDir, { recursive: true, force: true });
+    await deleteJobTmpDir(jobTmpDir);
 
     setJobStage(jobId, "done", 100, "完了しました");
     const job = getJob(jobId);
     if (job) job.outputFile = outputFile;
   } catch (err) {
-    await rm(jobTmpDir, { recursive: true, force: true }).catch(() => {});
+    await deleteJobTmpDir(jobTmpDir);
     if (err instanceof CancelledError) {
       setJobStage(jobId, "cancelled", 100, "キャンセルされました");
       return;
