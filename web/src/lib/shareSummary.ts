@@ -7,26 +7,26 @@ import type {
   Transaction,
 } from "../types/models";
 import { actualAmount, budgetAmount } from "./budgetCalculator";
-import { merchantMatchKey } from "./categoryResolver";
-import { formatRemaining, formatYearMonth, formatYen, isSameMonth } from "./dateUtils";
+import { formatMonthDay, formatRemaining, formatYearMonth, formatYen, isSameMonth } from "./dateUtils";
 import type { MonthEndProjection } from "./projectionCalculator";
 import { resolveRecurringType } from "./recurringResolver";
 
-/** 超過理由レポートで「少額」として除外する金額の下限(この額未満は除外) */
-const OVERAGE_SMALL_AMOUNT_THRESHOLD = 3000;
-/** 超過理由レポートで1カテゴリあたりに列挙する店名・項目の最大件数 */
+/** 超過理由レポートで対象とする金額の下限(1決済あたり。これ未満は除外) */
+const OVERAGE_AMOUNT_THRESHOLD = 10000;
+/** 超過理由レポートで1カテゴリあたりに列挙する決済の最大件数 */
 const OVERAGE_TOP_ITEMS_PER_CATEGORY = 3;
 
 interface OverageItem {
+  date: string;
   merchant: string;
   amount: number;
 }
 
 /**
- * 予算超過している大カテゴリについて、その超過の主な要因(店名・項目単位の
- * 内訳)を求める。毎月定常(電気代等、固定費として認識済みのもの)は
- * 「原因」として報告する意味が薄いため除外し、金額の小さいものも除外する。
- * 同じ店名の取引は合算し、金額の大きい順に上位のみ返す。
+ * 予算超過している大カテゴリについて、その超過の主な要因(1決済ごとの内訳)を
+ * 求める。毎月定常(電気代等、固定費として認識済みのもの)は「原因」として
+ * 報告する意味が薄いため除外し、同じ店名の合計ではなく1件ずつの決済額で
+ * 閾値判定・上位抽出する。
  */
 function overageBreakdown(
   majorCategoryID: string,
@@ -38,37 +38,21 @@ function overageBreakdown(
   const subcategoryIDs = new Set(
     subcategories.filter((s) => s.majorCategoryID === majorCategoryID).map((s) => s.id)
   );
-  const relevant = transactions.filter(
-    (t) =>
-      t.type === "expense" &&
-      !t.excludedFromBudget &&
-      !t.isBonusPayment &&
-      t.subcategoryID != null &&
-      subcategoryIDs.has(t.subcategoryID) &&
-      isSameMonth(new Date(t.date), month) &&
-      resolveRecurringType(t.merchant, recurringOverrides) !== "monthly"
-  );
-
-  const byMerchant = new Map<string, OverageItem & { latestDate: string }>();
-  for (const t of relevant) {
-    const key = merchantMatchKey(t.merchant);
-    const existing = byMerchant.get(key);
-    if (existing) {
-      existing.amount += t.amount;
-      if (t.date > existing.latestDate) {
-        existing.merchant = t.merchant;
-        existing.latestDate = t.date;
-      }
-    } else {
-      byMerchant.set(key, { merchant: t.merchant, amount: t.amount, latestDate: t.date });
-    }
-  }
-
-  return Array.from(byMerchant.values())
-    .filter((v) => v.amount >= OVERAGE_SMALL_AMOUNT_THRESHOLD)
+  return transactions
+    .filter(
+      (t) =>
+        t.type === "expense" &&
+        !t.excludedFromBudget &&
+        !t.isBonusPayment &&
+        t.subcategoryID != null &&
+        subcategoryIDs.has(t.subcategoryID) &&
+        isSameMonth(new Date(t.date), month) &&
+        t.amount >= OVERAGE_AMOUNT_THRESHOLD &&
+        resolveRecurringType(t.merchant, recurringOverrides) !== "monthly"
+    )
     .sort((a, b) => b.amount - a.amount)
     .slice(0, OVERAGE_TOP_ITEMS_PER_CATEGORY)
-    .map(({ merchant, amount }) => ({ merchant, amount }));
+    .map((t) => ({ date: t.date, merchant: t.merchant, amount: t.amount }));
 }
 
 /**
@@ -126,13 +110,15 @@ export function buildBudgetShareText(
       if (breakdown.length === 0) continue;
       overageLines.push(`${c.name}:`);
       for (const item of breakdown) {
-        overageLines.push(`  ${item.merchant} ${formatYen(item.amount)}`);
+        overageLines.push(
+          `  ${formatMonthDay(new Date(item.date))} ${item.merchant} ${formatYen(item.amount)}`
+        );
       }
     }
     if (overageLines.length > 0) {
       lines.push(
         "",
-        "■ 超過の主な要因(毎月定常・少額を除く上位)",
+        `■ 超過の主な要因(毎月定常・${formatYen(OVERAGE_AMOUNT_THRESHOLD)}未満の決済を除く上位)`,
         ...overageLines
       );
     }
