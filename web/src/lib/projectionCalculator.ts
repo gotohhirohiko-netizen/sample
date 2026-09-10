@@ -12,6 +12,13 @@ export interface RecurringMerchantProjection {
   projected: number;
   /** 今月すでに実績が計上されているか */
   posted: boolean;
+  /**
+   * 発生日(今月の日付、"YYYY-MM-DD")。実績計上済みならその実績の日付、
+   * 未計上なら先月の発生日から推定した今月の想定日(過去の履歴が無い場合はnull)
+   */
+  expectedDate: string | null;
+  /** expectedDateが実績由来(true)か、先月の履歴からの推定(false)かを示す */
+  dateIsActual: boolean;
 }
 
 /** 該当月定常費用の店名ごとの内訳。posted=trueは実績額、falseは計画額(SpecificMonthPlan)をそのまま採用 */
@@ -127,27 +134,51 @@ export function monthEndExpenseProjection(
     ...monthlyLastMonth.map((t) => merchantMatchKey(t.merchant)),
   ]);
 
+  const totalDaysInMonth = daysInMonth(month);
+
   const recurringBreakdown: RecurringMerchantProjection[] = Array.from(monthlyKeys)
     .map((key) => {
-      const thisMonthActual = monthlyThisMonth
-        .filter((t) => merchantMatchKey(t.merchant) === key)
-        .reduce((sum, t) => sum + t.amount, 0);
-      const lastMonthActual = monthlyLastMonth
-        .filter((t) => merchantMatchKey(t.merchant) === key)
-        .reduce((sum, t) => sum + t.amount, 0);
+      const thisMonthTx = monthlyThisMonth.filter((t) => merchantMatchKey(t.merchant) === key);
+      const lastMonthTx = monthlyLastMonth.filter((t) => merchantMatchKey(t.merchant) === key);
+      const thisMonthActual = thisMonthTx.reduce((sum, t) => sum + t.amount, 0);
+      const lastMonthActual = lastMonthTx.reduce((sum, t) => sum + t.amount, 0);
+      const posted = thisMonthActual > 0;
+
+      let expectedDate: string | null = null;
+      let dateIsActual = false;
+      if (posted) {
+        // 通常は月1回のみのはずだが、複数計上されていた場合は最新日を採用する
+        const latest = [...thisMonthTx].sort((a, b) => b.date.localeCompare(a.date))[0];
+        expectedDate = latest.date.slice(0, 10);
+        dateIsActual = true;
+      } else if (lastMonthTx.length > 0) {
+        // 過去の履歴(先月の発生日)から、今月の想定発生日を推定する
+        const latestLastMonth = [...lastMonthTx].sort((a, b) => b.date.localeCompare(a.date))[0];
+        const day = Math.min(new Date(latestLastMonth.date).getDate(), totalDaysInMonth);
+        expectedDate = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        dateIsActual = false;
+      }
+
       return {
         merchant: displayNameForKey(key),
         thisMonthActual,
         lastMonthActual,
         projected: Math.max(thisMonthActual, lastMonthActual),
-        posted: thisMonthActual > 0,
+        posted,
+        expectedDate,
+        dateIsActual,
       };
     })
-    .sort((a, b) => b.projected - a.projected);
+    .sort((a, b) => {
+      if (a.expectedDate && b.expectedDate) return a.expectedDate.localeCompare(b.expectedDate);
+      if (a.expectedDate) return -1;
+      if (b.expectedDate) return 1;
+      return b.projected - a.projected;
+    });
 
   const recurringProjected = recurringBreakdown.reduce((sum, r) => sum + r.projected, 0);
 
-  const totalDays = daysInMonth(month);
+  const totalDays = totalDaysInMonth;
   const importDate = effectiveLastImportDate(transactions, lastImportConfirmedAt);
   const referenceDate =
     importDate && isSameMonth(importDate, month) && importDate.getTime() <= today.getTime()

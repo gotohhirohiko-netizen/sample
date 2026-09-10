@@ -58,6 +58,8 @@ export default function ProjectionBreakdownView() {
         </div>
         <p className="muted">
           今月すでに実績があればその金額、まだ実績が無ければ先月の実績を予想として採用します。
+          発生日は、実績があればその日付、無ければ先月の発生日から推定した想定日を表示し、
+          日付順に並んでいます。
           <span className="projection-posted">実績計上済み</span>は黒字、
           <span className="projection-pending">未計上(先月実績を予想として採用)</span>
           はオレンジ字で表示しています。
@@ -67,8 +69,13 @@ export default function ProjectionBreakdownView() {
             {projection.recurringBreakdown.map((r) => (
               <div key={r.merchant} className="list-row">
                 <span className={r.posted ? "projection-posted" : "projection-pending"}>
+                  {r.expectedDate && `${formatMonthDay(new Date(r.expectedDate))} `}
                   {r.merchant}
-                  {!r.posted && <span className="muted">(未計上)</span>}
+                  {!r.posted && (
+                    <span className="muted">
+                      {r.expectedDate ? "(未計上・推定日)" : "(未計上)"}
+                    </span>
+                  )}
                 </span>
                 <span className="muted">{formatYen(r.projected)}</span>
               </div>
