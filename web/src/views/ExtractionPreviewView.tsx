@@ -75,6 +75,7 @@ export default function ExtractionPreviewView() {
   const [error, setError] = useState<string | null>(null);
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
   const [hideDuplicates, setHideDuplicates] = useState(true);
+  const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const hasStartedExtractionRef = useRef(false);
@@ -426,9 +427,23 @@ export default function ExtractionPreviewView() {
             </>
           )}
 
+          {items.some((i) => i.type === "expense" && i.subcategoryID == null) && (
+            <label className="filter-row">
+              <input
+                type="checkbox"
+                checked={unclassifiedOnly}
+                onChange={(e) => setUnclassifiedOnly(e.target.checked)}
+              />
+              未分類のみ表示
+            </label>
+          )}
+
           <div className="list">
             {items
               .filter((item) => !hideDuplicates || !item.isDuplicate)
+              .filter(
+                (item) => !unclassifiedOnly || (item.type === "expense" && item.subcategoryID == null)
+              )
               .map((item) => {
               const willBeExcluded = excludeDuplicates && item.isDuplicate;
               const expanded = expandedKey === item.key;
