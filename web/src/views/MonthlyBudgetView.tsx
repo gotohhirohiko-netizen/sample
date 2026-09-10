@@ -1,7 +1,12 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
-import { actualAmount, budgetAmount, expectedPaceRatio } from "../lib/budgetCalculator";
+import {
+  actualAmount,
+  budgetAmount,
+  expectedPaceRatio,
+  unclassifiedActualAmount,
+} from "../lib/budgetCalculator";
 import { formatRemaining, formatYen, monthToParam, parseMonthParam } from "../lib/dateUtils";
 import BudgetProgressBar from "../components/BudgetProgressBar";
 import MonthPicker from "../components/MonthPicker";
@@ -34,10 +39,12 @@ export default function MonthlyBudgetView() {
     (sum, major) => sum + (budgetAmount(major.id, month, budgetSettings) ?? 0),
     0
   );
-  const totalActual = majorCategories.reduce(
-    (sum, major) => sum + actualAmount(major.id, month, transactions, subcategories),
-    0
-  );
+  const unclassifiedActual = unclassifiedActualAmount(month, transactions);
+  const totalActual =
+    majorCategories.reduce(
+      (sum, major) => sum + actualAmount(major.id, month, transactions, subcategories),
+      0
+    ) + unclassifiedActual;
   const totalOver = totalBudget > 0 && totalActual > totalBudget;
 
   return (
@@ -115,6 +122,19 @@ export default function MonthlyBudgetView() {
             </Link>
           );
         })}
+        {unclassifiedActual > 0 && (
+          <Link
+            to={`/budget/${monthParam}/unclassified`}
+            className="list-row"
+            style={{ flexDirection: "column", alignItems: "stretch" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>未分類</span>
+              <span className="amount">{formatYen(unclassifiedActual)}</span>
+            </div>
+            <span className="muted">カテゴリが設定されていない支出</span>
+          </Link>
+        )}
       </div>
     </div>
   );

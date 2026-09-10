@@ -13,6 +13,7 @@ import MonthlyBudgetView from "./views/MonthlyBudgetView";
 import MonthlyBudgetGraphView from "./views/MonthlyBudgetGraphView";
 import CategoryDrilldownView from "./views/CategoryDrilldownView";
 import SubcategoryDrilldownView from "./views/SubcategoryDrilldownView";
+import UnclassifiedDrilldownView from "./views/UnclassifiedDrilldownView";
 import TransactionDetailView from "./views/TransactionDetailView";
 import ImportSourceSelectView from "./views/ImportSourceSelectView";
 import ImportFilePickerView from "./views/ImportFilePickerView";
@@ -55,6 +56,7 @@ function AppContent() {
             <Route path="/daily/:month/graph" element={<DailyBudgetGraphView />} />
             <Route path="/budget/:month" element={<MonthlyBudgetView />} />
             <Route path="/budget/:month/graph" element={<MonthlyBudgetGraphView />} />
+            <Route path="/budget/:month/unclassified" element={<UnclassifiedDrilldownView />} />
             <Route path="/budget/:month/:majorCategoryId" element={<CategoryDrilldownView />} />
             <Route
               path="/budget/:month/:majorCategoryId/:subcategoryId"
