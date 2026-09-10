@@ -102,7 +102,8 @@ export default function HomeView() {
       budgetSettings!,
       transactions!,
       subcategories!,
-      projection
+      projection,
+      recurringOverrides!
     );
     if (navigator.share) {
       try {
