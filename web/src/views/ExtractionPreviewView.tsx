@@ -9,6 +9,7 @@ import { tryParseMarkdownTransactionTable } from "../lib/markdownTableParser";
 import { tryParsePayPayCardPdf } from "../lib/paypayCardPdfParser";
 import { tryParseRakutenCardPdf } from "../lib/rakutenCardPdfParser";
 import { tryParseRakutenCardCsv } from "../lib/rakutenCardCsvParser";
+import { tryParseRakutenCardEnaviMobilePaste } from "../lib/rakutenCardEnaviMobilePasteParser";
 import { tryParsePayPayCardUsageCsv } from "../lib/paypayCardUsageCsvParser";
 import { tryParsePayPayTransactionCsv } from "../lib/paypayTransactionCsvParser";
 import {
@@ -114,6 +115,7 @@ export default function ExtractionPreviewView() {
         const parsedCreditCardCsv =
           !parsedCsv && state.file.mimeType === "text/csv" && fundingSource.kind === "creditCard"
             ? (tryParseRakutenCardCsv(state.file.data) ??
+              tryParseRakutenCardEnaviMobilePaste(state.file.data) ??
               tryParsePayPayCardUsageCsv(state.file.data) ??
               tryParsePayPayTransactionCsv(state.file.data))
             : null;
@@ -148,7 +150,8 @@ export default function ExtractionPreviewView() {
           };
         } else if (parsedCreditCardCsv) {
           // クレジットカードの当月未確定分CSV(楽天カード(e-NAVI)の「当月請求額」列、
-          // PayPayカードの「ご利用明細」等、列構成が既知の形式)は、キャンセル等が
+          // e-NAVIモバイル版のご利用明細画面からの貼り付け、PayPayカードの
+          // 「ご利用明細」等、列構成・書式が既知の形式)は、キャンセル等が
           // 反映済みのネット金額を使ってコード側で解析する。
           result = {
             transactions: parsedCreditCardCsv.map((row) => ({

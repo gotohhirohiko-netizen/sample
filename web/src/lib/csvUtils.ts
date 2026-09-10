@@ -53,3 +53,18 @@ export function parseCsvDateCell(raw: string): string | null {
   }
   return null;
 }
+
+/**
+ * 楽天カードの利用店名に付くカードブランド・処理区分のプレフィックス
+ * (例: 「ＶＩＳＡ国内利用　VS ○○」「VISA国内利用　VS ○○」)を取り除く。
+ * e-NAVIのCSVは全角(ＶＩＳＡ/ＪＣＢ)、e-NAVIモバイル画面のコピー&貼り付けは
+ * 半角(VISA/JCB)で表記されることがあるため、両方に対応する。これを
+ * 取り除かないと、同じ店名でも公式PDF明細書側の店名表記と一致せず、
+ * 重複判定・カテゴリ学習がすり抜ける。
+ */
+const RAKUTEN_CARD_BRAND_PREFIX =
+  /^(?:VISA|ＶＩＳＡ|JCB|ＪＣＢ)(?:国内|海外)利用[　\s]+(?:[A-Za-z]{1,3}[　\s]+)?/;
+
+export function stripRakutenCardBrandPrefix(merchant: string): string {
+  return merchant.replace(RAKUTEN_CARD_BRAND_PREFIX, "").trim();
+}

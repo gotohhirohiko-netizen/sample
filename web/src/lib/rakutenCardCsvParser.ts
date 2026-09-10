@@ -1,4 +1,4 @@
-import { parseCsvDateCell, splitCsvLine } from "./csvUtils";
+import { parseCsvDateCell, splitCsvLine, stripRakutenCardBrandPrefix } from "./csvUtils";
 
 /**
  * 楽天カード(e-NAVI)の「ご利用明細」CSVを解析する。当月分がまだ確定して
@@ -26,12 +26,6 @@ export interface ParsedRakutenCardCsvRow {
 const DATE_HEADER = "利用日";
 const MERCHANT_HEADER = "利用店名・商品名";
 const BILLED_AMOUNT_HEADER = "当月請求額";
-
-const BRAND_PREFIX = /^(?:ＶＩＳＡ|ＪＣＢ)(?:国内|海外)利用[　\s]+(?:[A-Z]{1,3}[　\s]+)?/;
-
-function stripBrandPrefix(merchant: string): string {
-  return merchant.replace(BRAND_PREFIX, "").trim();
-}
 
 function detectDelimiter(headerLine: string): string | null {
   for (const delimiter of [",", "\t"]) {
@@ -66,7 +60,7 @@ export function tryParseRakutenCardCsv(text: string): ParsedRakutenCardCsvRow[] 
     if (cells.length <= maxIndex) continue;
 
     const date = parseCsvDateCell(cells[dateIndex]);
-    const merchant = stripBrandPrefix(cells[merchantIndex]);
+    const merchant = stripRakutenCardBrandPrefix(cells[merchantIndex]);
     const amount = Number(cells[billedAmountIndex].replace(/,/g, ""));
     if (!date || !merchant || !Number.isFinite(amount) || amount <= 0) continue;
 
