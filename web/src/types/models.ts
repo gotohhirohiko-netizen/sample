@@ -79,6 +79,20 @@ export interface MerchantExclusionAmbiguousFlag {
   updatedAt: string; // ISO日時文字列
 }
 
+/**
+ * 店名の表記揺れの別名登録(定常費用の予想内訳画面で、計画・毎月定常の
+ * 想定店名と実績の表記が一致しない取引を手動で紐付けた際に作られる)。
+ * aliasKeyをmerchantMatchKeyの代わりに使う箇所では、事前にこのテーブルで
+ * canonicalKeyへ変換してから照合する(lib/categoryResolver#resolveMerchantAliasKey)。
+ * 一度登録すれば、翌月以降も同じ表記の取引が自動的に統一先として扱われる。
+ */
+export interface MerchantAlias {
+  id: string;
+  aliasKey: string; // 実績側の表記から求めたキー(表記揺れの別名)
+  canonicalKey: string; // 統一先の基準キー(定常費用として設定済みの店名のキー)
+  updatedAt: string; // ISO日時文字列
+}
+
 /** 取引データ */
 export interface Transaction {
   id: string;

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../lib/db";
 import { merchantMatchKey } from "../lib/categoryResolver";
-import { formatMonthDay, formatYearMonth, formatYen, isSameMonth, parseMonthParam } from "../lib/dateUtils";
+import { formatYearMonth, formatYen, parseMonthParam } from "../lib/dateUtils";
 import { specificTypeMerchantCandidates } from "../lib/recurringResolver";
 
 /**
@@ -11,8 +11,9 @@ import { specificTypeMerchantCandidates } from "../lib/recurringResolver";
  * 入り口から遷移し、この画面の中で2つの機能(計画/予算調整)を分けて扱う。
  * 計画の対象店名は、取引詳細画面で「該当月定常」に設定済みの店名から選ぶ
  * (一度も実績のない店名や、突発・毎月定常の店名は選択候補にならない)。
- * 実績側の店名表記が計画作成時と異なり自動で一致しない場合は、計画から
- * 今月の取引を直接指定して手動で紐付けられる(店名一致より優先される)。
+ * 実績側の店名表記が計画作成時と異なり自動で一致しない場合の紐付けは、
+ * 予想内訳画面(表記揺れの別名登録)で行う。そこで登録した別名は翌月以降も
+ * 自動的に適用される。
  */
 export default function MonthlyAdjustmentsView() {
   const { month: monthParam } = useParams<{ month: string }>();
@@ -22,7 +23,6 @@ export default function MonthlyAdjustmentsView() {
   const [planFormOpen, setPlanFormOpen] = useState(false);
   const [planMerchant, setPlanMerchant] = useState("");
   const [planAmount, setPlanAmount] = useState("");
-  const [linkingPlanId, setLinkingPlanId] = useState<string | null>(null);
   const [adjustmentFormOpen, setAdjustmentFormOpen] = useState(false);
   const [adjustmentMemo, setAdjustmentMemo] = useState("");
   const [adjustmentAmount, setAdjustmentAmount] = useState("");
@@ -31,22 +31,23 @@ export default function MonthlyAdjustmentsView() {
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
   const specificMonthPlans = useLiveQuery(() => db.specificMonthPlans.toArray(), []);
   const budgetAdjustments = useLiveQuery(() => db.budgetAdjustments.toArray(), []);
+  const merchantAliases = useLiveQuery(() => db.merchantAliases.toArray(), []);
 
-  if (!transactions || !recurringOverrides || !specificMonthPlans || !budgetAdjustments) {
+  if (
+    !transactions ||
+    !recurringOverrides ||
+    !specificMonthPlans ||
+    !budgetAdjustments ||
+    !merchantAliases
+  ) {
     return <p className="muted">読み込み中...</p>;
   }
 
   const monthPlans = specificMonthPlans.filter((p) => p.month === monthValue);
   const monthBudgetAdjustments = budgetAdjustments.filter((a) => a.month === monthValue);
-  const planCandidates = specificTypeMerchantCandidates(transactions, recurringOverrides);
+  const planCandidates = specificTypeMerchantCandidates(transactions, recurringOverrides, merchantAliases);
 
   const allTransactions = transactions;
-  const monthExpenseTransactions = allTransactions.filter(
-    (t) => t.type === "expense" && isSameMonth(new Date(t.date), month)
-  );
-  function transactionById(id: string) {
-    return allTransactions.find((t) => t.id === id);
-  }
 
   function displayNameForMerchantKey(key: string): string {
     const match = allTransactions
@@ -91,15 +92,6 @@ export default function MonthlyAdjustmentsView() {
     await db.specificMonthPlans.delete(id);
   }
 
-  async function linkPlanToTransaction(planId: string, transactionID: string) {
-    await db.specificMonthPlans.update(planId, { transactionID });
-    setLinkingPlanId(null);
-  }
-
-  async function unlinkPlanFromTransaction(planId: string) {
-    await db.specificMonthPlans.update(planId, { transactionID: null });
-  }
-
   async function addBudgetAdjustment() {
     const amount = Number(adjustmentAmount);
     if (!Number.isFinite(amount) || amount === 0) return;
@@ -134,82 +126,17 @@ export default function MonthlyAdjustmentsView() {
 
         {monthPlans.length > 0 && (
           <div className="list" style={{ marginTop: 8 }}>
-            {monthPlans.map((p) => {
-              const linkedTx = p.transactionID ? transactionById(p.transactionID) : undefined;
-              const linkingOpen = linkingPlanId === p.id;
-              const linkedElsewhere = new Set(
-                monthPlans
-                  .filter((other) => other.id !== p.id && other.transactionID)
-                  .map((other) => other.transactionID)
-              );
-              const linkCandidates = [...monthExpenseTransactions]
-                .filter((t) => !linkedElsewhere.has(t.id))
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-              return (
-                <div key={p.id} className="card">
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>{displayNameForMerchantKey(p.merchantKey)}</span>
-                    <div className="button-row" style={{ marginBottom: 0 }}>
-                      <span className="muted">{formatYen(p.amount)}</span>
-                      <button type="button" className="btn-secondary" onClick={() => deletePlan(p.id)}>
-                        削除
-                      </button>
-                    </div>
-                  </div>
-
-                  {linkedTx ? (
-                    <div style={{ marginTop: 8 }}>
-                      <p className="muted">
-                        実績と紐付け済み: {formatMonthDay(new Date(linkedTx.date))} {linkedTx.merchant}(
-                        {formatYen(linkedTx.amount)})
-                      </p>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => unlinkPlanFromTransaction(p.id)}
-                      >
-                        紐付けを解除
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 8 }}>
-                      <p className="muted">
-                        店名の表記が一致せず月末着地予想で実績と自動で紐付かない場合、今月の取引から直接指定できます。
-                      </p>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => setLinkingPlanId(linkingOpen ? null : p.id)}
-                      >
-                        {linkingOpen ? "閉じる" : "実績の取引と紐付ける"}
-                      </button>
-                      {linkingOpen && (
-                        <div className="list" style={{ marginTop: 8 }}>
-                          {linkCandidates.length > 0 ? (
-                            linkCandidates.map((t) => (
-                              <button
-                                key={t.id}
-                                type="button"
-                                className="list-row"
-                                onClick={() => linkPlanToTransaction(p.id, t.id)}
-                              >
-                                <span>
-                                  {formatMonthDay(new Date(t.date))} {t.merchant}
-                                </span>
-                                <span className="muted">{formatYen(t.amount)}</span>
-                              </button>
-                            ))
-                          ) : (
-                            <p className="muted">今月の取引がありません</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+            {monthPlans.map((p) => (
+              <div key={p.id} className="list-row">
+                <span>{displayNameForMerchantKey(p.merchantKey)}</span>
+                <div className="button-row" style={{ marginBottom: 0 }}>
+                  <span className="muted">{formatYen(p.amount)}</span>
+                  <button type="button" className="btn-secondary" onClick={() => deletePlan(p.id)}>
+                    削除
+                  </button>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
 

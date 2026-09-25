@@ -66,6 +66,7 @@ export default function ExtractionPreviewView() {
   const existingTransactions = useLiveQuery(() => db.transactions.toArray(), []);
   const bonusIncomeSchedules = useLiveQuery(() => db.bonusIncomeSchedules.toArray(), []);
   const recurringOverrides = useLiveQuery(() => db.recurringOverrides.toArray(), []);
+  const merchantAliases = useLiveQuery(() => db.merchantAliases.toArray(), []);
   const fundingSource = useLiveQuery<FundingSource | undefined>(
     () => (state ? db.fundingSources.get(state.sourceId) : undefined),
     [state?.sourceId]
@@ -98,7 +99,8 @@ export default function ExtractionPreviewView() {
       !bonusIncomeSchedules ||
       !ambiguousFlags ||
       !exclusionAmbiguousFlags ||
-      !recurringOverrides
+      !recurringOverrides ||
+      !merchantAliases
     ) {
       return;
     }
@@ -220,7 +222,11 @@ export default function ExtractionPreviewView() {
             item.type === "income" &&
             (matchesBonusIncomeSchedule(item.date, state.sourceId, bonusIncomeSchedules) ||
               suggestBonusIncome(item.merchant, item.amount, existingTransactions));
-          const resolvedRecurringType = resolveRecurringType(item.merchant, recurringOverrides);
+          const resolvedRecurringType = resolveRecurringType(
+            item.merchant,
+            recurringOverrides,
+            merchantAliases
+          );
           resolved.push({
             key: `${index}-${item.merchant}-${item.amount}`,
             date,
@@ -309,7 +315,11 @@ export default function ExtractionPreviewView() {
       await db.transactions.add(transaction);
 
       if (item.type === "expense") {
-        const currentResolved = resolveRecurringType(item.merchant, recurringOverrides ?? []);
+        const currentResolved = resolveRecurringType(
+          item.merchant,
+          recurringOverrides ?? [],
+          merchantAliases ?? []
+        );
         const currentType = currentResolved === "spontaneous" ? null : currentResolved;
         if (item.recurringType !== currentType) {
           const recurringKey = merchantMatchKey(item.merchant);

@@ -7,6 +7,7 @@ import type {
   CategoryBudgetSetting,
   FundingSource,
   MajorCategory,
+  MerchantAlias,
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusion,
@@ -45,6 +46,7 @@ export class KakeiboDB extends Dexie {
   bonusIncomeSchedules!: EntityTable<BonusIncomeSchedule, "id">;
   budgetAdjustments!: EntityTable<BudgetAdjustment, "id">;
   specificMonthPlans!: EntityTable<SpecificMonthPlan, "id">;
+  merchantAliases!: EntityTable<MerchantAlias, "id">;
   settings!: EntityTable<KeyValueEntry, "key">;
 
   constructor() {
@@ -313,6 +315,25 @@ export class KakeiboDB extends Dexie {
       bonusIncomeSchedules: "id, fundingSourceID",
       budgetAdjustments: "id, month",
       specificMonthPlans: "id, merchantKey, month",
+      settings: "key",
+    });
+    this.version(17).stores({
+      transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+      fundingSources: "id",
+      majorCategories: "id, displayOrder",
+      subcategories: "id, majorCategoryID",
+      categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+      merchantCategoryMappings: "id, merchantKey",
+      merchantExclusions: "id, merchantKey",
+      merchantAmbiguousFlags: "id, merchantKey",
+      merchantExclusionAmbiguousFlags: "id, merchantKey",
+      bonusPeriods: "id, displayOrder",
+      recurringOverrides: "id, merchantKey",
+      bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+      bonusIncomeSchedules: "id, fundingSourceID",
+      budgetAdjustments: "id, month",
+      specificMonthPlans: "id, merchantKey, month",
+      merchantAliases: "id, aliasKey, canonicalKey",
       settings: "key",
     });
   }

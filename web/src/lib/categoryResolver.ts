@@ -1,5 +1,6 @@
 import type {
   MajorCategory,
+  MerchantAlias,
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusionAmbiguousFlag,
@@ -27,6 +28,17 @@ export function merchantMatchKey(merchant: string): string {
   const normalized = normalizeWidth(merchant);
   const spaceIndex = normalized.search(/[ 　]/);
   return spaceIndex === -1 ? normalized : normalized.slice(0, spaceIndex);
+}
+
+/**
+ * 表記揺れの別名登録(MerchantAlias)を踏まえて、店名照合キーを統一先の
+ * キーへ変換する。定常費用の予想内訳画面で「実績の取引と紐付ける」際に
+ * 登録した別名が対象で、一度登録すれば翌月以降も自動的に同じ店名として
+ * 扱われる(lib/projectionCalculator.ts)。登録が無いキーはそのまま返す。
+ */
+export function resolveMerchantAliasKey(key: string, aliases: MerchantAlias[]): string {
+  const found = aliases.find((a) => a.aliasKey === key);
+  return found ? found.canonicalKey : key;
 }
 
 /**

@@ -1,11 +1,18 @@
-import type { RecurringOverride, SpecificMonthPlan, Transaction } from "../types/models";
-import { merchantMatchKey } from "./categoryResolver";
+import type {
+  MerchantAlias,
+  RecurringOverride,
+  SpecificMonthPlan,
+  Transaction,
+} from "../types/models";
+import { merchantMatchKey, resolveMerchantAliasKey } from "./categoryResolver";
 import { daysInMonth, isSameMonth, monthToParam } from "./dateUtils";
 import { resolveRecurringType } from "./recurringResolver";
 
 /** 毎月定常費用の店名ごとの内訳。thisMonthActualが0の場合はまだ実績が計上されていない(先月実績を予想として採用) */
 export interface RecurringMerchantProjection {
   merchant: string;
+  /** 店名照合キー(エイリアス解決済み)。実績の取引と紐付ける際に使う */
+  key: string;
   thisMonthActual: number;
   lastMonthActual: number;
   /** この店名の予想額(今月・先月の実績の大きい方) */
@@ -24,6 +31,8 @@ export interface RecurringMerchantProjection {
 /** 該当月定常費用の店名ごとの内訳。posted=trueは実績額、falseは計画額(SpecificMonthPlan)をそのまま採用 */
 export interface SpecificMerchantProjection {
   merchant: string;
+  /** 店名照合キー(エイリアス解決済み)。実績の取引と紐付ける際に使う */
+  key: string;
   amount: number;
   posted: boolean;
 }
@@ -82,10 +91,12 @@ export function effectiveLastImportDate(
  * ・該当月定常の支出(取引詳細画面で店名ごとに設定。SpecificMonthPlanで
  *   対象月・金額を管理)は、今月すでに実績があればその実績額を、無ければ
  *   今月分の計画額をそのまま採用する(実績が発生済みの月は計画額と二重計上
- *   しないよう自動的に除外される)。実績側の店名表記が計画作成時と異なり
- *   自動で一致しない場合に備え、計画から実績取引を手動で直接指定すること
- *   もできる(SpecificMonthPlan.transactionID)。指定時は店名一致より優先し、
- *   その取引は比例費用の集計からも除外する(二重計上防止)
+ *   しないよう自動的に除外される)
+ * ・実績側の店名表記が計画・毎月定常の設定時と異なり自動で一致しない場合に
+ *   備え、予想内訳画面から実績の取引を直接指定して紐付けられる
+ *   (MerchantAlias。一度登録すれば翌月以降も同じ表記の取引が自動的に
+ *   統一先として扱われる)。該当月定常の計画には、当月限定の紐付けとして
+ *   SpecificMonthPlan.transactionIDも使える(指定時は店名一致より優先)
  * ・それ以外(比例的な支出)は、前回取り込み日の前日分までの実績を日割りで
  *   月末まで延伸する。「今日(または前回取り込み日)」当日はまだ取り込みが
  *   完了していない可能性があるため、実績の集計・日割り計算のいずれからも
@@ -99,12 +110,17 @@ export function monthEndExpenseProjection(
   transactions: Transaction[],
   recurringOverrides: RecurringOverride[],
   specificMonthPlans: SpecificMonthPlan[] = [],
-  lastImportConfirmedAt: Date | null = null
+  lastImportConfirmedAt: Date | null = null,
+  merchantAliases: MerchantAlias[] = []
 ): MonthEndProjection | null {
   const today = new Date();
   if (!isSameMonth(month, today)) return null;
 
   const lastMonth = new Date(month.getFullYear(), month.getMonth() - 1, 1);
+
+  function keyOf(t: Transaction): string {
+    return resolveMerchantAliasKey(merchantMatchKey(t.merchant), merchantAliases);
+  }
 
   function isRelevantExpense(t: Transaction, target: Date): boolean {
     return (
@@ -116,12 +132,12 @@ export function monthEndExpenseProjection(
   }
 
   function typeOf(t: Transaction) {
-    return resolveRecurringType(t.merchant, recurringOverrides);
+    return resolveRecurringType(t.merchant, recurringOverrides, merchantAliases);
   }
 
   function displayNameForKey(key: string): string {
     const match = transactions
-      .filter((t) => merchantMatchKey(t.merchant) === key)
+      .filter((t) => keyOf(t) === key)
       .sort((a, b) => b.date.localeCompare(a.date))[0];
     return match?.merchant ?? key;
   }
@@ -133,16 +149,16 @@ export function monthEndExpenseProjection(
     (t) => isRelevantExpense(t, lastMonth) && typeOf(t) === "monthly"
   );
   const monthlyKeys = new Set([
-    ...monthlyThisMonth.map((t) => merchantMatchKey(t.merchant)),
-    ...monthlyLastMonth.map((t) => merchantMatchKey(t.merchant)),
+    ...monthlyThisMonth.map((t) => keyOf(t)),
+    ...monthlyLastMonth.map((t) => keyOf(t)),
   ]);
 
   const totalDaysInMonth = daysInMonth(month);
 
   const recurringBreakdown: RecurringMerchantProjection[] = Array.from(monthlyKeys)
     .map((key) => {
-      const thisMonthTx = monthlyThisMonth.filter((t) => merchantMatchKey(t.merchant) === key);
-      const lastMonthTx = monthlyLastMonth.filter((t) => merchantMatchKey(t.merchant) === key);
+      const thisMonthTx = monthlyThisMonth.filter((t) => keyOf(t) === key);
+      const lastMonthTx = monthlyLastMonth.filter((t) => keyOf(t) === key);
       const thisMonthActual = thisMonthTx.reduce((sum, t) => sum + t.amount, 0);
       const lastMonthActual = lastMonthTx.reduce((sum, t) => sum + t.amount, 0);
       const posted = thisMonthActual > 0;
@@ -164,6 +180,7 @@ export function monthEndExpenseProjection(
 
       return {
         merchant: displayNameForKey(key),
+        key,
         thisMonthActual,
         lastMonthActual,
         projected: Math.max(thisMonthActual, lastMonthActual),
@@ -194,8 +211,9 @@ export function monthEndExpenseProjection(
 
   const monthParam = monthToParam(month);
   const specificPlansThisMonth = specificMonthPlans.filter((p) => p.month === monthParam);
-  // 計画に手動で紐付けられた実績取引は、比例費用・店名一致による自動集計の
-  // どちらにも二重計上させないよう、その取引IDをここで把握しておく
+  // 計画に手動で紐付けられた実績取引(当月限定のレガシーな紐付け)は、
+  // 比例費用・店名一致による自動集計のどちらにも二重計上させないよう、
+  // その取引IDをここで把握しておく
   const linkedTransactionIDs = new Set(
     specificPlansThisMonth.map((p) => p.transactionID).filter((id): id is string => !!id)
   );
@@ -217,11 +235,12 @@ export function monthEndExpenseProjection(
   );
   const specificActualByKey = new Map<string, number>();
   for (const t of specificActualThisMonth) {
-    const key = merchantMatchKey(t.merchant);
+    const key = keyOf(t);
     specificActualByKey.set(key, (specificActualByKey.get(key) ?? 0) + t.amount);
   }
 
-  // 計画ごとに、手動で紐付けた実績(あれば優先)→店名一致の自動判定、の順で解決する
+  // 計画ごとに、当月限定の紐付け(あれば優先)→店名一致(エイリアス込み)の
+  // 自動判定、の順で解決する
   const linkedBreakdown: SpecificMerchantProjection[] = [];
   const unlinkedPlans: SpecificMonthPlan[] = [];
   for (const p of specificPlansThisMonth) {
@@ -229,24 +248,31 @@ export function monthEndExpenseProjection(
       ? transactions.find((t) => t.id === p.transactionID)
       : undefined;
     if (linkedTx) {
-      linkedBreakdown.push({ merchant: linkedTx.merchant, amount: linkedTx.amount, posted: true });
+      linkedBreakdown.push({
+        merchant: linkedTx.merchant,
+        key: keyOf(linkedTx),
+        amount: linkedTx.amount,
+        posted: true,
+      });
     } else {
       unlinkedPlans.push(p);
     }
   }
   const unlinkedPlansWithoutActual = unlinkedPlans.filter(
-    (p) => !specificActualByKey.has(p.merchantKey)
+    (p) => !specificActualByKey.has(resolveMerchantAliasKey(p.merchantKey, merchantAliases))
   );
 
   const specificBreakdown: SpecificMerchantProjection[] = [
     ...linkedBreakdown,
     ...Array.from(specificActualByKey.entries()).map(([key, amount]) => ({
       merchant: displayNameForKey(key),
+      key,
       amount,
       posted: true,
     })),
     ...unlinkedPlansWithoutActual.map((p) => ({
       merchant: displayNameForKey(p.merchantKey),
+      key: resolveMerchantAliasKey(p.merchantKey, merchantAliases),
       amount: p.amount,
       posted: false,
     })),

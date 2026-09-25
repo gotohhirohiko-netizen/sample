@@ -44,6 +44,7 @@ export default function HomeView() {
   const bonusCategoryPlans = useLiveQuery(() => db.bonusCategoryPlans.toArray(), []);
   const specificMonthPlans = useLiveQuery(() => db.specificMonthPlans.toArray(), []);
   const budgetAdjustments = useLiveQuery(() => db.budgetAdjustments.toArray(), []);
+  const merchantAliases = useLiveQuery(() => db.merchantAliases.toArray(), []);
 
   if (
     !transactions ||
@@ -54,7 +55,8 @@ export default function HomeView() {
     !bonusPeriods ||
     !bonusCategoryPlans ||
     !specificMonthPlans ||
-    !budgetAdjustments
+    !budgetAdjustments ||
+    !merchantAliases
   ) {
     return <p className="muted">読み込み中...</p>;
   }
@@ -66,7 +68,8 @@ export default function HomeView() {
     transactions,
     recurringOverrides,
     specificMonthPlans,
-    importConfirmedAt
+    importConfirmedAt,
+    merchantAliases
   );
   const importDate = effectiveLastImportDate(transactions, importConfirmedAt);
 
@@ -103,7 +106,8 @@ export default function HomeView() {
       transactions!,
       subcategories!,
       projection,
-      recurringOverrides!
+      recurringOverrides!,
+      merchantAliases!
     );
     if (navigator.share) {
       try {

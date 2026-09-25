@@ -1,5 +1,11 @@
-import type { RecurringOverride, RecurringOverrideType, RecurringType, Transaction } from "../types/models";
-import { merchantMatchKey } from "./categoryResolver";
+import type {
+  MerchantAlias,
+  RecurringOverride,
+  RecurringOverrideType,
+  RecurringType,
+  Transaction,
+} from "../types/models";
+import { merchantMatchKey, resolveMerchantAliasKey } from "./categoryResolver";
 
 export const RECURRING_OVERRIDE_TYPE_LABELS: Record<RecurringOverrideType, string> = {
   monthly: "毎月定常",
@@ -10,10 +16,15 @@ export const RECURRING_OVERRIDE_TYPE_LABELS: Record<RecurringOverrideType, strin
  * 定常費用区分の判定。取引詳細画面で手動設定したオーバーライドのみを見る
  * (出現頻度による自動判定は行わない。日用品や食品店のように毎月何度も
  * 利用する店を誤って定常と判定してしまうため)。オーバーライドの無い店名は
- * 全てspontaneous(比例費用)として扱う。
+ * 全てspontaneous(比例費用)として扱う。表記揺れの別名登録(aliases)がある
+ * 店名は、統一先のキーで判定する。
  */
-export function resolveRecurringType(merchant: string, overrides: RecurringOverride[]): RecurringType {
-  const key = merchantMatchKey(merchant);
+export function resolveRecurringType(
+  merchant: string,
+  overrides: RecurringOverride[],
+  aliases: MerchantAlias[] = []
+): RecurringType {
+  const key = resolveMerchantAliasKey(merchantMatchKey(merchant), aliases);
   const override = overrides.find((o) => o.merchantKey === key);
   return override ? override.type : "spontaneous";
 }
@@ -43,19 +54,20 @@ export function isEligibleForMonthlyRecurring(merchant: string, transactions: Tr
  */
 export function specificTypeMerchantCandidates(
   transactions: Transaction[],
-  overrides: RecurringOverride[]
+  overrides: RecurringOverride[],
+  aliases: MerchantAlias[] = []
 ): string[] {
   const latestByKey = new Map<string, { merchant: string; date: string }>();
   for (const t of transactions) {
     if (t.type !== "expense") continue;
-    const key = merchantMatchKey(t.merchant);
+    const key = resolveMerchantAliasKey(merchantMatchKey(t.merchant), aliases);
     const existing = latestByKey.get(key);
     if (!existing || t.date > existing.date) {
       latestByKey.set(key, { merchant: t.merchant, date: t.date });
     }
   }
   return Array.from(latestByKey.values())
-    .filter((v) => resolveRecurringType(v.merchant, overrides) === "specific")
+    .filter((v) => resolveRecurringType(v.merchant, overrides, aliases) === "specific")
     .map((v) => v.merchant)
     .sort((a, b) => a.localeCompare(b, "ja"));
 }

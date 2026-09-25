@@ -8,6 +8,7 @@ import type {
   CategoryBudgetSetting,
   FundingSource,
   MajorCategory,
+  MerchantAlias,
   MerchantAmbiguousFlag,
   MerchantCategoryMapping,
   MerchantExclusion,
@@ -41,6 +42,7 @@ export interface BackupPayload {
   bonusIncomeSchedules: BonusIncomeSchedule[];
   budgetAdjustments: BudgetAdjustment[];
   specificMonthPlans: SpecificMonthPlan[];
+  merchantAliases: MerchantAlias[];
 }
 
 export async function exportBackup(): Promise<BackupPayload> {
@@ -60,6 +62,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     bonusIncomeSchedules,
     budgetAdjustments,
     specificMonthPlans,
+    merchantAliases,
   ] = await Promise.all([
     db.transactions.toArray(),
     db.fundingSources.toArray(),
@@ -76,6 +79,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     db.bonusIncomeSchedules.toArray(),
     db.budgetAdjustments.toArray(),
     db.specificMonthPlans.toArray(),
+    db.merchantAliases.toArray(),
   ]);
 
   const payload: BackupPayload = {
@@ -95,6 +99,7 @@ export async function exportBackup(): Promise<BackupPayload> {
     bonusIncomeSchedules,
     budgetAdjustments,
     specificMonthPlans,
+    merchantAliases,
   };
 
   await saveLastBackupAt(new Date());
@@ -132,6 +137,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
       db.bonusIncomeSchedules,
       db.budgetAdjustments,
       db.specificMonthPlans,
+      db.merchantAliases,
     ],
     async () => {
       await Promise.all([
@@ -150,6 +156,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.bonusIncomeSchedules.clear(),
         db.budgetAdjustments.clear(),
         db.specificMonthPlans.clear(),
+        db.merchantAliases.clear(),
       ]);
       await Promise.all([
         db.transactions.bulkAdd(payload.transactions),
@@ -167,6 +174,7 @@ export async function restoreBackup(payload: BackupPayload): Promise<void> {
         db.bonusIncomeSchedules.bulkAdd(payload.bonusIncomeSchedules ?? []),
         db.budgetAdjustments.bulkAdd(payload.budgetAdjustments ?? []),
         db.specificMonthPlans.bulkAdd(payload.specificMonthPlans ?? []),
+        db.merchantAliases.bulkAdd(payload.merchantAliases ?? []),
       ]);
     }
   );

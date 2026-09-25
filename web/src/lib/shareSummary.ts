@@ -1,6 +1,7 @@
 import type {
   CategoryBudgetSetting,
   MajorCategory,
+  MerchantAlias,
   MonthlySummary,
   RecurringOverride,
   Subcategory,
@@ -33,7 +34,8 @@ function overageBreakdown(
   month: Date,
   transactions: Transaction[],
   subcategories: Subcategory[],
-  recurringOverrides: RecurringOverride[]
+  recurringOverrides: RecurringOverride[],
+  merchantAliases: MerchantAlias[]
 ): OverageItem[] {
   const subcategoryIDs = new Set(
     subcategories.filter((s) => s.majorCategoryID === majorCategoryID).map((s) => s.id)
@@ -48,7 +50,7 @@ function overageBreakdown(
         subcategoryIDs.has(t.subcategoryID) &&
         isSameMonth(new Date(t.date), month) &&
         t.amount >= OVERAGE_AMOUNT_THRESHOLD &&
-        resolveRecurringType(t.merchant, recurringOverrides) !== "monthly"
+        resolveRecurringType(t.merchant, recurringOverrides, merchantAliases) !== "monthly"
     )
     .sort((a, b) => b.amount - a.amount)
     .slice(0, OVERAGE_TOP_ITEMS_PER_CATEGORY)
@@ -67,7 +69,8 @@ export function buildBudgetShareText(
   transactions: Transaction[],
   subcategories: Subcategory[],
   projection: MonthEndProjection | null,
-  recurringOverrides: RecurringOverride[]
+  recurringOverrides: RecurringOverride[],
+  merchantAliases: MerchantAlias[] = []
 ): string {
   const lines: string[] = [`【${formatYearMonth(month)} 家計簿サマリー】`, ""];
 
@@ -106,7 +109,14 @@ export function buildBudgetShareText(
   if (overCategories.length > 0) {
     const overageLines: string[] = [];
     for (const c of overCategories) {
-      const breakdown = overageBreakdown(c.id, month, transactions, subcategories, recurringOverrides);
+      const breakdown = overageBreakdown(
+        c.id,
+        month,
+        transactions,
+        subcategories,
+        recurringOverrides,
+        merchantAliases
+      );
       if (breakdown.length === 0) continue;
       overageLines.push(`${c.name}:`);
       for (const item of breakdown) {

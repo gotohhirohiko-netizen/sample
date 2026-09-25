@@ -33,6 +33,7 @@ export default function TransactionDetailView() {
     () => db.merchantExclusionAmbiguousFlags.toArray(),
     []
   );
+  const merchantAliases = useLiveQuery(() => db.merchantAliases.toArray(), []);
 
   const [merchant, setMerchant] = useState<string | null>(null);
   const [amount, setAmount] = useState<string | null>(null);
@@ -48,14 +49,15 @@ export default function TransactionDetailView() {
     !allTransactions ||
     !recurringOverrides ||
     !ambiguousFlags ||
-    !exclusionAmbiguousFlags
+    !exclusionAmbiguousFlags ||
+    !merchantAliases
   ) {
     return <p className="muted">読み込み中...</p>;
   }
 
   const isExpense = transaction.type === "expense";
   const isIncome = transaction.type === "income";
-  const recurringType = resolveRecurringType(transaction.merchant, recurringOverrides);
+  const recurringType = resolveRecurringType(transaction.merchant, recurringOverrides, merchantAliases);
   const merchantKey = merchantMatchKey(transaction.merchant);
   const monthlyEligible = isEligibleForMonthlyRecurring(transaction.merchant, allTransactions);
 
