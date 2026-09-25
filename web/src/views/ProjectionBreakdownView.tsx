@@ -92,6 +92,8 @@ export default function ProjectionBreakdownView() {
           今月すでに実績があればその金額、まだ実績が無ければ計画額(当月の計画・予算調整で登録)を採用します。
           <span className="projection-posted">実績計上済み</span>は黒字、
           <span className="projection-pending">計画額</span>はオレンジ字で表示しています。
+          実績側の店名表記が一致せず計画額と二重計上されてしまう場合は、当月の計画・予算調整の画面で
+          計画から実績の取引を直接指定して紐付けられます。
         </p>
         {projection.specificBreakdown.length > 0 ? (
           <div className="list" style={{ marginTop: 8 }}>

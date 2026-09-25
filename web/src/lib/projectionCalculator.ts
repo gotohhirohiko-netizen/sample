@@ -82,7 +82,10 @@ export function effectiveLastImportDate(
  * ・該当月定常の支出(取引詳細画面で店名ごとに設定。SpecificMonthPlanで
  *   対象月・金額を管理)は、今月すでに実績があればその実績額を、無ければ
  *   今月分の計画額をそのまま採用する(実績が発生済みの月は計画額と二重計上
- *   しないよう自動的に除外される)
+ *   しないよう自動的に除外される)。実績側の店名表記が計画作成時と異なり
+ *   自動で一致しない場合に備え、計画から実績取引を手動で直接指定すること
+ *   もできる(SpecificMonthPlan.transactionID)。指定時は店名一致より優先し、
+ *   その取引は比例費用の集計からも除外する(二重計上防止)
  * ・それ以外(比例的な支出)は、前回取り込み日の前日分までの実績を日割りで
  *   月末まで延伸する。「今日(または前回取り込み日)」当日はまだ取り込みが
  *   完了していない可能性があるため、実績の集計・日割り計算のいずれからも
@@ -189,11 +192,20 @@ export function monthEndExpenseProjection(
   // 可能性があるため、実績・日割り計算のいずれからも除外し、前日分までを使う
   const daysElapsed = Math.max(1, referenceDay - 1);
 
+  const monthParam = monthToParam(month);
+  const specificPlansThisMonth = specificMonthPlans.filter((p) => p.month === monthParam);
+  // 計画に手動で紐付けられた実績取引は、比例費用・店名一致による自動集計の
+  // どちらにも二重計上させないよう、その取引IDをここで把握しておく
+  const linkedTransactionIDs = new Set(
+    specificPlansThisMonth.map((p) => p.transactionID).filter((id): id is string => !!id)
+  );
+
   const proportionalTransactions = transactions
     .filter(
       (t) =>
         isRelevantExpense(t, month) &&
         typeOf(t) === "spontaneous" &&
+        !linkedTransactionIDs.has(t.id) &&
         new Date(t.date).getDate() <= daysElapsed
     )
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -201,7 +213,7 @@ export function monthEndExpenseProjection(
   const proportionalProjected = (proportionalActual / daysElapsed) * totalDays;
 
   const specificActualThisMonth = transactions.filter(
-    (t) => isRelevantExpense(t, month) && typeOf(t) === "specific"
+    (t) => isRelevantExpense(t, month) && typeOf(t) === "specific" && !linkedTransactionIDs.has(t.id)
   );
   const specificActualByKey = new Map<string, number>();
   for (const t of specificActualThisMonth) {
@@ -209,18 +221,31 @@ export function monthEndExpenseProjection(
     specificActualByKey.set(key, (specificActualByKey.get(key) ?? 0) + t.amount);
   }
 
-  const monthParam = monthToParam(month);
-  const specificPlansThisMonth = specificMonthPlans.filter(
-    (p) => p.month === monthParam && !specificActualByKey.has(p.merchantKey)
+  // 計画ごとに、手動で紐付けた実績(あれば優先)→店名一致の自動判定、の順で解決する
+  const linkedBreakdown: SpecificMerchantProjection[] = [];
+  const unlinkedPlans: SpecificMonthPlan[] = [];
+  for (const p of specificPlansThisMonth) {
+    const linkedTx = p.transactionID
+      ? transactions.find((t) => t.id === p.transactionID)
+      : undefined;
+    if (linkedTx) {
+      linkedBreakdown.push({ merchant: linkedTx.merchant, amount: linkedTx.amount, posted: true });
+    } else {
+      unlinkedPlans.push(p);
+    }
+  }
+  const unlinkedPlansWithoutActual = unlinkedPlans.filter(
+    (p) => !specificActualByKey.has(p.merchantKey)
   );
 
   const specificBreakdown: SpecificMerchantProjection[] = [
+    ...linkedBreakdown,
     ...Array.from(specificActualByKey.entries()).map(([key, amount]) => ({
       merchant: displayNameForKey(key),
       amount,
       posted: true,
     })),
-    ...specificPlansThisMonth.map((p) => ({
+    ...unlinkedPlansWithoutActual.map((p) => ({
       merchant: displayNameForKey(p.merchantKey),
       amount: p.amount,
       posted: false,

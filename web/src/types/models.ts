@@ -180,12 +180,16 @@ export interface RecurringOverride {
  * 店名ごとに追加・編集する。金額は過去実績を初期値として編集できる。
  * 対象月に実績(Transaction)が既に記録されていれば、二重計上を避けるため
  * 月末着地予想の計算からはその月の計画額を除外する(lib/projectionCalculator.ts)。
+ * 店名の表記が実績側と一致せず自動で紐付かない場合に備え、取引を手動で
+ * 直接指定できるtransactionIDも持つ(指定時はmerchantKeyでの自動判定より優先する)。
  */
 export interface SpecificMonthPlan {
   id: string;
   merchantKey: string; // 店名の類似判定キー(lib/categoryResolver#merchantMatchKey)
   month: string; // "YYYY-MM"形式。発生が見込まれる対象月
   amount: number;
+  /** 手動で紐付けた実績取引のID(未設定はnull。設定時はmerchantKey一致より優先) */
+  transactionID: string | null;
 }
 
 /**
