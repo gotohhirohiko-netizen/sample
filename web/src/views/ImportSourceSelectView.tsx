@@ -7,7 +7,7 @@ import type { FundingSource } from "../types/models";
 /** 取り込み元選択画面(要件定義書 4.1/4.8) */
 export default function ImportSourceSelectView() {
   const navigate = useNavigate();
-  const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
+  const fundingSources = useLiveQuery(() => db.fundingSources.orderBy("displayOrder").toArray(), []);
   const transactions = useLiveQuery(() => db.transactions.toArray(), []);
 
   function openSource(source: FundingSource) {

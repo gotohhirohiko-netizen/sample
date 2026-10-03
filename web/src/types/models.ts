@@ -225,6 +225,7 @@ export interface FundingSource {
   launchType?: FundingSourceLaunchType; // 未指定は"url"扱い
   statementDeepLinkURL: string; // launchType="url"の場合、明細ページへの直リンク
   shortcutName?: string; // launchType="shortcut"の場合、shortcuts://run-shortcutで起動するショートカット名
+  displayOrder: number; // 取り込み元選択画面・管理画面での並び順
 }
 
 /** 月次サマリー(対予算・対収入。docs/design.md 3.3) */

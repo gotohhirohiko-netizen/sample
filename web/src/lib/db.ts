@@ -336,6 +336,40 @@ export class KakeiboDB extends Dexie {
       merchantAliases: "id, aliasKey, canonicalKey",
       settings: "key",
     });
+    this.version(18)
+      .stores({
+        transactions: "id, date, type, subcategoryID, sourceInstitutionID",
+        fundingSources: "id, displayOrder",
+        majorCategories: "id, displayOrder",
+        subcategories: "id, majorCategoryID",
+        categoryBudgetSettings: "id, majorCategoryID, effectiveFrom",
+        merchantCategoryMappings: "id, merchantKey",
+        merchantExclusions: "id, merchantKey",
+        merchantAmbiguousFlags: "id, merchantKey",
+        merchantExclusionAmbiguousFlags: "id, merchantKey",
+        bonusPeriods: "id, displayOrder",
+        recurringOverrides: "id, merchantKey",
+        bonusCategoryPlans: "id, bonusPeriodID, year, majorCategoryID, subcategoryID",
+        bonusIncomeSchedules: "id, fundingSourceID",
+        budgetAdjustments: "id, month",
+        specificMonthPlans: "id, merchantKey, month",
+        merchantAliases: "id, aliasKey, canonicalKey",
+        settings: "key",
+      })
+      .upgrade(async (tx) => {
+        // 取り込み元の並び替え機能を追加。既存データにはdisplayOrderが無いため、
+        // 既存の並び(主キー順)をそのまま初期値として連番を振る。
+        let order = 0;
+        await tx
+          .table("fundingSources")
+          .toCollection()
+          .modify((source) => {
+            if (source.displayOrder === undefined) {
+              source.displayOrder = order;
+              order += 1;
+            }
+          });
+      });
   }
 }
 

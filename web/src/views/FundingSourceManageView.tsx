@@ -6,7 +6,7 @@ import type { FundingSource, FundingSourceKind, FundingSourceLaunchType } from "
 
 /** 取り込み元管理画面(要件定義書 4.8) */
 export default function FundingSourceManageView() {
-  const fundingSources = useLiveQuery(() => db.fundingSources.toArray(), []);
+  const fundingSources = useLiveQuery(() => db.fundingSources.orderBy("displayOrder").toArray(), []);
 
   const [displayName, setDisplayName] = useState("");
   const [kind, setKind] = useState<FundingSourceKind>("creditCard");
@@ -25,6 +25,7 @@ export default function FundingSourceManageView() {
     if (displayName.trim() === "") return;
     if (launchType === "url" && url.trim() === "") return;
     if (launchType === "shortcut" && shortcutName.trim() === "") return;
+    const order = Math.max(-1, ...(fundingSources ?? []).map((s) => s.displayOrder)) + 1;
     await db.fundingSources.add({
       id: crypto.randomUUID(),
       displayName: displayName.trim(),
@@ -32,6 +33,7 @@ export default function FundingSourceManageView() {
       launchType,
       statementDeepLinkURL: url.trim(),
       shortcutName: shortcutName.trim() === "" ? undefined : shortcutName.trim(),
+      displayOrder: order,
     });
     setDisplayName("");
     setUrl("");
@@ -41,6 +43,16 @@ export default function FundingSourceManageView() {
   async function removeSource(id: string) {
     if (!confirm("この取り込み元を削除しますか?")) return;
     await db.fundingSources.delete(id);
+  }
+
+  async function moveSource(index: number, direction: -1 | 1) {
+    if (!fundingSources) return;
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= fundingSources.length) return;
+    const a = fundingSources[index];
+    const b = fundingSources[targetIndex];
+    await db.fundingSources.update(a.id, { displayOrder: b.displayOrder });
+    await db.fundingSources.update(b.id, { displayOrder: a.displayOrder });
   }
 
   function startEdit(source: FundingSource) {
@@ -78,7 +90,7 @@ export default function FundingSourceManageView() {
       <h1 className="screen-title">取り込み元管理</h1>
 
       <div className="list">
-        {fundingSources?.map((source) =>
+        {fundingSources?.map((source, index) =>
           editingId === source.id ? (
             <div key={source.id} className="card">
               <div className="form-row">
@@ -128,12 +140,34 @@ export default function FundingSourceManageView() {
             </div>
           ) : (
             <div key={source.id} className="card">
-              <div>{source.displayName}</div>
-              <div className="muted">{source.kind === "bankAccount" ? "銀行口座" : "クレジットカード"}</div>
-              <div className="muted" style={{ wordBreak: "break-all" }}>
-                {(source.launchType ?? "url") === "shortcut"
-                  ? `ショートカット: ${source.shortcutName}`
-                  : source.statementDeepLinkURL}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div>{source.displayName}</div>
+                  <div className="muted">{source.kind === "bankAccount" ? "銀行口座" : "クレジットカード"}</div>
+                  <div className="muted" style={{ wordBreak: "break-all" }}>
+                    {(source.launchType ?? "url") === "shortcut"
+                      ? `ショートカット: ${source.shortcutName}`
+                      : source.statementDeepLinkURL}
+                  </div>
+                </div>
+                <div className="button-row" style={{ marginBottom: 0 }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={index === 0}
+                    onClick={() => moveSource(index, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={index === fundingSources.length - 1}
+                    onClick={() => moveSource(index, 1)}
+                  >
+                    ↓
+                  </button>
+                </div>
               </div>
               <div className="button-row">
                 <button type="button" className="btn-secondary" onClick={() => startEdit(source)}>
