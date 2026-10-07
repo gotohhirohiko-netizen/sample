@@ -180,3 +180,33 @@ export function bonusUncoveredTransactions(
       !isBonusTransactionCoveredByPlan(t, plans, subcategories)
   );
 }
+
+/**
+ * 計画に対する残り(トータルの計画額-実績額)だけでは、あるカテゴリの超過が
+ * 別カテゴリの余りで相殺されて見えなくなってしまう。そのため、カテゴリごとに
+ * 「計画額と実績額の大きい方(既に超過していれば実績、未使用ならこのまま
+ * 計画通り使う想定)」を積み上げた、超過分を含めた今後の想定着地額を求める。
+ * 計画の無い「その他」の実績は、既に発生済みの金額としてそのまま加算する。
+ */
+export function bonusExpenseForecast(
+  bonusPeriodID: string,
+  year: number,
+  plans: BonusCategoryPlan[],
+  start: Date,
+  end: Date,
+  transactions: Transaction[],
+  subcategories: Subcategory[]
+): number {
+  const periodPlans = plans.filter((p) => p.bonusPeriodID === bonusPeriodID && p.year === year);
+  const plannedForecast = periodPlans.reduce((sum, p) => {
+    const actual = p.subcategoryID
+      ? bonusSubcategoryActualAmount(p.subcategoryID, start, end, transactions)
+      : bonusCategoryActualAmount(p.majorCategoryID, start, end, transactions, subcategories);
+    return sum + Math.max(p.plannedAmount, actual);
+  }, 0);
+  const otherActual = bonusUncoveredTransactions(start, end, transactions, periodPlans, subcategories).reduce(
+    (sum, t) => sum + t.amount,
+    0
+  );
+  return plannedForecast + otherActual;
+}

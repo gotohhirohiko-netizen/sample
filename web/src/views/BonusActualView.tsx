@@ -5,6 +5,7 @@ import {
   bonusActualAmount,
   bonusCategoryActualAmount,
   bonusCategoryPlanTotal,
+  bonusExpenseForecast,
   bonusPeriodRange,
   bonusSubcategoryActualAmount,
   bonusUncoveredTransactions,
@@ -48,6 +49,16 @@ export default function BonusActualView() {
   const totalActual = bonusActualAmount(start, end, transactions);
   const totalOver = totalPlanned > 0 && totalActual > totalPlanned;
   const totalRate = totalPlanned > 0 ? Math.min(totalActual / totalPlanned, 1) : 0;
+  const forecastTotal = bonusExpenseForecast(
+    period.id,
+    year,
+    bonusCategoryPlans,
+    start,
+    end,
+    transactions,
+    subcategories
+  );
+  const forecastOver = totalPlanned > 0 && forecastTotal > totalPlanned;
 
   const otherItems = bonusUncoveredTransactions(start, end, transactions, plans, subcategories);
   const otherTotal = otherItems.reduce((sum, t) => sum + t.amount, 0);
@@ -92,6 +103,12 @@ export default function BonusActualView() {
             <span className="muted">
               計画 {formatYen(totalPlanned)} / {formatRemaining(totalPlanned - totalActual)}
             </span>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+              <span className="muted">想定着地額(超過分を含む)</span>
+              <span className={forecastOver ? "amount over-budget" : "amount"}>
+                {formatYen(forecastTotal)}
+              </span>
+            </div>
           </>
         ) : (
           <span className="muted">使用計画未設定</span>
